@@ -170,8 +170,8 @@ private:
 	CoeffMatrix2D<3, 3>									QuadraturePoints_PolynomialBasis;
 	CoeffMatrix3D<8, 3, 3>								QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis;
 	CoeffMatrix3D<3, NumberOfQuadraturePointsEdge, 8>	QuadraturePoints_PhysicalNormalDotPhysicalRaviartThomasBasis;
-	//CoeffMatrix3D<8, 3, 2>								AlphaTimesChi;
-	//CoeffMatrix2D<8, 3>									AlphaTimesBeta;
+	CoeffMatrix3D<8, 3, 2>								AlphaTimesChi;
+	CoeffMatrix2D<8, 3>									AlphaTimesBeta;
 
 	// Quadrature points on the edges of the physical triangle
 	CoeffMatrix2D<3, NumberOfQuadraturePointsEdge>	 QuadraturePoints_Edge_x;
@@ -445,10 +445,14 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	/*****************************************************************************/
 
 	α.setNumberOfElements(nk);
-	β.setNumberOfElements(nk);
-	χ.setNumberOfElements(nk);
-	η.setNumberOfElements(nk);
-	τ.setNumberOfElements(nk);
+	β.setNumberOfElements(1);
+	//β.setNumberOfElements(nk);
+	χ.setNumberOfElements(1);
+	//χ.setNumberOfElements(nk);
+	η.setNumberOfElements(1);
+	//η.setNumberOfElements(nk);
+	τ.setNumberOfElements(1);
+	//τ.setNumberOfElements(nk);
 	γ.setNumberOfElements(nk);
 	δ.setNumberOfElements(nk);
 
@@ -635,8 +639,8 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	QuadraturePoints_PolynomialBasis									.setNumberOfElements(NumberOfQuadraturePointsEdge);
 	QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis	.setNumberOfElements(NumberOfQuadraturePointsEdge);
 	QuadraturePoints_PhysicalNormalDotPhysicalRaviartThomasBasis		.setNumberOfElements(nk);
-	//AlphaTimesChi														.setNumberOfElements(nk);
-	//AlphaTimesBeta														.setNumberOfElements(nk);
+	AlphaTimesChi														.setNumberOfElements(nk);
+	AlphaTimesBeta														.setNumberOfElements(nk);
 
 	QuadraturePoints_Edge_x												.setNumberOfElements(nk);
 	QuadraturePoints_Edge_y												.setNumberOfElements(nk);
@@ -650,8 +654,8 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	QuadraturePoints_PolynomialBasis									.setZero();
 	QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis	.setZero();
 	QuadraturePoints_PhysicalNormalDotPhysicalRaviartThomasBasis		.setZero();
-	//AlphaTimesChi														.setZero();
-	//AlphaTimesBeta														.setZero();
+	AlphaTimesChi														.setZero();
+	AlphaTimesBeta														.setZero();
 
 	QuadraturePoints_Edge_x												.setZero();
 	QuadraturePoints_Edge_y												.setZero();
@@ -733,19 +737,20 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 		/*****************************************************************************/
 
 
-		/*for (unsigned l = 0; l < 3; l++) {
+		for (unsigned l = 0; l < 3; l++) {
 
 			for (unsigned j = 0; j < 8; j++) {
 
 				real AB = 0.0;
 
 				for (unsigned i = 0; i < 8; i++)
-					AB += α(k_index, j, i) * β(k_index, i, l);
+					AB += α(k_index, j, i) * β(0, i, l);
+					//AB += α(k_index, j, i) * β(k_index, i, l);
 
 				AlphaTimesBeta.setCoeff(k_index, j, l) = AB;
 
 			}
-		}*/
+		}
 
 
 		for (unsigned El = 0; El < 3; El++) {
@@ -819,19 +824,20 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 			/*                                                                           */
 			/*****************************************************************************/
 
-			/*for (unsigned s = 0; s < 2; s++) {
+			for (unsigned s = 0; s < 2; s++) {
 
 				for (unsigned j = 0; j < 8; j++) {
 
 					real ACHI = 0.0;
 
 					for (unsigned i = 0; i < 8; i++)
-						ACHI += α(k_index, j, i) * χ(k_index, i, El, s);
+						ACHI += α(k_index, j, i) * χ(0, i, El, s);
+						//ACHI += α(k_index, j, i) * χ(k_index, i, El, s);
 
 					AlphaTimesChi.setCoeff(k_index, j, El, s) = ACHI;
 
 				}
-			}*/
+			}
 
 			/*****************************************************************************/
 			/*                                                                           */
@@ -863,8 +869,11 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 
 				for (unsigned i = 0; i < 8; i++) {
 
-					AB1 += α(k_index, dof0, i)*β(k_index, i, m);
-					AB2 += α(k_index, dof1, i)*β(k_index, i, m);
+					AB1 += α(k_index, dof0, i)*β(0, i, m);
+					AB2 += α(k_index, dof1, i)*β(0, i, m);
+
+					//AB1 += α(k_index, dof0, i)*β(k_index, i, m);
+					//AB2 += α(k_index, dof1, i)*β(k_index, i, m);
 
 				}
 
@@ -948,36 +957,7 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 			/*							  : RT basis * Normal * Polynomial basis		 */
 			/*                                                                           */
 			/*****************************************************************************/
-
-			/*
-			for (unsigned m = 0; m < 3; m++) {
-
-
-				real const Phim = BasisPolynomial(m);
-
-				QuadraturePoints_PolynomialBasis.setCoeff(n, El, m) = Phim;
-
-				for (unsigned j = 0; j < 8; j++) {
-
-					//Vector<real> const Wj = basisRaviartThomas.getColumn(j);
-					Eigen::VectorXd const Wj = BasisRaviartThomas.col(j);
-
-					//real const dotProduct = dot(Wj, normal);
-					real const DotProduct = Wj.dot(ReferenceNormal);
-
-
-					real const Value = w * DotProduct * Phim * drNorm;
-
-					QuadraturePoints_RaviartThomasBasis.setCoeff(n, El, j, 0) = Wj(0);
-					QuadraturePoints_RaviartThomasBasis.setCoeff(n, El, j, 1) = Wj(1);
-
-					QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis.setCoeff(n, j, El, m) = abs(Value) < INTEGRAL_PRECISION ? 0.0 : Value;
-
-				}
-			}
-			*/
-
-			
+		
 			for (unsigned j = 0; j < 8; j++) {
 			
 
@@ -1003,8 +983,6 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 
 				}
 			}
-			
-
 		}
 	}
 
@@ -1495,7 +1473,8 @@ void solver<QuadraturePrecision>::computeVelocities() {
 					real ECHITP = 0.0;
 
 					for (unsigned i = 0; i < 3; i++)
-						PB += β(k_index, m, i) * π(k_index, i);
+						PB += β(0, m, i) * π(k_index, i);
+					//PB += β(k_index, m, i) * π(k_index, i);
 
 					val1 += alpha * PB;
 
@@ -1505,7 +1484,8 @@ void solver<QuadraturePrecision>::computeVelocities() {
 						real CHITP = 0.0;
 
 						for (unsigned s = 0; s < 2; s++)
-							CHITP += χ(k_index, m, l, s) * tπ(k_index, l, s);
+							CHITP += χ(0, m, l, s) * tπ(k_index, l, s);
+						//CHITP += χ(k_index, m, l, s) * tπ(k_index, l, s);
 
 						ECHITP += CHITP;
 
@@ -1555,7 +1535,8 @@ void solver<QuadraturePrecision>::computeVelocities() {
 				real ECHITP = 0.0;
 
 				for (unsigned i = 0; i < 3; i++)
-					PB += π(k_index, i)*β(k_index, m, i);
+					PB += π(k_index, i) * β(0, m, i);
+				//PB += π(k_index, i)*β(k_index, m, i);
 
 				val1 += alpha * PB;
 
@@ -1565,7 +1546,8 @@ void solver<QuadraturePrecision>::computeVelocities() {
 					real CHITP = 0.0;
 
 					for (unsigned s = 0; s < 2; s++)
-						CHITP += χ(k_index, m, l, s) * tπ(k_index, l, s);
+						CHITP += χ(0, m, l, s) * tπ(k_index, l, s);
+					//CHITP += χ(k_index, m, l, s) * tπ(k_index, l, s);
 
 					ECHITP += CHITP;
 
@@ -1629,9 +1611,13 @@ void solver<QuadraturePrecision>::updateConcentrations_explicit() {
 
 			for (unsigned l = 0; l < 3; l++) {
 
-				etaGamma0 += η(k_index, 0, l) * γ(k_index, l, j);
-				etaGamma1 += η(k_index, 1, l) * γ(k_index, l, j);
-				etaGamma2 += η(k_index, 2, l) * γ(k_index, l, j);
+				etaGamma0 += η(0, 0, l) * γ(k_index, l, j);
+				etaGamma1 += η(0, 1, l) * γ(k_index, l, j);
+				etaGamma2 += η(0, 2, l) * γ(k_index, l, j);
+
+				//etaGamma0 += η(k_index, 0, l) * γ(k_index, l, j);
+				//etaGamma1 += η(k_index, 1, l) * γ(k_index, l, j);
+				//etaGamma2 += η(k_index, 2, l) * γ(k_index, l, j);
 
 				//etaGamma0 += eta_temp(0, 0, l)*gamma_temp(0, l, j);
 				//etaGamma1 += eta_temp(0, 1, l)*gamma_temp(0, l, j);
@@ -1639,9 +1625,9 @@ void solver<QuadraturePrecision>::updateConcentrations_explicit() {
 
 			}
 
-			val0 += υ(k_index, j) * etaGamma0;
-			val1 += υ(k_index, j) * etaGamma1;
-			val2 += υ(k_index, j) * etaGamma2;
+			val0 += υ(k_index, j) * etaGamma0 / AffineMappingMatrixDeterminant[k_index];
+			val1 += υ(k_index, j) * etaGamma1 / AffineMappingMatrixDeterminant[k_index];
+			val2 += υ(k_index, j) * etaGamma2 / AffineMappingMatrixDeterminant[k_index];
 
 			//val0 += velocity_temp(0, j, 0)*etaGamma0;
 			//val1 += velocity_temp(0, j, 0)*etaGamma1;
@@ -1804,8 +1790,11 @@ void solver<QuadraturePrecision>::assembleR() {
 
 				for (unsigned i = 0; i < 8; i++) {
 
-					AB1 += α(k_index, dof0, i)*β(k_index, i, m);
-					AB2 += α(k_index, dof1, i)*β(k_index, i, m);
+					AB1 += α(k_index, dof0, i)*β(0, i, m);
+					AB2 += α(k_index, dof1, i)*β(0, i, m);
+
+					//AB1 += α(k_index, dof0, i)*β(k_index, i, m);
+					//AB2 += α(k_index, dof1, i)*β(k_index, i, m);
 
 				}
 
@@ -1885,11 +1874,17 @@ void solver<QuadraturePrecision>::assembleM() {
 
 				for (unsigned i = 0; i < 8; i++) {
 
-					ACHI_j1_s1 += α(k_index, dof0, i) * χ(k_index, i, e_local_index_local, 0);
-					ACHI_j1_s2 += α(k_index, dof0, i) * χ(k_index, i, e_local_index_local, 1);
+					ACHI_j1_s1 += α(k_index, dof0, i) * χ(0, i, e_local_index_local, 0);
+					ACHI_j1_s2 += α(k_index, dof0, i) * χ(0, i, e_local_index_local, 1);
 
-					ACHI_j2_s1 += α(k_index, dof1, i) * χ(k_index, i, e_local_index_local, 0);
-					ACHI_j2_s2 += α(k_index, dof1, i) * χ(k_index, i, e_local_index_local, 1);
+					ACHI_j2_s1 += α(k_index, dof1, i) * χ(0, i, e_local_index_local, 0);
+					ACHI_j2_s2 += α(k_index, dof1, i) * χ(0, i, e_local_index_local, 1);
+
+					//ACHI_j1_s1 += α(k_index, dof0, i) * χ(k_index, i, e_local_index_local, 0);
+					//ACHI_j1_s2 += α(k_index, dof0, i) * χ(k_index, i, e_local_index_local, 1);
+
+					//ACHI_j2_s1 += α(k_index, dof1, i) * χ(k_index, i, e_local_index_local, 0);
+					//ACHI_j2_s2 += α(k_index, dof1, i) * χ(k_index, i, e_local_index_local, 1);
 
 				}
 
@@ -3019,10 +3014,11 @@ void solver<QuadraturePrecision>::assemble_β() {
 
 	//β.setZero();
 
-	for (unsigned k = 0; k < nk; k++) {
+	//for (unsigned k = 0; k < nk; k++) {
+	for (unsigned k = 0; k < 1; k++) {
 
 
-		unsigned const k_index = mesh->get_triangle(k)->index;
+		//unsigned const k_index = mesh->get_triangle(k)->index;
 
 
 		Integral.setZero();
@@ -3064,7 +3060,8 @@ void solver<QuadraturePrecision>::assemble_β() {
 
 		for (unsigned m = 0; m < 8; m++)
 			for (unsigned j = 0; j < 3; j++)
-				β.setCoeff(k_index, m, j) = abs(Integral(m, j)) < INTEGRAL_PRECISION ? 0.0 : Integral(m, j);
+				β.setCoeff(0, m, j) = abs(Integral(m, j)) < INTEGRAL_PRECISION ? 0.0 : Integral(m, j);
+				//β.setCoeff(k_index, m, j) = abs(Integral(m, j)) < INTEGRAL_PRECISION ? 0.0 : Integral(m, j);
 
 	}
 
@@ -3088,10 +3085,11 @@ void solver<QuadraturePrecision>::assemble_χ() {
 
 	//χ.setZero();
 
-	for (unsigned k = 0; k < nk; k++) {
+	//for (unsigned k = 0; k < nk; k++) {
+	for (unsigned k = 0; k < 1; k++) {
 
 
-		unsigned const k_index = mesh->get_triangle(k)->index;
+		//unsigned const k_index = mesh->get_triangle(k)->index;
 
 
 		for (unsigned El = 0; El < 3; El++) {
@@ -3138,7 +3136,8 @@ void solver<QuadraturePrecision>::assemble_χ() {
 
 						real const varPhis = BasisEdgePolynomial(s);
 
-						χ.setCoeff(k_index, m, El, s) = χ(k_index, m, El, s) + w * dotProduct * varPhis * drNorm;
+						χ.setCoeff(0, m, El, s) = χ(0, m, El, s) + w * dotProduct * varPhis * drNorm;
+						//χ.setCoeff(k_index, m, El, s) = χ(k_index, m, El, s) + w * dotProduct * varPhis * drNorm;
 
 					}
 				}
@@ -3148,7 +3147,8 @@ void solver<QuadraturePrecision>::assemble_χ() {
 		for (unsigned m = 0; m < 8; m++)
 			for (unsigned El = 0; El < 3; El++)
 				for (unsigned j = 0; j < 2; j++)
-					χ.setCoeff(k_index, m, El, j) = abs(χ(k_index, m, El, j)) < INTEGRAL_PRECISION ? 0.0 : χ(k_index, m, El, j);
+					χ.setCoeff(0, m, El, j) = abs(χ(0, m, El, j)) < INTEGRAL_PRECISION ? 0.0 : χ(0, m, El, j);
+					//χ.setCoeff(k_index, m, El, j) = abs(χ(k_index, m, El, j)) < INTEGRAL_PRECISION ? 0.0 : χ(k_index, m, El, j);
 
 		//for (unsigned m = 0; m < 8; m++) {
 		//	//
@@ -3182,10 +3182,11 @@ void solver<QuadraturePrecision>::assemble_η() {
 
 	//η.setZero();
 
-	for (unsigned k = 0; k < nk; k++) {
+	//for (unsigned k = 0; k < nk; k++) {
+	for (unsigned k = 0; k < 1; k++) {
 
 
-		t_pointer const K = mesh->get_triangle(k);
+		/*t_pointer const K = mesh->get_triangle(k);
 		unsigned const k_index = K->index;
 
 		v_pointer const va = K->vertices[0];
@@ -3201,7 +3202,7 @@ void solver<QuadraturePrecision>::assemble_η() {
 		real const x2 = (real) vc->x;
 		real const y2 = (real) vc->y;
 
-		real const detJF = (real)abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
+		real const detJF = (real)abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));*/
 
 
 		Integral.setZero();
@@ -3235,7 +3236,7 @@ void solver<QuadraturePrecision>::assemble_η() {
 			}
 		}
 
-		Integral *= detJF;
+		//Integral *= detJF;
 
 		//integral.inverseInPlace();
 
@@ -3247,7 +3248,8 @@ void solver<QuadraturePrecision>::assemble_η() {
 
 		for (unsigned i = 0; i < 3; i++)
 			for (unsigned j = 0; j < 3; j++)
-				η.setCoeff(k_index, i, j) = abs(Integral(i, j)) < INTEGRAL_PRECISION ? 0.0 : Integral(i, j);
+				η.setCoeff(0, i, j) = abs(Integral(i, j)) < INTEGRAL_PRECISION ? 0.0 : Integral(i, j);
+				//η.setCoeff(k_index, i, j) = abs(Integral(i, j)) < INTEGRAL_PRECISION ? 0.0 : Integral(i, j);
 
 	}
 
@@ -3270,10 +3272,11 @@ void solver<QuadraturePrecision>::assemble_τ(){
 
 	//τ.setZero();
 
-	for (unsigned k = 0; k < nk; k++) {
+	for (unsigned k = 0; k < 1; k++) {
+	//for (unsigned k = 0; k < nk; k++) {
 
 
-		unsigned const k_index = mesh->get_triangle(k)->index;
+		//unsigned const k_index = mesh->get_triangle(k)->index;
 
 
 		for (unsigned n = 0; n < NumberOfQuadraturePointsTriangle; n++) {
@@ -3307,7 +3310,8 @@ void solver<QuadraturePrecision>::assemble_τ(){
 
 						real const Phil = BasisPolynomial(l);
 
-						τ.setCoeff(k_index, m, j, l) = τ(k_index, m, j, l) + w * dotProduct * Phil;
+						τ.setCoeff(0, m, j, l) = τ(0, m, j, l) + w * dotProduct * Phil;
+						//τ.setCoeff(k_index, m, j, l) = τ(k_index, m, j, l) + w * dotProduct * Phil;
 
 					}
 				}
@@ -3317,7 +3321,8 @@ void solver<QuadraturePrecision>::assemble_τ(){
 		for (unsigned m = 0; m < 3; m++)
 			for (unsigned i = 0; i < 8; i++)
 				for (unsigned j = 0; j < 3; j++)
-					τ.setCoeff(k_index, m, i, j) = abs(τ(k_index, m, i, j)) < INTEGRAL_PRECISION ? 0.0 : τ(k_index, m, i, j);
+					τ.setCoeff(0, m, i, j) = abs(τ(0, m, i, j)) < INTEGRAL_PRECISION ? 0.0 : τ(0, m, i, j);
+					//τ.setCoeff(k_index, m, i, j) = abs(τ(k_index, m, i, j)) < INTEGRAL_PRECISION ? 0.0 : τ(k_index, m, i, j);
 
 	}
 
@@ -3413,7 +3418,8 @@ void solver<QuadraturePrecision>::assemble_γ() {
 					val1 += δ(k_index, m, l, j);
 
 				for (unsigned l = 0; l < 3; l++)
-					val2 += τ(k_index, m, j, l) * ξ_prev(k_index, l);
+					val2 += τ(0, m, j, l) * ξ_prev(k_index, l);
+					//val2 += τ(k_index, m, j, l) * ξ_prev(k_index, l);
 
 				γ.setCoeff(k_index, m, j) = val1 - val2;
 
@@ -3459,17 +3465,18 @@ void solver<QuadraturePrecision>::assemble_σ() {
 					for (unsigned j = 0; j < 8; j++) {
 
 
-						//real const AB = AlphaTimesBeta.setCoeff(k_index, j, l);
+						real const AB = AlphaTimesBeta.setCoeff(k_index, j, l);
 
-						real AB = 0.0;
-						for (unsigned i = 0; i < 8; i++)
-							AB += α(k_index, j, i) * β(k_index, i, l);
+						//real AB = 0.0;
+						//for (unsigned i = 0; i < 8; i++)
+						//	AB += α(k_index, j, i) * β(k_index, i, l);
 
 						GAB += γ(k_index, q, j) * AB;
 
 					}
 
-					val += η(k_index, m, q) * GAB;
+					//val += η(k_index, m, q) * GAB;
+					val += η(0, m, q) * GAB / AffineMappingMatrixDeterminant[k_index];
 
 				}
 
@@ -3508,17 +3515,18 @@ void solver<QuadraturePrecision>::assemble_λ() {
 						for (unsigned j = 0; j < 8; j++) {
 
 
-							//real const ACHI = AlphaTimesChi(k_index, j, El, s);
+							real const ACHI = AlphaTimesChi(k_index, j, El, s);
 
-							real ACHI = 0.0;
-							for (unsigned i = 0; i < 8; i++)
-								ACHI += α(k_index, j, i) * χ(k_index, i, El, s);
+							//real ACHI = 0.0;
+							//for (unsigned i = 0; i < 8; i++)
+							//	ACHI += α(k_index, j, i) * χ(k_index, i, El, s);
 
 							YACHI += γ(k_index, q, j) * ACHI;
 
 						}
 
-						val += η(k_index, m, q) * YACHI;
+						val += η(0, m, q) * YACHI / AffineMappingMatrixDeterminant[k_index];
+						//val += η(k_index, m, q) * YACHI;
 
 					}
 
