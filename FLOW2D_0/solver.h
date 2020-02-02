@@ -3382,7 +3382,6 @@ template<unsigned QuadraturePrecision>
 void solver<QuadraturePrecision>::assemble_σ() {
 
 
-	//σ.setZero();
 
 	for (unsigned k = 0; k < nk; k++) {
 
