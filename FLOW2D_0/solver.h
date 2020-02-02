@@ -171,7 +171,7 @@ private:
 	CoeffMatrix3D<8, 3, 3>								QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis;
 	CoeffMatrix3D<3, NumberOfQuadraturePointsEdge, 8>	QuadraturePoints_PhysicalNormalDotPhysicalRaviartThomasBasis;
 	//CoeffMatrix3D<8, 3, 2>								AlphaTimesChi;
-														
+	//CoeffMatrix2D<8, 3>									AlphaTimesBeta;
 
 	// Quadrature points on the edges of the physical triangle
 	CoeffMatrix2D<3, NumberOfQuadraturePointsEdge>	 QuadraturePoints_Edge_x;
@@ -636,6 +636,7 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis	.setNumberOfElements(NumberOfQuadraturePointsEdge);
 	QuadraturePoints_PhysicalNormalDotPhysicalRaviartThomasBasis		.setNumberOfElements(nk);
 	//AlphaTimesChi														.setNumberOfElements(nk);
+	//AlphaTimesBeta														.setNumberOfElements(nk);
 
 	QuadraturePoints_Edge_x												.setNumberOfElements(nk);
 	QuadraturePoints_Edge_y												.setNumberOfElements(nk);
@@ -650,6 +651,7 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis	.setZero();
 	QuadraturePoints_PhysicalNormalDotPhysicalRaviartThomasBasis		.setZero();
 	//AlphaTimesChi														.setZero();
+	//AlphaTimesBeta														.setZero();
 
 	QuadraturePoints_Edge_x												.setZero();
 	QuadraturePoints_Edge_y												.setZero();
@@ -719,6 +721,31 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 
 		Eigen::MatrixXd const itJF = (JF.inverse()).transpose();
 		
+
+
+
+		/*****************************************************************************/
+		/*                                                                           */
+		/*    - Precomputed values of : Alpha * Beta							     */
+		/*                                                                           */
+		/*    - Used in : Sigma computation											 */
+		/*                                                                           */
+		/*****************************************************************************/
+
+
+		/*for (unsigned l = 0; l < 3; l++) {
+
+			for (unsigned j = 0; j < 8; j++) {
+
+				real AB = 0.0;
+
+				for (unsigned i = 0; i < 8; i++)
+					AB += α(k_index, j, i) * β(k_index, i, l);
+
+				AlphaTimesBeta.setCoeff(k_index, j, l) = AB;
+
+			}
+		}*/
 
 
 		for (unsigned El = 0; El < 3; El++) {
@@ -792,7 +819,7 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 			/*                                                                           */
 			/*****************************************************************************/
 
-			for (unsigned s = 0; s < 2; s++) {
+			/*for (unsigned s = 0; s < 2; s++) {
 
 				for (unsigned j = 0; j < 8; j++) {
 
@@ -804,7 +831,7 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 					AlphaTimesChi.setCoeff(k_index, j, El, s) = ACHI;
 
 				}
-			}
+			}*/
 
 			/*****************************************************************************/
 			/*                                                                           */
@@ -3431,6 +3458,8 @@ void solver<QuadraturePrecision>::assemble_σ() {
 					real GAB = 0.0;
 					for (unsigned j = 0; j < 8; j++) {
 
+
+						//real const AB = AlphaTimesBeta.setCoeff(k_index, j, l);
 
 						real AB = 0.0;
 						for (unsigned i = 0; i < 8; i++)
