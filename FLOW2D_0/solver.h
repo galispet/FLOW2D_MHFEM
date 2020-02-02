@@ -170,8 +170,8 @@ private:
 	CoeffMatrix2D<3, 3>									QuadraturePoints_PolynomialBasis;
 	CoeffMatrix3D<8, 3, 3>								QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis;
 	CoeffMatrix3D<3, NumberOfQuadraturePointsEdge, 8>	QuadraturePoints_PhysicalNormalDotPhysicalRaviartThomasBasis;
-	//CoeffMatrix3D<8, 3, 2>								AlphaTimesChi;
-	//CoeffMatrix2D<8, 3>									AlphaTimesBeta;
+	CoeffMatrix3D<8, 3, 2>								AlphaTimesChi;
+	CoeffMatrix2D<8, 3>									AlphaTimesBeta;
 
 	// Quadrature points on the edges of the physical triangle
 	CoeffMatrix2D<3, NumberOfQuadraturePointsEdge>	 QuadraturePoints_Edge_x;
@@ -635,8 +635,8 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	QuadraturePoints_PolynomialBasis									.setNumberOfElements(NumberOfQuadraturePointsEdge);
 	QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis	.setNumberOfElements(NumberOfQuadraturePointsEdge);
 	QuadraturePoints_PhysicalNormalDotPhysicalRaviartThomasBasis		.setNumberOfElements(nk);
-	//AlphaTimesChi														.setNumberOfElements(nk);
-	//AlphaTimesBeta														.setNumberOfElements(nk);
+	AlphaTimesChi														.setNumberOfElements(nk);
+	AlphaTimesBeta														.setNumberOfElements(nk);
 
 	QuadraturePoints_Edge_x												.setNumberOfElements(nk);
 	QuadraturePoints_Edge_y												.setNumberOfElements(nk);
@@ -650,8 +650,8 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	QuadraturePoints_PolynomialBasis									.setZero();
 	QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis	.setZero();
 	QuadraturePoints_PhysicalNormalDotPhysicalRaviartThomasBasis		.setZero();
-	//AlphaTimesChi														.setZero();
-	//AlphaTimesBeta														.setZero();
+	AlphaTimesChi														.setZero();
+	AlphaTimesBeta														.setZero();
 
 	QuadraturePoints_Edge_x												.setZero();
 	QuadraturePoints_Edge_y												.setZero();
@@ -733,7 +733,7 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 		/*****************************************************************************/
 
 
-		/*for (unsigned l = 0; l < 3; l++) {
+		for (unsigned l = 0; l < 3; l++) {
 
 			for (unsigned j = 0; j < 8; j++) {
 
@@ -745,7 +745,7 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 				AlphaTimesBeta.setCoeff(k_index, j, l) = AB;
 
 			}
-		}*/
+		}
 
 
 		for (unsigned El = 0; El < 3; El++) {
@@ -819,7 +819,7 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 			/*                                                                           */
 			/*****************************************************************************/
 
-			/*for (unsigned s = 0; s < 2; s++) {
+			for (unsigned s = 0; s < 2; s++) {
 
 				for (unsigned j = 0; j < 8; j++) {
 
@@ -831,7 +831,7 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 					AlphaTimesChi.setCoeff(k_index, j, El, s) = ACHI;
 
 				}
-			}*/
+			}
 
 			/*****************************************************************************/
 			/*                                                                           */
@@ -3459,11 +3459,11 @@ void solver<QuadraturePrecision>::assemble_σ() {
 					for (unsigned j = 0; j < 8; j++) {
 
 
-						//real const AB = AlphaTimesBeta.setCoeff(k_index, j, l);
+						real const AB = AlphaTimesBeta.setCoeff(k_index, j, l);
 
-						real AB = 0.0;
-						for (unsigned i = 0; i < 8; i++)
-							AB += α(k_index, j, i) * β(k_index, i, l);
+						//real AB = 0.0;
+						//for (unsigned i = 0; i < 8; i++)
+						//	AB += α(k_index, j, i) * β(k_index, i, l);
 
 						GAB += γ(k_index, q, j) * AB;
 
@@ -3508,11 +3508,11 @@ void solver<QuadraturePrecision>::assemble_λ() {
 						for (unsigned j = 0; j < 8; j++) {
 
 
-							//real const ACHI = AlphaTimesChi(k_index, j, El, s);
+							real const ACHI = AlphaTimesChi(k_index, j, El, s);
 
-							real ACHI = 0.0;
-							for (unsigned i = 0; i < 8; i++)
-								ACHI += α(k_index, j, i) * χ(k_index, i, El, s);
+							//real ACHI = 0.0;
+							//for (unsigned i = 0; i < 8; i++)
+							//	ACHI += α(k_index, j, i) * χ(k_index, i, El, s);
 
 							YACHI += γ(k_index, q, j) * ACHI;
 
