@@ -27,13 +27,13 @@ const double b_y = 60.0;
 //const double a_y = -60.0;
 //const double b_y = 60.0;
 
-const int N_x = 25;
-const int N_y = 25;
+const int N_x = 90;
+const int N_y = 90;
 
 
 unsigned const nt0 = 20;
-unsigned const NT = 80;
-double const dt = 100;
+unsigned const NT = 45;
+double const dt = 200;
 
 
 

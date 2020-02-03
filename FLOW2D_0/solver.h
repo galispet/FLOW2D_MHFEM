@@ -281,18 +281,18 @@ private:
 	void assemblePressureSystemMatrixAndInverseDAndH_1();
 	void assemblePressureSystemMatrixAndInverseDAndH_2();
 
-	SparseMatrix R1iDH1;
-	SparseMatrix R1iDH2;
-	SparseMatrix R2iDH1;
-	SparseMatrix R2iDH2;
+	//SparseMatrix R1iDH1;
+	//SparseMatrix R1iDH2;
+	//SparseMatrix R2iDH1;
+	//SparseMatrix R2iDH2;
 
-	SparseMatrix R1iDH1M11;
-	SparseMatrix R1iDH2M12;
-	SparseMatrix R2iDH1M21;
-	SparseMatrix R2iDH2M22;
+	//SparseMatrix R1iDH1M11;
+	//SparseMatrix R1iDH2M12;
+	//SparseMatrix R2iDH1M21;
+	//SparseMatrix R2iDH2M22;
 
-	CoeffMatrix2D<3, 3> iDH1_matrix;
-	CoeffMatrix2D<3, 3> iDH2_matrix;
+	//CoeffMatrix2D<3, 3> iDH1_matrix;
+	//CoeffMatrix2D<3, 3> iDH2_matrix;
 
 	CoeffMatrix2D<3, 3> R1_matrix;
 	CoeffMatrix2D<3, 3> R2_matrix;
@@ -495,18 +495,18 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	//H2.reserve(Eigen::VectorXi::Constant(ne, 6));
 
 
-	R1iDH1.resize(ne, ne);
-	R1iDH2.resize(ne, ne);
-	R2iDH1.resize(ne, ne);
-	R2iDH2.resize(ne, ne);
+	//R1iDH1.resize(ne, ne);
+	//R1iDH2.resize(ne, ne);
+	//R2iDH1.resize(ne, ne);
+	//R2iDH2.resize(ne, ne);
 
-	R1iDH1M11.resize(ne, ne);
-	R1iDH2M12.resize(ne, ne);
-	R2iDH1M21.resize(ne, ne);
-	R2iDH2M22.resize(ne, ne);
+	//R1iDH1M11.resize(ne, ne);
+	//R1iDH2M12.resize(ne, ne);
+	//R2iDH1M21.resize(ne, ne);
+	//R2iDH2M22.resize(ne, ne);
 
-	iDH1_matrix.setNumberOfElements(nk);
-	iDH2_matrix.setNumberOfElements(nk);
+	//iDH1_matrix.setNumberOfElements(nk);
+	//iDH2_matrix.setNumberOfElements(nk);
 
 	R1_matrix.setNumberOfElements(nk);
 	R2_matrix.setNumberOfElements(nk);
@@ -1279,29 +1279,29 @@ void solver<QuadraturePrecision>::computePressureEquation() {
 	//SparseMatrix const R2iD = R2 * iD;
 
 
-	//Eigen::SparseLU<smat> solver;
-	//omp_set_num_threads(2);
-	//#pragma omp parallel 
-	//{
-	//	#pragma omp sections
-	//	{
-	//		#pragma omp section
-	//		{
-	//			pressureSystemRhs.head(ne) = R1iD * G - V1;
-	//			pressureSystemRhs.tail(ne) = R2iD * G - V2;
-	//		}
-	//		#pragma omp section
-	//		{
-	//			solver.compute(internalPressureSystem_smat);
-	//		}
-	//	}
-	//}
+	Eigen::SparseLU<SparseMatrix> solver;
+	omp_set_num_threads(2);
+	#pragma omp parallel 
+	{
+		#pragma omp sections
+		{
+			#pragma omp section
+			{
+				pressureSystemRhs.head(ne) = R1iD * G - V1;
+				pressureSystemRhs.tail(ne) = R2iD * G - V2;
+			}
+			#pragma omp section
+			{
+				solver.compute(internalPressureSystem);
+			}
+		}
+	}
 
-	pressureSystemRhs.head(ne) = R1iD * G - V1;
-	pressureSystemRhs.tail(ne) = R2iD * G - V2;
+	//pressureSystemRhs.head(ne) = R1iD * G - V1;
+	//pressureSystemRhs.tail(ne) = R2iD * G - V2;
 
 
-	Eigen::SparseLU<SparseMatrix> const solver(internalPressureSystem);
+	//Eigen::SparseLU<SparseMatrix> const solver(internalPressureSystem);
 
 	DenseVector const solution = solver.solve(pressureSystemRhs);
 
@@ -2544,7 +2544,7 @@ void solver<QuadraturePrecision>::assemblePressureSystemMatrixAndInverseDAndH_2(
 	//omp_set_num_threads(2);
 	//#pragma omp parallel 
 	//{
-	//#pragma omp sections
+	//	#pragma omp sections
 	//	{
 	//		#pragma omp section
 	//		{
@@ -2556,7 +2556,6 @@ void solver<QuadraturePrecision>::assemblePressureSystemMatrixAndInverseDAndH_2(
 	//		}
 	//	}
 	//}
-
 
 	// It is sufficient to zero only diagonal elements. Therefore, there is no need for += in the sequel
 	for (unsigned e = 0; e < ne; e++) {
@@ -2578,8 +2577,8 @@ void solver<QuadraturePrecision>::assemblePressureSystemMatrixAndInverseDAndH_2(
 
 	}
 
-	//#pragma omp parallel for private(block,block1,block2)
-	for (int k = 0; k < nk; k++) {
+	//#pragma omp parallel for private(block,block1,block2) shared(tri,triR1,triR2)
+	for (unsigned k = 0; k < nk; k++) {
 
 
 
@@ -2692,8 +2691,8 @@ void solver<QuadraturePrecision>::assemblePressureSystemMatrixAndInverseDAndH_2(
 			if (Ei->marker == E_MARKER::DIRICHLET)
 				continue;
 
-
-			for (unsigned ej = 0; ej < 3; ej++) {
+//#pragma omp parallel for
+			for (int ej = 0; ej < 3; ej++) {
 
 
 				unsigned const e_index_j = K->edges[ej]->index;
@@ -3377,7 +3376,9 @@ void solver<QuadraturePrecision>::getSolution() {
 	rkFc_n = rkFc;
 	rkFp_n = rkFp;
 
-	hard_copy(betas_prev, betas, nk);
+	//hard_copy(betas_prev, betas, nk);
+	for (unsigned k = 0; k < nk; k++)
+		betas_prev[k] = betas[k];
 
 
 
@@ -3430,7 +3431,6 @@ void solver<QuadraturePrecision>::getSolution() {
 
 
 		//hard_copy(betas_prev, betas, nk);
-
 		for (unsigned k = 0; k < nk; k++)
 			betas_prev[k] = betas[k];
 
@@ -3445,7 +3445,8 @@ void solver<QuadraturePrecision>::getSolution() {
 	// This is needed for the next time level
 	for (unsigned k = 0; k < nk; k++) {
 
-		unsigned const k_index = mesh->get_triangle(k)->index;
+		//unsigned const k_index = mesh->get_triangle(k)->index;
+		unsigned const k_index = ElementIndeces[k];
 
 		for (unsigned m = 0; m < 3; m++) {
 
