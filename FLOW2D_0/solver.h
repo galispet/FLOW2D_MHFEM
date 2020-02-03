@@ -1793,11 +1793,11 @@ void solver<QuadraturePrecision>::assembleM() {
 
 		if (e_marker == E_MARKER::DIRICHLET) {
 
-			//M_j1_s1.coeffRef(e_index, e_index) = -1.0;
-			//M_j1_s2.coeffRef(e_index, e_index) = 0.0;
+			M_j1_s1.coeffRef(e_index, e_index) = -1.0;
+			M_j1_s2.coeffRef(e_index, e_index) = 0.0;
 
-			//M_j2_s1.coeffRef(e_index, e_index) = 0.0;
-			//M_j2_s2.coeffRef(e_index, e_index) = -1.0;
+			M_j2_s1.coeffRef(e_index, e_index) = 0.0;
+			M_j2_s2.coeffRef(e_index, e_index) = -1.0;
 
 			Eigen::Triplet<real> const T1(e_index, e_index,				-1.0);
 			Eigen::Triplet<real> const T2(e_index, e_index + ne,		0.0);
@@ -1880,11 +1880,11 @@ void solver<QuadraturePrecision>::assembleM() {
 				M_j2_s2.coeffRef(e_index, e_local_index_global) = val4;*/
 				
 
-				//M_j1_s1.coeffRef(e_index, e_local_index_global) += val1;
-				//M_j1_s2.coeffRef(e_index, e_local_index_global) += val2;
+				M_j1_s1.coeffRef(e_index, e_local_index_global) += val1;
+				M_j1_s2.coeffRef(e_index, e_local_index_global) += val2;
 
-				//M_j2_s1.coeffRef(e_index, e_local_index_global) += val3;
-				//M_j2_s2.coeffRef(e_index, e_local_index_global) += val4;
+				M_j2_s1.coeffRef(e_index, e_local_index_global) += val3;
+				M_j2_s2.coeffRef(e_index, e_local_index_global) += val4;
 
 				Eigen::Triplet<real> const T1(e_index, e_local_index_global,			val1);
 				Eigen::Triplet<real> const T2(e_index, e_local_index_global + ne,		val2);
@@ -3672,6 +3672,9 @@ void solver<QuadraturePrecision>::exportSolution(std::ofstream & txtFile) {
 		double const S[3] = { S0, S1, S2 };
 		double const T[3] = { T0, T1, T2 };
 
+		//double const S[4] = { S0, S1, S2, S0 };
+		//double const T[4] = { T0, T1, T2, T0 };
+
 
 		for (unsigned i = 0; i < 3; i++) {
 
@@ -3680,9 +3683,11 @@ void solver<QuadraturePrecision>::exportSolution(std::ofstream & txtFile) {
 			//// Concentrations
 			//real const value = ξ(index, 0) * phi1(S[i], T[i]) + ξ(index, 1) * phi2(S[i], T[i]) + ξ(index, 2) * phi3(S[i], T[i]);
 
-			txtFile << std::setprecision(20) << x[i] << "	" << y[i] << "	" << value << "	" << index << std::endl;
+			txtFile << std::setprecision(20) << x[i] << "\t" << y[i] << "\t" << value << std::endl;
+			//txtFile << std::setprecision(20) << x[i] << "	" << y[i] << "	" << value << "	" << index << std::endl;
 
 		}
+
 
 		txtFile << std::endl;
 
