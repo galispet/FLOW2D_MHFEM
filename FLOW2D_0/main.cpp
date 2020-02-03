@@ -33,7 +33,7 @@ const int N_y = 25;
 
 unsigned const nt0 = 20;
 unsigned const NT = 80;
-double const dt = 130;
+double const dt = 100;
 
 
 
