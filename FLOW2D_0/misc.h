@@ -16,11 +16,9 @@ typedef double real;
 
 double const TOL = DBL_EPSILON;
 
-unsigned const MAX_IT = 50;
+unsigned const MAX_IT = 20;
 //unsigned const quadratureRule = 17;
 //unsigned const error_quadRule = 17;
-
-
 
 unsigned const quadrature_order = 6;
 
@@ -29,7 +27,6 @@ unsigned const quadrature_order = 6;
 
 double const θ = 0.5;		// 1.0 = Backward Euler | 0.5 = Crank-Nicolson
 
-double const scale_of_solution = 1.0;
 
 
 typedef Vertex *	v_pointer;
@@ -67,7 +64,9 @@ inline double barenblatt(double x, double y, double time) {
 
 	double const norm_squared = x * x + y * y;
 
-	return scale_of_solution * (1.0 / pow(time, (1.0 / 3.0)))*fmax(1.0 - norm_squared / (12.0 * pow(time, (2.0 / 3.0))), 0.0);
+	//return (1.0 / pow(time, (1.0 / 3.0)))*fmax(1.0 - norm_squared / (12.0 * pow(time, (2.0 / 3.0))), 0.0);
+
+	return (1.0 / sqrt(time))*fmax(1.0 - norm_squared / (16.0 * sqrt(time)), 0.0);
 
 };
 
@@ -76,7 +75,7 @@ inline double barenblatt_dx(double x, double y, double time) {
 	//if (abs(x) >= 2.0 *sqrt(3.0) * pow(t, 1.0 / 3.0))
 	//	return 0.0;
 
-	return scale_of_solution * x / (-6.0*time);
+	return x / (-6.0*time);
 
 };
 inline double barenblatt_dy(double x, double y, double time) {
@@ -84,7 +83,7 @@ inline double barenblatt_dy(double x, double y, double time) {
 	//if (abs(x) >= 2.0 *sqrt(3.0) * pow(t, 1.0 / 3.0))
 	//	return 0.0;
 
-	return scale_of_solution * x / (-6.0*time);
+	return y / (-6.0*time);
 
 };
 
@@ -319,7 +318,7 @@ inline void permeability(double x, double y, double(&out)[2][2]) {
 };
 inline double porosity(double x, double y) {
 
-	return scale_of_solution * 1.0;
+	return 1.0;
 
 };
 inline double viscosity(double x, double y) {

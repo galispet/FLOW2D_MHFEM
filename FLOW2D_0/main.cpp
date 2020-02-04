@@ -15,25 +15,25 @@
 
 
 
-const double a_x = 0.0;
-const double b_x = 60.0;
-
-const double a_y = 0.0;
-const double b_y = 60.0;
-
-//const double a_x = -60.0;
+//const double a_x = 0.0;
 //const double b_x = 60.0;
 //
-//const double a_y = -60.0;
+//const double a_y = 0.0;
 //const double b_y = 60.0;
 
-const int N_x = 90;
-const int N_y = 90;
+const double a_x = -30.0;
+const double b_x = 30.0;
+
+const double a_y = -30.0;
+const double b_y = 30.0;
+
+const int N_x = 40;
+const int N_y = 40;
 
 
 unsigned const nt0 = 20;
-unsigned const NT = 45;
-double const dt = 200;
+unsigned const NT = 50;
+double const dt = 50;
 
 
 
@@ -77,15 +77,15 @@ int main() {
 	v_pointer const vd = pslg.get_vertex(N_x*N_y - 1 - (N_y - 1));
 
 
-	pslg.insert_constraint<E_MARKER::NEUMANN>(va, vb);
-	pslg.insert_constraint<E_MARKER::DIRICHLET>(vb, vc);
-	pslg.insert_constraint<E_MARKER::DIRICHLET>(vc, vd);
-	pslg.insert_constraint<E_MARKER::NEUMANN>(vd, va);
-
-	//pslg.insert_constraint<E_MARKER::DIRICHLET>(va, vb);
+	//pslg.insert_constraint<E_MARKER::NEUMANN>(va, vb);
 	//pslg.insert_constraint<E_MARKER::DIRICHLET>(vb, vc);
 	//pslg.insert_constraint<E_MARKER::DIRICHLET>(vc, vd);
-	//pslg.insert_constraint<E_MARKER::DIRICHLET>(vd, va);
+	//pslg.insert_constraint<E_MARKER::NEUMANN>(vd, va);
+
+	pslg.insert_constraint<E_MARKER::DIRICHLET>(va, vb);
+	pslg.insert_constraint<E_MARKER::DIRICHLET>(vb, vc);
+	pslg.insert_constraint<E_MARKER::DIRICHLET>(vc, vd);
+	pslg.insert_constraint<E_MARKER::DIRICHLET>(vd, va);
 
 
 	//Vertex  vaa(11.0, 5.5);
@@ -188,7 +188,7 @@ int main() {
 
 
 	//txtFile_error.open(directory_error + std::to_string(N_x*N_y) + ".txt");
-	//solution.compute_error(txtFile_error);
+	solution.compute_error(txtFile_error);
 	//txtFile_error.close();
 
 

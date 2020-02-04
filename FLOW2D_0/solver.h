@@ -1279,29 +1279,29 @@ void solver<QuadraturePrecision>::computePressureEquation() {
 	//SparseMatrix const R2iD = R2 * iD;
 
 
-	Eigen::SparseLU<SparseMatrix> solver;
-	omp_set_num_threads(2);
-	#pragma omp parallel 
-	{
-		#pragma omp sections
-		{
-			#pragma omp section
-			{
-				pressureSystemRhs.head(ne) = R1iD * G - V1;
-				pressureSystemRhs.tail(ne) = R2iD * G - V2;
-			}
-			#pragma omp section
-			{
-				solver.compute(internalPressureSystem);
-			}
-		}
-	}
+	//Eigen::SparseLU<SparseMatrix> solver;
+	//omp_set_num_threads(2);
+	//#pragma omp parallel 
+	//{
+	//	#pragma omp sections
+	//	{
+	//		#pragma omp section
+	//		{
+	//			pressureSystemRhs.head(ne) = R1iD * G - V1;
+	//			pressureSystemRhs.tail(ne) = R2iD * G - V2;
+	//		}
+	//		#pragma omp section
+	//		{
+	//			solver.compute(internalPressureSystem);
+	//		}
+	//	}
+	//}
 
-	//pressureSystemRhs.head(ne) = R1iD * G - V1;
-	//pressureSystemRhs.tail(ne) = R2iD * G - V2;
+	pressureSystemRhs.head(ne) = R1iD * G - V1;
+	pressureSystemRhs.tail(ne) = R2iD * G - V2;
 
 
-	//Eigen::SparseLU<SparseMatrix> const solver(internalPressureSystem);
+	Eigen::SparseLU<SparseMatrix> const solver(internalPressureSystem);
 
 	DenseVector const solution = solver.solve(pressureSystemRhs);
 
@@ -3414,7 +3414,7 @@ void solver<QuadraturePrecision>::getSolution() {
 
 		if (stopCriterion()) {
 
-			break;
+			//break;
 
 		}
 
@@ -3555,5 +3555,114 @@ void solver<QuadraturePrecision>::exportSolution(std::ofstream & txtFile) {
 		txtFile << std::endl;
 
 	}
+
+};
+
+
+
+template<unsigned QuadraturePrecision>
+void solver<QuadraturePrecision>::compute_error(std::ofstream & txtFile) {
+
+
+	real const time = nt * dt;
+
+	quadrature_triangle const QuadratureOnTriangle(9);
+	unsigned const NumberOfQuadraturePoints = QuadratureOnTriangle.NumberOfPoints;
+
+	Eigen::VectorXd BasisPolynomial(3);
+	Eigen::MatrixXd JF(2, 2);
+
+	real errorL1 = 0.0;
+	real errorL2 = 0.0;
+	real errorMAX = 0.0;
+
+	for (unsigned k = 0; k < nk; k++) {
+
+
+		t_pointer const	K = mesh->get_triangle(k);
+		unsigned const k_index = K->index;
+
+		v_pointer const va = K->vertices[0];
+		v_pointer const vb = K->vertices[1];
+		v_pointer const vc = K->vertices[2];
+
+		real const x0 = (real)va->x;
+		real const y0 = (real)va->y;
+
+		real const x1 = (real)vb->x;
+		real const y1 = (real)vb->y;
+
+		real const x2 = (real)vc->x;
+		real const y2 = (real)vc->y;
+
+		real const detJF = (real)abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
+
+		JF.coeffRef(0, 0) = x1 - x0;
+		JF.coeffRef(0, 1) = x2 - x0;
+		JF.coeffRef(1, 0) = y1 - y0;
+		JF.coeffRef(1, 1) = y2 - y0;
+
+
+		real Integral = 0.0;
+
+		for (unsigned n = 0; n < NumberOfQuadraturePoints; n++) {
+
+
+			real const s = (real) QuadratureOnTriangle.points_x[n];
+			real const t = (real) QuadratureOnTriangle.points_y[n];
+			real const w = (real) 0.5 * QuadratureOnTriangle.weights[n];
+
+			real const X = x0 + JF(0, 0) * s + JF(0, 1) * t;
+			real const Y = y0 + JF(1, 0) * s + JF(1, 1) * t;
+
+			evaluate_polynomial_basis(s, t, BasisPolynomial);
+
+			real PressureK = 0.0;
+
+			for (unsigned j = 0; j < 3; j++)
+				PressureK += π(k_index, j) * BasisPolynomial(j);
+
+			Integral += w * sqr(PressureK - barenblatt(X, Y, time));
+
+		}
+
+
+		errorL2 += detJF * Integral;
+
+		/*
+		for (unsigned j = 0; j < error_quadRule; j++) {
+
+
+			y = quad.points[j];
+			w = quad.weigths[j];
+
+			pressure = π(K, 0, 0)*phi1(y, a, b) + π(K, 0, 1)*phi2(y, a, b);
+			analytic = barenblatt(y, t);
+
+			val = abs(pressure - analytic);
+
+			s1 += w * val;
+			s2 += w * sqr(val);
+
+			if (val > errorMAX)
+				errorMAX = val;
+
+		}
+
+		errorL1 += s1;
+		errorL2 += s2;
+		*/
+
+	}
+
+	//txtFile << "#L1 L2 MAX" << std::endl;
+	//txtFile << std::setprecision(20) << errorL1 << std::endl;
+	//txtFile << std::setprecision(20) << sqrt(errorL2) << std::endl;
+	//txtFile << std::setprecision(20) << errorMAX << std::endl;
+
+	//std::cout << "Error L1 : " << errorL1 << std::endl;
+	std::cout << "Error L2 : " << sqrt(errorL2) << std::endl;
+	//std::cout << "Error Max : " << errorMAX << std::endl;
+
 
 };
