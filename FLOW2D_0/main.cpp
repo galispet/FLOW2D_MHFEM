@@ -93,14 +93,12 @@ int main() {
 	pslg.insert_constraint<E_MARKER::DIRICHLET>(vc, vd);
 	pslg.insert_constraint<E_MARKER::DIRICHLET>(vd, va);
 
+
 	//pslg.insert_constraint<E_MARKER::DIRICHLET>(va, vb);
 	//pslg.insert_constraint<E_MARKER::NEUMANN>(vb, vc);
 	//pslg.insert_constraint<E_MARKER::DIRICHLET>(vc, vd);
 	//pslg.insert_constraint<E_MARKER::NEUMANN>(vd, va);
-
-
-
-
+	
 	//Vertex  vaa(11.0, 5.5);
 	//Vertex  vbb(11.0, 11.0);
 	//Vertex  vcc(5.5, 11.0);
@@ -120,11 +118,6 @@ int main() {
 	//pslg.insert_constraint<E_MARKER::DIRICHLET>(_vbb, _vcc);
 	//pslg.insert_constraint<E_MARKER::DIRICHLET>(_vcc, _vdd);
 	//pslg.insert_constraint<E_MARKER::DIRICHLET>(_vdd, _vaa);
-
-
-
-
-
 
 	//pslg.insert_vertex<V_MARKER::FREE>(Vertex(0.0, 0.0));
 	//pslg.insert_vertex<V_MARKER::FREE>(Vertex(50.0, 0.0));
