@@ -21,18 +21,24 @@
 //const double a_y = 0.0;
 //const double b_y = 60.0;
 
-const double a_x = -30.0;
-const double b_x = 30.0;
+const double a_x = -35.0;
+const double b_x = 35.0;
 
-const double a_y = -30.0;
-const double b_y = 30.0;
+const double a_y = -35.0;
+const double b_y = 35.0;
 
-const int N_x = 40;
-const int N_y = 40;
+//const double a_x = 0.0;
+//const double b_x = 100.0;
+//
+//const double a_y = 0.0;
+//const double b_y = 20.0;
+
+const int N_x = 20;
+const int N_y = 20;
 
 
 unsigned const nt0 = 20;
-unsigned const NT = 50;
+unsigned const NT = 25;
 double const dt = 50;
 
 
@@ -86,6 +92,13 @@ int main() {
 	pslg.insert_constraint<E_MARKER::DIRICHLET>(vb, vc);
 	pslg.insert_constraint<E_MARKER::DIRICHLET>(vc, vd);
 	pslg.insert_constraint<E_MARKER::DIRICHLET>(vd, va);
+
+	//pslg.insert_constraint<E_MARKER::DIRICHLET>(va, vb);
+	//pslg.insert_constraint<E_MARKER::NEUMANN>(vb, vc);
+	//pslg.insert_constraint<E_MARKER::DIRICHLET>(vc, vd);
+	//pslg.insert_constraint<E_MARKER::NEUMANN>(vd, va);
+
+
 
 
 	//Vertex  vaa(11.0, 5.5);

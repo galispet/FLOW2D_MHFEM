@@ -64,9 +64,9 @@ inline double barenblatt(double x, double y, double time) {
 
 	double const norm_squared = x * x + y * y;
 
-	//return (1.0 / pow(time, (1.0 / 3.0)))*fmax(1.0 - norm_squared / (12.0 * pow(time, (2.0 / 3.0))), 0.0);
+	return (1.0 / pow(time, (1.0 / 3.0)))*fmax(1.0 - norm_squared / (12.0 * pow(time, (2.0 / 3.0))), 0.0);
 
-	return (1.0 / sqrt(time))*fmax(1.0 - norm_squared / (16.0 * sqrt(time)), 0.0);
+	//return (1.0 / sqrt(time))*fmax(1.0 - norm_squared / (16.0 * sqrt(time)), 0.0);
 
 };
 
@@ -451,7 +451,7 @@ inline unsigned LI(t_pointer const & K, e_pointer const & E, unsigned const & DO
 
 inline real NEUMANN_GAMMA_Q_velocity(e_pointer const E, real const time) {
 
-	return 0.0 * (1.0 / (integrate_edge(E, viscosity) / E->length())) * integrate_edge(E, time, barenblatt_dx) / E->length();
+	return 0.0;
 
 };
 inline real DIRICHLET_GAMMA_Q_concentration(e_pointer const E, real const time) {
@@ -932,7 +932,6 @@ inline void evaluate_edge_parametrization_derivative(real const ksi, unsigned co
 	}
 
 };
-
 
 inline Eigen::Vector2d const evaluate_edge_normal(unsigned const El) {
 
