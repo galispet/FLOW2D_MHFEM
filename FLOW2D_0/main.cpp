@@ -14,26 +14,26 @@
 #include <iomanip>
 
 
-
-const double a_x = 0.0;
-const double b_x = 60.0;
-
-const double a_y = 0.0;
-const double b_y = 60.0;
-
-//const double a_x = -60.0;
+//
+//const double a_x = 0.0;
 //const double b_x = 60.0;
 //
-//const double a_y = -60.0;
+//const double a_y = 0.0;
 //const double b_y = 60.0;
+
+const double a_x = -35.0;
+const double b_x = 35.0;
+
+const double a_y = -35.0;
+const double b_y = 35.0;
 
 const int N_x = 20;
 const int N_y = 20;
 
 
 unsigned const nt0 = 20;
-unsigned const NT = 80;
-double const dt = 100;
+unsigned const NT = 25;
+double const dt = 50;
 
 
 
@@ -77,10 +77,15 @@ int main() {
 	v_pointer const vd = pslg.get_vertex(N_x*N_y - 1 - (N_y - 1));
 
 
-	pslg.insert_constraint<E_MARKER::NEUMANN>(va, vb);
+	//pslg.insert_constraint<E_MARKER::NEUMANN>(va, vb);
+	//pslg.insert_constraint<E_MARKER::DIRICHLET>(vb, vc);
+	//pslg.insert_constraint<E_MARKER::DIRICHLET>(vc, vd);
+	//pslg.insert_constraint<E_MARKER::NEUMANN>(vd, va);
+
+	pslg.insert_constraint<E_MARKER::DIRICHLET>(va, vb);
 	pslg.insert_constraint<E_MARKER::DIRICHLET>(vb, vc);
 	pslg.insert_constraint<E_MARKER::DIRICHLET>(vc, vd);
-	pslg.insert_constraint<E_MARKER::NEUMANN>(vd, va);
+	pslg.insert_constraint<E_MARKER::DIRICHLET>(vd, va);
 
 	//pslg.insert_constraint<E_MARKER::DIRICHLET>(va, vb);
 	//pslg.insert_constraint<E_MARKER::DIRICHLET>(vb, vc);
