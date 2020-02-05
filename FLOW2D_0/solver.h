@@ -888,18 +888,47 @@ void solver<QuadraturePrecision>::initializeValues() {
 		real const area = K->area();
 
 
+		v_pointer const va = K->vertices[0];
+		v_pointer const vb = K->vertices[1];
+		v_pointer const vc = K->vertices[2];
+
+		real const x0 = (real)va->x;
+		real const y0 = (real)va->y;
+
+		real const x1 = (real)vb->x;
+		real const y1 = (real)vb->y;
+
+		real const x2 = (real)vc->x;
+		real const y2 = (real)vc->y;
+
+
+		real const B0 = barenblatt(x0, y0, time);
+		real const B1 = barenblatt(x1, y1, time);
+		real const B2 = barenblatt(x2, y2, time);
+
+		Eigen::Vector3d const B(B0, B1, B2);
+		Eigen::Matrix3d M;
+		M << 1.0, -1.0, -1.0,
+			 1.0, +1.0, -1.0,
+			 1.0, -1.0, +1.0;
+		Eigen::Vector3d const Solution = M.colPivHouseholderQr().solve(B);
+
+		//std::cout << Solution << std::endl << std::endl;
+
+
+
 		viscosities[k_index]	= integrate_triangle(K, viscosity) / area;
 		porosities[k_index]		= integrate_triangle(K, porosity) / area;
 
 
-		π.setCoeff(k_index, 0) = integrate_triangle(K, time, barenblatt) / area;
-		π.setCoeff(k_index, 1) = 0.0;
-		π.setCoeff(k_index, 2) = 0.0;
+		π.setCoeff(k_index, 0) = Solution(0);
+		π.setCoeff(k_index, 1) = Solution(1);
+		π.setCoeff(k_index, 2) = Solution(2);
 
 
-		ξ.setCoeff(k_index, 0) = integrate_triangle(K, time, barenblatt) / area;
-		ξ.setCoeff(k_index, 1) = 0.0;
-		ξ.setCoeff(k_index, 2) = 0.0;
+		ξ.setCoeff(k_index, 0) = Solution(0);
+		ξ.setCoeff(k_index, 1) = Solution(1);
+		ξ.setCoeff(k_index, 2) = Solution(2);
 
 		sources.setCoeff(k_index, 0) = F1(K, time);
 		sources.setCoeff(k_index, 1) = F2(K, time);
