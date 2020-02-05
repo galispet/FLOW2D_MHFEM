@@ -902,6 +902,12 @@ void solver<QuadraturePrecision>::initializeValues() {
 		real const y2 = (real)vc->y;
 
 
+		/*****************************************************************************/
+		/*                                                                           */
+		/*    - Interpolant of the Barenblatt solution for the initial condition     */
+		/*                                                                           */
+		/*****************************************************************************/
+
 		real const B0 = barenblatt(x0, y0, time);
 		real const B1 = barenblatt(x1, y1, time);
 		real const B2 = barenblatt(x2, y2, time);
@@ -913,18 +919,9 @@ void solver<QuadraturePrecision>::initializeValues() {
 			 1.0, -1.0, +1.0;
 		Eigen::Vector3d const Solution = M.colPivHouseholderQr().solve(B);
 
-		//std::cout << Solution << std::endl << std::endl;
-
-
-
-		viscosities[k_index]	= integrate_triangle(K, viscosity) / area;
-		porosities[k_index]		= integrate_triangle(K, porosity) / area;
-
-
 		π.setCoeff(k_index, 0) = Solution(0);
 		π.setCoeff(k_index, 1) = Solution(1);
 		π.setCoeff(k_index, 2) = Solution(2);
-
 
 		ξ.setCoeff(k_index, 0) = Solution(0);
 		ξ.setCoeff(k_index, 1) = Solution(1);
@@ -933,6 +930,24 @@ void solver<QuadraturePrecision>::initializeValues() {
 		sources.setCoeff(k_index, 0) = F1(K, time);
 		sources.setCoeff(k_index, 1) = F2(K, time);
 		sources.setCoeff(k_index, 2) = F3(K, time);
+
+
+		/*****************************************************************************/
+		/*                                                                           */
+		/*    - Mean values of the viscosity, porosity on each element			     */
+		/*                                                                           */
+		/*****************************************************************************/
+
+		viscosities[k_index]	= integrate_triangle(K, viscosity) / area;
+		porosities[k_index]		= integrate_triangle(K, porosity) / area;
+
+
+
+		/*****************************************************************************/
+		/*                                                                           */
+		/*    - Auxilary variebles												     */
+		/*                                                                           */
+		/*****************************************************************************/
 
 		rkFc.setCoeff(k_index, 0) = 0.0;
 		rkFc.setCoeff(k_index, 1) = 0.0;
@@ -952,7 +967,7 @@ void solver<QuadraturePrecision>::initializeValues() {
 		rkFp_n.setCoeff(k_index, 2) = rkFp(k_index, 2);
 
 	}
-
+	
 };
 template<unsigned QuadraturePrecision>
 void solver<QuadraturePrecision>::computeBetas() {
@@ -972,7 +987,7 @@ void solver<QuadraturePrecision>::computeBetas() {
 };
 
 
-
+/*
 template<unsigned QuadraturePrecision>
 bool solver<QuadraturePrecision>::stopCriterion() {
 
@@ -1036,28 +1051,189 @@ bool solver<QuadraturePrecision>::stopCriterion() {
 	return true;
 
 
-	/*
+	
+	//for (unsigned k = 0; k < nk; k++) {
+	//	K = mesh->getElement(k);
+	//	double const a = K->nodes[0]->x;
+	//	double const b = K->nodes[1]->x;
+	//	quadrature const quad(error_quadRule, a, b, METHOD::GAUSS);
+	//	double y = 0.0;
+	//	double w = 0.0;
+	//	double val = 0.0;
+	//	for (unsigned j = 0; j < error_quadRule; j++) {
+	//		y = quad.points[j];
+	//		w = quad.weights[j];
+	//		val = ((π(K, 0, 0)*phi1(y, a, b) + π(K, 0, 1)*phi2(y, a, b)) - (π_prev(K, 0, 0)*phi1(y, a, b) + π_prev(K, 0, 1) * phi2(y, a, b)));
+	//		sP1 += w * sqr(val);
+	//		sP2 += w * sqr(π(K, 0, 0)*phi1(y, a, b) + π(K, 0, 1)*phi2(y, a, b));
+	//	}
+	//}
+	//double const val_P = sP1 / sP2;
+	//if (val_P > TOL)
+	//	return false;
+	//return true;
+	
+
+};*/
+template<unsigned QuadraturePrecision>
+bool solver<QuadraturePrecision>::stopCriterion() {
+
+
+	real const time = nt * dt;
+
+	quadrature_triangle const QuadratureOnTriangle(9);
+	unsigned const NumberOfQuadraturePoints = QuadratureOnTriangle.NumberOfPoints;
+
+	Eigen::VectorXd BasisPolynomial(3);
+	Eigen::MatrixXd JF(2, 2);
+
+	real ErrorPressure = 0.0;
+	real NormPressure = 0.0;
+
+	real ErrorConcentration = 0.0;
+	real NormConcentration = 0.0;
+
+	real ErrorBeta = 0.0;
+	real NormBeta = 0.0;
+
 	for (unsigned k = 0; k < nk; k++) {
-		K = mesh->getElement(k);
-		double const a = K->nodes[0]->x;
-		double const b = K->nodes[1]->x;
-		quadrature const quad(error_quadRule, a, b, METHOD::GAUSS);
-		double y = 0.0;
-		double w = 0.0;
-		double val = 0.0;
-		for (unsigned j = 0; j < error_quadRule; j++) {
-			y = quad.points[j];
-			w = quad.weights[j];
-			val = ((π(K, 0, 0)*phi1(y, a, b) + π(K, 0, 1)*phi2(y, a, b)) - (π_prev(K, 0, 0)*phi1(y, a, b) + π_prev(K, 0, 1) * phi2(y, a, b)));
-			sP1 += w * sqr(val);
-			sP2 += w * sqr(π(K, 0, 0)*phi1(y, a, b) + π(K, 0, 1)*phi2(y, a, b));
+
+
+		t_pointer const	K = mesh->get_triangle(k);
+		unsigned const k_index = K->index;
+
+		v_pointer const va = K->vertices[0];
+		v_pointer const vb = K->vertices[1];
+		v_pointer const vc = K->vertices[2];
+
+		real const x0 = (real)va->x;
+		real const y0 = (real)va->y;
+
+		real const x1 = (real)vb->x;
+		real const y1 = (real)vb->y;
+
+		real const x2 = (real)vc->x;
+		real const y2 = (real)vc->y;
+
+		real const detJF = (real)abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
+
+
+		real IntegralError = 0.0;
+		real IntegralNorm = 0.0;
+
+		for (unsigned n = 0; n < NumberOfQuadraturePoints; n++) {
+
+
+			real const s = (real) QuadratureOnTriangle.points_x[n];
+			real const t = (real) QuadratureOnTriangle.points_y[n];
+			real const w = (real) 0.5 * QuadratureOnTriangle.weights[n];
+
+			evaluate_polynomial_basis(s, t, BasisPolynomial);
+
+
+			real Difference = 0.0;
+			real Norm = 0.0;
+
+			for (unsigned j = 0; j < 3; j++) {
+
+				Difference	+= (π(k_index, j) - π_prev(k_index, j)) * BasisPolynomial(j);
+				Norm		+= π(k_index, j) * BasisPolynomial(j);
+
+			}
+				
+
+			IntegralError	+= w * sqr(Difference);
+			IntegralNorm	+= w * sqr(Norm);
+
 		}
+
+		ErrorPressure	+= detJF * IntegralError;
+		NormPressure	+= detJF * IntegralNorm;
+
 	}
-	double const val_P = sP1 / sP2;
-	if (val_P > TOL)
+
+	real const eP = ErrorPressure / NormPressure;
+
+	if (eP > TOL)
 		return false;
+
+
+	for (unsigned k = 0; k < nk; k++) {
+
+
+		t_pointer const	K = mesh->get_triangle(k);
+		unsigned const k_index = K->index;
+
+		v_pointer const va = K->vertices[0];
+		v_pointer const vb = K->vertices[1];
+		v_pointer const vc = K->vertices[2];
+
+		real const x0 = (real)va->x;
+		real const y0 = (real)va->y;
+
+		real const x1 = (real)vb->x;
+		real const y1 = (real)vb->y;
+
+		real const x2 = (real)vc->x;
+		real const y2 = (real)vc->y;
+
+		real const detJF = (real)abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
+
+
+		real IntegralError = 0.0;
+		real IntegralNorm = 0.0;
+
+		for (unsigned n = 0; n < NumberOfQuadraturePoints; n++) {
+
+
+			real const s = (real)QuadratureOnTriangle.points_x[n];
+			real const t = (real)QuadratureOnTriangle.points_y[n];
+			real const w = (real) 0.5 * QuadratureOnTriangle.weights[n];
+
+			evaluate_polynomial_basis(s, t, BasisPolynomial);
+
+
+			real Difference = 0.0;
+			real Norm = 0.0;
+
+			for (unsigned j = 0; j < 3; j++) {
+
+				Difference	+= (ξ(k_index, j) - ξ_prev(k_index, j)) * BasisPolynomial(j);
+				Norm		+= ξ(k_index, j) * BasisPolynomial(j);
+
+			}
+
+
+			IntegralError += w * sqr(Difference);
+			IntegralNorm += w * sqr(Norm);
+
+		}
+
+		ErrorConcentration	+= detJF * IntegralError;
+		NormConcentration	+= detJF * IntegralNorm;
+
+	}
+
+	real const eC = ErrorPressure / NormPressure;
+
+	if (eC > TOL)
+		return false;
+
+	
+	/*for (unsigned k = 0; k < nk; k++) {
+
+		sB1 += sqr(betas[k] - betas_prev[k]);
+		sB2 += sqr(betas[k]);
+
+	}
+
+	double const val_B = sB1 / sB2;
+
+	if (val_B > TOL)
+		return false;*/
+
 	return true;
-	*/
+
 
 };
 template<unsigned QuadraturePrecision>
@@ -1857,16 +2033,43 @@ void solver<QuadraturePrecision>::assembleV() {
 		unsigned const e_index = E->index;
 		E_MARKER const marker = E->marker;
 
+
 		V1[e_index] = 0.0;
 		V2[e_index] = 0.0;
 
 		if (marker == E_MARKER::NEUMANN)
 			V1[e_index] = NEUMANN_GAMMA_Q_velocity(E, time);
-		else if (marker == E_MARKER::DIRICHLET)
-			V1[e_index] = DIRICHLET_GAMMA_P_pressure(E, time);
-		//else
-		//	V1[e_index] = 0.0;
+		//else if (marker == E_MARKER::DIRICHLET)
+		//	V1[e_index] = DIRICHLET_GAMMA_P_pressure(E, time);
+		else if (marker == E_MARKER::DIRICHLET) {
 
+
+			real const x0 = (real) E->a->x;
+			real const y0 = (real) E->a->y;
+
+			real const x1 = (real) E->b->x;
+			real const y1 = (real) E->b->y;
+
+
+			/*****************************************************************************/
+			/*                                                                           */
+			/*    - Interpolant of the Barenblatt solution for the Dirichlet Edge	     */
+			/*                                                                           */
+			/*****************************************************************************/
+
+			real const B0 = barenblatt(x0, y0, time);
+			real const B1 = barenblatt(x1, y1, time);
+
+			Eigen::Vector2d const B(B0, B1);
+			Eigen::Matrix2d M;
+			M << +1.0, -1.0,
+				 +1.0, +1.0;
+			Eigen::Vector2d const Solution = M.colPivHouseholderQr().solve(B);
+
+			V1[e_index] = Solution(0);
+			V2[e_index] = Solution(1);
+
+		}
 	}
 
 };
@@ -3307,6 +3510,8 @@ void solver<QuadraturePrecision>::getSolution() {
 		counter++;
 
 	}
+
+	std::cout << counter << std::endl;
 
 	assemble_λ();
 	assemble_σ();

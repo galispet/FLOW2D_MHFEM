@@ -16,7 +16,7 @@ typedef double real;
 
 double const TOL = DBL_EPSILON;
 
-unsigned const MAX_IT = 20;
+unsigned const MAX_IT = 30;
 //unsigned const quadratureRule = 17;
 //unsigned const error_quadRule = 17;
 
