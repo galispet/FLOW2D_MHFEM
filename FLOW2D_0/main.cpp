@@ -33,8 +33,8 @@ const double b_y = 35.0;
 //const double a_y = 0.0;
 //const double b_y = 20.0;
 
-const int N_x = 20;
-const int N_y = 20;
+const int N_x = 80;
+const int N_y = 80;
 
 
 unsigned const nt0 = 20;
