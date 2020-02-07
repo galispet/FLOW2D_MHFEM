@@ -3085,6 +3085,7 @@ void solver<QuadraturePrecision>::assemble_β() {
 
 
 };
+/*
 template<unsigned QuadraturePrecision>
 void solver<QuadraturePrecision>::assemble_χ() {
 
@@ -3167,6 +3168,93 @@ void solver<QuadraturePrecision>::assemble_χ() {
 	//	//
 	//}
 
+
+};
+*/
+void solver<QuadraturePrecision>::assemble_χ() {
+
+
+	// Quadrature weights and points on reference segment [-1,1]
+	gauss_quadrature_1D const QuadratureOnEdge(QuadraturePrecision);
+
+
+	Eigen::MatrixXd ReferenceNormals(2, 3);
+	Eigen::VectorXd Parametrization(2);
+	//Eigen::VectorXd ParametrizationDerivative(2);
+	Eigen::MatrixXd BasisRaviartThomas(2, 8);
+	Eigen::VectorXd BasisEdgePolynomial(2);
+
+	evaluate_edge_normal(ReferenceNormals);
+
+
+	//χ.setZero();
+
+	for (unsigned k = 0; k < nk; k++) {
+
+
+		unsigned const k_index = mesh->get_triangle(k)->index;
+
+
+		for (unsigned El = 0; El < 3; El++) {
+
+
+			real const a = (real) 0.0;
+			real const b = (real)El != 0 ? 1.0 : sqrt(2.0);
+
+			real const c = (real)(b - a) / 2.0;
+			real const d = (real)(b + a) / 2.0;
+
+
+			real const orientation = 
+
+			Eigen::VectorXd const ReferenceNormal = ReferenceNormals.col(El);
+
+			for (unsigned n = 0; n < NumberOfQuadraturePointsEdge; n++) {
+
+
+				real const x = (real)QuadratureOnEdge.points[n] * c + d;
+				real const w = (real)QuadratureOnEdge.weights[n] * c;
+
+
+				evaluate_edge_parametrization(x, El, Parametrization);
+				//evaluate_edge_parametrization_derivative(x, El, ParametrizationDerivative);
+
+
+				real const s = Parametrization(0);
+				real const t = Parametrization(1);
+				//real const drNorm = dr.norm();
+				real const drNorm = 1.0;
+
+
+				evaluate_raviartthomas_basis(s, t, BasisRaviartThomas);
+				evaluate_edge_polynomial_basis(x, El, BasisEdgePolynomial);
+
+
+				for (unsigned m = 0; m < 8; m++) {
+
+
+					Eigen::VectorXd const Wm = BasisRaviartThomas.col(m);
+
+					real const dotProduct = Wm.dot(ReferenceNormal);
+
+
+					for (unsigned s = 0; s < 2; s++) {
+
+						real const varPhis = BasisEdgePolynomial(s);
+
+						χ.setCoeff(k_index, m, El, s) = χ(k_index, m, El, s) + w * dotProduct * varPhis * drNorm;
+
+					}
+				}
+			}
+		}
+
+		for (unsigned m = 0; m < 8; m++)
+			for (unsigned El = 0; El < 3; El++)
+				for (unsigned j = 0; j < 2; j++)
+					χ.setCoeff(k_index, m, El, j) = abs(χ(k_index, m, El, j)) < INTEGRAL_PRECISION ? 0.0 : χ(k_index, m, El, j);
+
+	}
 
 };
 template<unsigned QuadraturePrecision>
