@@ -149,7 +149,7 @@ private:
 	CoeffMatrix3D<3, 3, 8>			δ;
 	CoeffMatrix2D<3, 8>				γ;
 	SingleCoeffMatrix2D<8, 3>		β;
-	SingleCoeffMatrix3D<8, 3, 2>	χ;
+	CoeffMatrix3D<8, 3, 2>			χ;
 	SingleCoeffMatrix2D<3, 3>		η;
 	SingleCoeffMatrix3D<3, 8, 3>	τ;
 
@@ -394,6 +394,7 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	/*****************************************************************************/
 
 	α.setNumberOfElements(nk);
+	χ.setNumberOfElements(nk);
 	γ.setNumberOfElements(nk);
 	δ.setNumberOfElements(nk);
 
