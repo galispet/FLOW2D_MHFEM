@@ -3598,19 +3598,6 @@ void solver<QuadraturePrecision>::assemble_χ() {
 			for (unsigned j = 0; j < 2; j++)
 				χ.setCoeff(m, El, j) = abs(χ(m, El, j)) < INTEGRAL_PRECISION ? 0.0 : χ(m, El, j);
 
-	//for (unsigned m = 0; m < 8; m++) {
-	//	//
-	//	Matrix<real> integral(3, 2);
-	//	integral.setZero();
-	//	//
-	//	for (unsigned El = 0; El < 3; El++)
-	//		for (unsigned j = 0; j < 2; j++)
-	//			integral(El, j) = χ(m, El, j);
-	//	//
-	//	std::cout << integral << std::endl;
-	//	//
-	//}
-
 
 };
 template<unsigned QuadraturePrecision>
@@ -4029,18 +4016,9 @@ void solver<QuadraturePrecision>::exportSolution(std::ofstream & txtFile) {
 
 		iJF = iJF.inverse();
 
-		Eigen::Vector2d P0;
-		Eigen::Vector2d P1;
-		Eigen::Vector2d P2;
-
-		P0.coeffRef(0) = x0 - x0;
-		P0.coeffRef(1) = y0 - y0;
-
-		P1.coeffRef(0) = x1 - x0;
-		P1.coeffRef(1) = y1 - y0;
-
-		P2.coeffRef(0) = x2 - x0;
-		P2.coeffRef(1) = y2 - y0;
+		Eigen::Vector2d const P0(x0 - x0, y0 - y0);
+		Eigen::Vector2d const P1(x1 - x0, y1 - y0);
+		Eigen::Vector2d const P2(x2 - x0, y2 - y0);
 
 		real const S0 = (iJF*P0)(0);
 		real const T0 = (iJF*P0)(1);
