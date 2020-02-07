@@ -185,6 +185,9 @@ private:
 	unsigned * ElementIndeces = NULL;
 
 
+	CoeffMatrix1D<3> EdgeOrientation;
+
+
 
 	real * viscosities;
 	real * porosities;
@@ -487,6 +490,8 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	/*                                                                           */
 	/*****************************************************************************/
 
+	EdgeOrientation.setNumberOfElements(nk);
+
 	initializeValues();
 
 
@@ -714,7 +719,7 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 					real ACHI = 0.0;
 
 					for (unsigned i = 0; i < 8; i++)
-						ACHI += α(k_index, j, i) * χ(i, El, s);
+						ACHI += α(k_index, j, i) * χ(k_index, i, El, s);
 
 					AlphaTimesChi.setCoeff(k_index, j, El, s) = ACHI;
 
@@ -966,6 +971,27 @@ void solver<QuadraturePrecision>::initializeValues() {
 		rkFp_n.setCoeff(k_index, 0) = rkFp(k_index, 0);
 		rkFp_n.setCoeff(k_index, 1) = rkFp(k_index, 1);
 		rkFp_n.setCoeff(k_index, 2) = rkFp(k_index, 2);
+
+		// Set edge orientations of edges on each element K with respect to GLOBAL orientation of respective edge
+		for (unsigned e = 0; e < 3; e++) {
+
+			e_pointer const E = K->edges[e];
+
+			v_pointer const a = E->a;
+			v_pointer const b = E->b;
+
+			v_pointer const v = K->get_vertex_cw(a);
+			v_pointer const p = K->get_vertex(e);
+
+			bool const isBoundaryEdge = E->marker == E_MARKER::NEUMANN || E->marker == E_MARKER::DIRICHLET;
+
+
+			if (v != p && !isBoundaryEdge)
+				EdgeOrientation.setCoeff(k_index, e) = -1.0;
+			else
+				EdgeOrientation.setCoeff(k_index, e) = +1.0;
+
+		}
 
 	}
 	
@@ -1480,7 +1506,7 @@ void solver<QuadraturePrecision>::computeVelocities() {
 						real CHITP = 0.0;
 
 						for (unsigned s = 0; s < 2; s++)
-							CHITP += χ(m, l, s) * tπ(k_index, l, s);
+							CHITP += χ(k_index, m, l, s) * tπ(k_index, l, s);
 
 						ECHITP += CHITP;
 
@@ -1522,7 +1548,7 @@ void solver<QuadraturePrecision>::computeVelocities() {
 					real CHITP = 0.0;
 
 					for (unsigned s = 0; s < 2; s++)
-						CHITP += χ(m, l, s) * tπ(k_index, l, s);
+						CHITP += χ(k_index, m, l, s) * tπ(k_index, l, s);
 
 					ECHITP += CHITP;
 
@@ -1966,11 +1992,11 @@ void solver<QuadraturePrecision>::assembleM() {
 
 				for (unsigned i = 0; i < 8; i++) {
 
-					ACHI_j1_s1 += α(k_index, dof0, i) * χ(i, e_local_index_local, 0);
-					ACHI_j1_s2 += α(k_index, dof0, i) * χ(i, e_local_index_local, 1);
+					ACHI_j1_s1 += α(k_index, dof0, i) * χ(k_index, i, e_local_index_local, 0);
+					ACHI_j1_s2 += α(k_index, dof0, i) * χ(k_index, i, e_local_index_local, 1);
 
-					ACHI_j2_s1 += α(k_index, dof1, i) * χ(i, e_local_index_local, 0);
-					ACHI_j2_s2 += α(k_index, dof1, i) * χ(i, e_local_index_local, 1);
+					ACHI_j2_s1 += α(k_index, dof1, i) * χ(k_index, i, e_local_index_local, 0);
+					ACHI_j2_s2 += α(k_index, dof1, i) * χ(k_index, i, e_local_index_local, 1);
 
 				}
 
@@ -3171,6 +3197,7 @@ void solver<QuadraturePrecision>::assemble_χ() {
 
 };
 */
+template<unsigned QuadraturePrecision>
 void solver<QuadraturePrecision>::assemble_χ() {
 
 
@@ -3205,7 +3232,7 @@ void solver<QuadraturePrecision>::assemble_χ() {
 			real const d = (real)(b + a) / 2.0;
 
 
-			real const orientation = 
+			real const orientation = EdgeOrientation(k_index, El);
 
 			Eigen::VectorXd const ReferenceNormal = ReferenceNormals.col(El);
 
@@ -3240,7 +3267,9 @@ void solver<QuadraturePrecision>::assemble_χ() {
 
 					for (unsigned s = 0; s < 2; s++) {
 
-						real const varPhis = BasisEdgePolynomial(s);
+						//real const varPhis = BasisEdgePolynomial(s);
+						//real const varPhis = orientation *  BasisEdgePolynomial(s);
+						real const varPhis = s == 1 ? orientation * BasisEdgePolynomial(s) : BasisEdgePolynomial(s);
 
 						χ.setCoeff(k_index, m, El, s) = χ(k_index, m, El, s) + w * dotProduct * varPhis * drNorm;
 
@@ -3673,27 +3702,19 @@ void solver<QuadraturePrecision>::exportSolution(std::ofstream & txtFile) {
 
 		iJF = iJF.inverse();
 
-		Eigen::Vector2d P0;
-		Eigen::Vector2d P1;
-		Eigen::Vector2d P2;
+		Eigen::Vector2d const P0(x0 - x0, y0 - y0);
+		Eigen::Vector2d const P1(x1 - x0, y1 - y0);
+		Eigen::Vector2d const P2(x2 - x0, y2 - y0);
 
-		P0.coeffRef(0) = x0 - x0;
-		P0.coeffRef(1) = y0 - y0;
 
-		P1.coeffRef(0) = x1 - x0;
-		P1.coeffRef(1) = y1 - y0;
+		real const S0 = (iJF * P0)(0);
+		real const T0 = (iJF * P0)(1);
 
-		P2.coeffRef(0) = x2 - x0;
-		P2.coeffRef(1) = y2 - y0;
+		real const S1 = (iJF * P1)(0);
+		real const T1 = (iJF * P1)(1);
 
-		real const S0 = (iJF*P0)(0);
-		real const T0 = (iJF*P0)(1);
-
-		real const S1 = (iJF*P1)(0);
-		real const T1 = (iJF*P1)(1);
-
-		real const S2 = (iJF*P2)(0);
-		real const T2 = (iJF*P2)(1);
+		real const S2 = (iJF * P2)(0);
+		real const T2 = (iJF * P2)(1);
 
 		double const S[3] = { S0, S1, S2 };
 		double const T[3] = { T0, T1, T2 };
