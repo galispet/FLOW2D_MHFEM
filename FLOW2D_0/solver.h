@@ -184,6 +184,7 @@ private:
 
 	unsigned * ElementIndeces = NULL;
 
+	CoeffMatrix1D<3> edgeOrientation;
 
 
 	real * viscosities;
@@ -485,8 +486,9 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	/*      and physical quantities: viscosity, porosity, etc.                   */
 	/*                                                                           */
 	/*****************************************************************************/
+	edgeOrientation.setNumberOfElements(nk);
 
-	initializeValues();
+	initializeValues();	
 
 
 	/*****************************************************************************/
@@ -536,6 +538,9 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	AffineMappingMatrixDeterminant = new real[nk];
 
 	ElementIndeces = new unsigned[nk];
+
+
+
 
 
 
@@ -965,6 +970,28 @@ void solver<QuadraturePrecision>::initializeValues() {
 		rkFp_n.setCoeff(k_index, 0) = rkFp(k_index, 0);
 		rkFp_n.setCoeff(k_index, 1) = rkFp(k_index, 1);
 		rkFp_n.setCoeff(k_index, 2) = rkFp(k_index, 2);
+
+
+		// Set edge orientations of edges on each element K with respect to GLOBAL orientation of respective edge
+		for (unsigned e = 0; e < 3; e++) {
+
+			e_pointer const E = K->edges[e];
+
+			v_pointer const a = E->a;
+			v_pointer const b = E->b;
+
+			v_pointer const v = K->get_vertex_cw(a);
+			v_pointer const p = K->get_vertex(e);
+
+			bool const isBoundaryEdge = E->marker == E_MARKER::NEUMANN || E->marker == E_MARKER::DIRICHLET;
+
+
+			if (v != p && !isBoundaryEdge)
+				edgeOrientation.setCoeff(k_index, e) = -1.0;
+			else
+				edgeOrientation.setCoeff(k_index, e) = +1.0;
+
+		}
 
 	}
 	
@@ -1956,7 +1983,6 @@ void solver<QuadraturePrecision>::assembleM() {
 
 				unsigned const e_local_index_local = K->get_edge_index(E_local);	// Local index of local edge
 				unsigned const e_local_index_global = E_local->index;				// Global index of local edge
-
 
 				real ACHI_j1_s1 = 0.0;
 				real ACHI_j1_s2 = 0.0;
