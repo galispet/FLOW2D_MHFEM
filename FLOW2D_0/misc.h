@@ -25,7 +25,7 @@ unsigned const quadrature_order = 6;
 
 //bool const RT_ORDER = 0;
 
-double const θ = 0.5;		// 1.0 = Backward Euler | 0.5 = Crank-Nicolson
+double const θ = 1.0;		// 1.0 = Backward Euler | 0.5 = Crank-Nicolson
 
 
 
@@ -905,6 +905,27 @@ inline void evaluate_edge_parametrization(real const ksi, unsigned const El, Eig
 		return;
 	case 2:
 		out.coeffRef(0) = ksi;
+		out.coeffRef(1) = 0.0;
+		return;
+
+	}
+
+};
+inline void evaluate_edge_parametrization2(real const ksi, unsigned const El, Eigen::VectorXd & out) {
+
+
+	switch (El) {
+
+	case 0:
+		out.coeffRef(0) = ksi / sqrt(2.0);
+		out.coeffRef(1) = 1.0 - ksi / sqrt(2.0); 
+		return;
+	case 1:
+		out.coeffRef(0) = 0.0;
+		out.coeffRef(1) = ksi;
+		return;
+	case 2:
+		out.coeffRef(0) = 1.0 - ksi;
 		out.coeffRef(1) = 0.0;
 		return;
 
