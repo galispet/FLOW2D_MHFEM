@@ -3617,6 +3617,8 @@ void solver<QuadraturePrecision>::assemble_γ() {
 	}
 
 };
+
+/*
 template<unsigned QuadraturePrecision>
 void solver<QuadraturePrecision>::assemble_δ() {
 
@@ -3641,23 +3643,24 @@ void solver<QuadraturePrecision>::assemble_δ() {
 
 				for (unsigned m = 0; m < 3; m++)
 					for (unsigned j = 0; j < 8; j++)
+
 						δ.setCoeff(k_index, m, El, j) = δ(k_index, m, El, j) + tC * QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis(n, j, El, m);
 
 			}
 		}
 
-		/*for (unsigned El = 0; El < 3; El++) {
-			for (unsigned m = 0; m < 3; m++) {
-				for (unsigned j = 0; j < 8; j++) {
-					real integral = 0.0;
-					for (unsigned n = 0; n < NumberOfQuadraturePointsEdge; n++) {
-						real const tC = upwindConcentration8(K, El, n);
-						integral += tC * QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis(n, j, El, m);
-					}
-					δ.setCoeff(k_index, m, El, j) = abs(integral) < INTEGRAL_PRECISION ? 0.0 : integral;
-				}
-			}
-		}*/
+		//for (unsigned El = 0; El < 3; El++) {
+		//	for (unsigned m = 0; m < 3; m++) {
+		//		for (unsigned j = 0; j < 8; j++) {
+		//			real integral = 0.0;
+		//			for (unsigned n = 0; n < NumberOfQuadraturePointsEdge; n++) {
+		//				real const tC = upwindConcentration8(K, El, n);
+		//				integral += tC * QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis(n, j, El, m);
+		//			}
+		//			δ.setCoeff(k_index, m, El, j) = abs(integral) < INTEGRAL_PRECISION ? 0.0 : integral;
+		//		}
+		//	}
+		//}
 
 		for (unsigned El = 0; El < 3; El++)
 			for (unsigned m = 0; m < 3; m++)
@@ -3667,6 +3670,369 @@ void solver<QuadraturePrecision>::assemble_δ() {
 	}
 
 };
+*/
+
+
+template<unsigned QuadraturePrecision>
+void solver<QuadraturePrecision>::assemble_δ() {
+
+
+	// Quadrature weights and points on reference segment [-1,1]
+	gauss_quadrature_1D const quad(quadrature_order);
+	unsigned const number_of_quadrature_points = quad.NumberOfPoints;
+
+
+	Eigen::MatrixXd ReferenceNormals(2, 3);
+	Eigen::VectorXd Parametrization(2);
+	Eigen::VectorXd Parametrization2(2);
+	Eigen::MatrixXd BasisRaviartThomas(2, 8);
+	Eigen::VectorXd BasisPolynomial(3);
+
+	evaluate_edge_normal(ReferenceNormals);
+
+
+	δ.setZero();
+
+	for (unsigned k = 0; k < nk; k++) {
+
+
+		t_pointer const K = mesh->get_triangle(k);
+		unsigned const k_index = K->index;
+
+
+		for (unsigned El = 0; El < 3; El++) {
+
+
+			real const a = (real) 0.0;
+			real const b = (real) (El != 0) ? 1.0 : sqrt(2.0);
+
+			real const c = (real) 0.5 * (b - a);
+			real const d = (real) 0.5 * (b + a);
+
+			Eigen::VectorXd const ReferenceNormal = ReferenceNormals.col(El);
+
+
+			for (unsigned n = 0; n < number_of_quadrature_points; n++) {
+
+
+				real const x = (real) quad.points[n] * c + d;
+				real const w = (real) quad.weights[n] * c;
+
+
+				evaluate_edge_parametrization(x, El, Parametrization);
+				evaluate_edge_parametrization2(x, El, Parametrization2);
+
+
+				real const s = Parametrization(0);
+				real const t = Parametrization(1);
+				real const drNorm = 1.0;
+
+
+				evaluate_raviartthomas_basis(s, t, BasisRaviartThomas);
+				evaluate_polynomial_basis(s, t, BasisPolynomial);
+
+
+
+
+				/*****************************************************************************/
+				/*                                                                           */
+				/*    - Upwind															     */
+				/*                                                                           */
+				/*****************************************************************************/
+				real const time = (nt + 1) * dt;
+
+				e_pointer const E = K->edges[El];
+				E_MARKER const e_marker = E->marker;
+
+
+				real VelocityDotNormal = 0.0;
+				real tC = 0.0;
+				bool isboundary = false;
+
+				if (e_marker == E_MARKER::NEUMANN) {
+
+
+					VelocityDotNormal = NEUMANN_GAMMA_Q_velocity(E, time);
+
+					if (VelocityDotNormal < 0.0) {
+
+						real const X = QuadraturePoints_Edge_x(k_index, El, n);
+						real const Y = QuadraturePoints_Edge_y(k_index, El, n);
+
+						tC = DIRICHLET_GAMMA_Q_concentration(X, Y, time);
+
+						isboundary = true;
+
+					}
+				}
+				else if (!isboundary) {
+
+					for (unsigned dof = 0; dof < 2; dof++) {
+
+						unsigned const j = LI(K, E, dof);
+
+						VelocityDotNormal += υ(k_index, j) * QuadraturePoints_PhysicalNormalDotPhysicalRaviartThomasBasis(k_index, El, n, j);
+
+					}
+
+				}
+
+
+				if (VelocityDotNormal >= 0.0 && !isboundary) {
+
+					for (unsigned m = 0; m < 3; m++)
+						tC += ξ_prev(k_index, m) * BasisPolynomial(m);
+
+					//tC = ξ_prev(k_index, 0) * 1.0 / K->area();
+					//tC = ξ_prev(k_index, 0);
+				}
+				else if (!isboundary) {
+
+
+					if (E->marker == E_MARKER::DIRICHLET) {
+
+						real const X = QuadraturePoints_Edge_x(k_index, El, n);
+						real const Y = QuadraturePoints_Edge_y(k_index, El, n);
+
+						tC = DIRICHLET_GAMMA_P_concentration(X, Y, time);
+
+					}
+					else {
+
+
+						//evaluate_raviartthomas_basis(Parametrization2(0), Parametrization2(1), BasisRaviartThomas);
+						//evaluate_polynomial_basis(Parametrization2(0), Parametrization2(1), BasisPolynomial);
+
+						unsigned const kn_index = K->neighbors[El]->index;
+
+
+						for (unsigned m = 0; m < 3; m++)
+							tC += ξ_prev(kn_index, m) * BasisPolynomial(m);
+
+						//tC = ξ_prev(kn_index, 0) * 1.0 / K->neighbors[El]->area();
+						//tC = ξ_prev(kn_index, 0);
+					}
+
+				}
+				/*****************************************************************************/
+				/*                                                                           */
+				/*    ------------------------------------------------------------------     */
+				/*                                                                           */
+				/*****************************************************************************/
+
+
+
+
+				real const tCC = upwindConcentration(K, El, n);
+
+
+				for (unsigned m = 0; m < 3; m++) {
+
+
+					real const Phim = BasisPolynomial(m);
+
+					for (unsigned j = 0; j < 8; j++) {
+
+
+						Eigen::VectorXd const Wj = BasisRaviartThomas.col(j);
+
+						real const DotProduct = Wj.dot(ReferenceNormal);
+
+						δ.setCoeff(k_index, m, El, j) = δ(k_index, m, El, j) + w * tC * DotProduct * Phim * drNorm;
+
+					}
+				}
+			}
+		}
+
+		for (unsigned El = 0; El < 3; El++)
+			for (unsigned j = 0; j < 8; j++)
+				for (unsigned m = 0; m < 3; m++)
+					δ.setCoeff(k_index, m, El, j) = abs(δ(k_index, m, El, j)) < INTEGRAL_PRECISION ? 0.0 : δ(k_index, m, El, j);
+
+	}
+
+};
+
+/*****************************************************************************/
+								/*                                                                           */
+								/*    - Upwind															     */
+								/*                                                                           */
+								/*****************************************************************************/
+				/*****************************************************************************/
+				/*                                                                           */
+				/*    ------------------------------------------------------------------     */
+				/*                                                                           */
+				/*****************************************************************************/
+
+/*
+template<unsigned QuadraturePrecision>
+void solver<QuadraturePrecision>::assemble_δ() {
+
+
+	// Quadrature weights and points on reference segment [-1,1]
+	gauss_quadrature_1D const QuadratureOnEdge(QuadraturePrecision);
+	unsigned const NumberOfQuadraturePointsOnEdge = QuadratureOnEdge.NumberOfPoints;
+
+	Eigen::MatrixXd ReferenceNormals(2, 3);
+	Eigen::VectorXd Parametrization(2);
+	Eigen::VectorXd Parametrization2(2);
+	Eigen::MatrixXd BasisRaviartThomas(2, 8);
+	Eigen::VectorXd BasisPolynomial(3);
+
+	evaluate_edge_normal(ReferenceNormals);
+
+
+	δ.setZero();
+
+	for (unsigned k = 0; k < nk; k++) {
+
+
+		t_pointer const K = mesh->get_triangle(k);
+		unsigned const k_index = K->index;
+
+		for (unsigned El = 0; El < 3; El++) {
+
+
+			real const a = (real) 0.0;
+			real const b = (real) El != 0 ? 1.0 : sqrt(2.0);
+
+			real const c = (real) 0.5 * (b - a);
+			real const d = (real) 0.5 * (b + a);
+
+			Eigen::Vector2d const Normal = ReferenceNormals.col(El);
+
+
+			for (unsigned n = 0; n < NumberOfQuadraturePointsOnEdge; n++) {
+
+
+				real const x = (real)QuadratureOnEdge.points[n] * c + d;
+				real const w = (real)QuadratureOnEdge.weights[n] * c;
+
+				evaluate_edge_parametrization(x, El, Parametrization);
+				evaluate_edge_parametrization2(x, El, Parametrization2);
+
+
+				real s = Parametrization(0);
+				real t = Parametrization(1);
+				real const drNorm = 1.0;
+
+
+				evaluate_raviartthomas_basis(s, t, BasisRaviartThomas);
+				evaluate_polynomial_basis(s, t, BasisPolynomial);
+
+
+
+				real const time = (nt + 1) * dt;
+
+				e_pointer const E = K->edges[El];
+				E_MARKER const e_marker = E->marker;
+
+
+				real VelocityDotNormal = 0.0;
+				real tC = 0.0;
+				bool isboundary = false;
+
+				if (e_marker == E_MARKER::NEUMANN) {
+
+					
+					VelocityDotNormal = NEUMANN_GAMMA_Q_velocity(E, time);
+
+					if (VelocityDotNormal < 0.0) {
+
+						real const X = QuadraturePoints_Edge_x(k_index, El, n);
+						real const Y = QuadraturePoints_Edge_y(k_index, El, n);
+
+						tC = DIRICHLET_GAMMA_Q_concentration(X, Y, time);
+
+						isboundary = true;
+
+					}
+				}
+				else if(!isboundary) {
+
+					for (unsigned dof = 0; dof < 1; dof++) {
+
+						unsigned const j = LI(K, E, dof);
+
+						VelocityDotNormal += υ(k_index, j) * QuadraturePoints_PhysicalNormalDotPhysicalRaviartThomasBasis(k_index, El, n, j);
+
+					}
+
+				}
+
+			
+				if (VelocityDotNormal >= 0.0 && !isboundary) {
+
+					//for (unsigned m = 0; m < 3; m++)
+					//	tC += ξ_prev(k_index, m) * BasisPolynomial(m);
+
+					tC = ξ_prev(k_index, 0) * 1.0 / K->area();
+
+				}
+				else if (!isboundary){
+
+
+					if (E->marker == E_MARKER::DIRICHLET) {
+
+						real const X = QuadraturePoints_Edge_x(k_index, El, n);
+						real const Y = QuadraturePoints_Edge_y(k_index, El, n);
+
+						tC = DIRICHLET_GAMMA_P_concentration(X, Y, time);
+
+					}
+					else {
+
+						s = Parametrization2(0);
+						t = Parametrization2(1);
+
+						evaluate_raviartthomas_basis(s, t, BasisRaviartThomas);
+						evaluate_polynomial_basis(s, t, BasisPolynomial);
+
+						unsigned const kn_index = K->neighbors[El]->index;
+
+
+						//for (unsigned m = 0; m < 3; m++)
+						//	tC += ξ_prev(kn_index, m) * BasisPolynomial(m);
+
+						tC = ξ_prev(kn_index, 0) * 1.0 / K->neighbors[El]->area();
+					}
+
+				}
+								
+
+
+				real const tCC = upwindConcentration(K, El, n);
+
+				for (unsigned m = 0; m < 3; m++) {
+
+
+					real const Phim = BasisPolynomial(m);
+
+					for (unsigned j = 0; j < 8; j++) {
+
+
+						Eigen::Vector2d const Wj = BasisRaviartThomas.col(j);
+
+						real const DotProduct = Wj.dot(Normal);
+
+						δ.setCoeff(k_index, m, El, j) = δ(k_index, m, El, j) + w * tC * DotProduct * Phim * drNorm;
+
+					}
+				}
+			}
+		}
+
+		for (unsigned El = 0; El < 3; El++)
+			for (unsigned j = 0; j < 8; j++)
+				for (unsigned m = 0; m < 3; m++)
+					δ.setCoeff(k_index, j, El, m) = abs(δ(k_index, j, El, m)) < INTEGRAL_PRECISION ? 0.0 : δ(k_index, j, El, m);
+
+	}
+
+}; 
+*/
+
 
 template<unsigned QuadraturePrecision>
 void solver<QuadraturePrecision>::assemble_σ() {
