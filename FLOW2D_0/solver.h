@@ -577,7 +577,7 @@ void solver<QuadraturePrecision>::computeTracePressures() {
 	assembleV();
 
 	traceSystemRhs	= R * p - V;
-	tp				= sparseLUsolver_TracePressureSystem.solve(-traceSystemRhs);
+	tp				= sparseLUsolver_TracePressureSystem.solve(traceSystemRhs);
 
 	std::cout << tp << std::endl;
 
