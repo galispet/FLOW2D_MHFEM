@@ -527,7 +527,7 @@ double F1(t_pointer K, real const time) {
 		double const y = y0 + (y1 - y0)*s + (y2 - y0)*t;
 
 		// Gauss quadrature
-		integral += w * source(x, y, time)*phi1(x, y);
+		integral += w * source(x, y, time);
 
 	}
 
