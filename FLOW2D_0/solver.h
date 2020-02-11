@@ -123,10 +123,10 @@ private:
 
 	//Eigen::MatrixXd * π2 = new Eigen::MatrixXd[50];
 
-	Eigen::VectorXd p;
-	Eigen::VectorXd tp;
-	Eigen::VectorXd c;
-	Eigen::MatrixXd v;
+	Eigen::VectorXd		p;
+	Eigen::VectorXd		tp;
+	Eigen::VectorXd		c;
+	CoeffMatrix1D<3>	v;
 
 	// Qunatities on time levels. Used in theta-scheme current quantites on time level 'n', last iteration in l 'prev'
 	Eigen::VectorXd p_n;
@@ -171,7 +171,6 @@ private:
 
 	// Solver for the computation of LU factorization
 	Eigen::SparseLU<SparseMatrix>	sparseLUsolver_TracePressureSystem;
-	SparseMatrix					internalPressureSystem;
 
 	DenseVector pressureSystemRhs;
 	DenseVector traceSystemRhs;
@@ -269,10 +268,9 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	p	.resize(nk);
 	tp	.resize(ne);
 	c	.resize(nk);
-	v	.resize(nk, 3);
+	v	.setNumberOfElements(nk);
 
-	σ = new real[nk];
-	λ.setNumberOfElements(nk);
+	v.setZero();
 
 	/*****************************************************************************/
 	/*                                                                           */
@@ -299,7 +297,12 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	/*****************************************************************************/
 
 	α.setNumberOfElements(nk);
+	λ.setNumberOfElements(nk);
+	σ = new real[nk];
+	
+
 	α.setZero();
+	λ.setZero();
 
 	/*****************************************************************************/
 	/*                                                                           */
@@ -307,7 +310,6 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	/*                                                                           */
 	/*****************************************************************************/
 
-	internalPressureSystem	.resize(ne, ne);
 	pressureSystemRhs		.resize(ne);
 	traceSystemRhs			.resize(ne);
 
@@ -412,20 +414,6 @@ void solver<QuadraturePrecision>::initializeValues() {
 		real const area = K->area();
 
 
-		v_pointer const va = K->vertices[0];
-		v_pointer const vb = K->vertices[1];
-		v_pointer const vc = K->vertices[2];
-
-		real const x0 = (real)va->x;
-		real const y0 = (real)va->y;
-
-		real const x1 = (real)vb->x;
-		real const y1 = (real)vb->y;
-
-		real const x2 = (real)vc->x;
-		real const y2 = (real)vc->y;
-
-
 		p[k_index] = integrate_triangle(K, time, barenblatt) / area;
 		c[k_index] = integrate_triangle(K, time, barenblatt) / area;
 
@@ -454,7 +442,7 @@ void solver<QuadraturePrecision>::initializeValues() {
 
 	}
 
-	std::cout << p << std::endl;
+	//std::cout << p << std::endl;
 	
 };
 template<unsigned QuadraturePrecision>
@@ -692,8 +680,6 @@ void solver<QuadraturePrecision>::computeVelocities() {
 
 	real const time = (nt + 1)* dt;
 
-	v.setZero();
-
 	for (unsigned k = 0; k < nk; k++) {
 
 
@@ -708,7 +694,7 @@ void solver<QuadraturePrecision>::computeVelocities() {
 
 			if (E->marker == E_MARKER::NEUMANN) {
 
-				v.coeffRef(k_index, El) = NEUMANN_GAMMA_Q_velocity(E, time);
+				v.setCoeff(k_index, El) = NEUMANN_GAMMA_Q_velocity(E, time);
 				continue;
 
 			}
@@ -721,9 +707,9 @@ void solver<QuadraturePrecision>::computeVelocities() {
 				AlphaP += α(k_index, El, j);
 
 			for (unsigned l = 0; l < 3; l++)
-				AlphaTP += α(k_index, El, l) * tp(K->edges[El]->index);
+				AlphaTP += α(k_index, El, l) * tp(E->index);
 
-			v.coeffRef(k_index, El) = (AlphaP * p[k_index] - AlphaTP) / viscosities[k_index];
+			v.setCoeff(k_index, El) = (AlphaP * p[k_index] - AlphaTP) / viscosities[k_index];
 
 		}
 	}
@@ -740,18 +726,15 @@ void solver<QuadraturePrecision>::updateConcentrations_explicit() {
 		unsigned const k_index = ElementIndeces[k];
 
 
-		real Val = 0.0;
+		real Value = 0.0;
 
-		for (unsigned El = 0; El < 3; El++) {
+		for (unsigned El = 0; El < 3; El++)
+			Value += v(k_index, El) * upwindConcentration(K, El);
 
-			real const tC = upwindConcentration(K, El);
-			Val += v(k_index, El) * tC;
 
-		}
+		rkFc[k_index] = -Value / (porosities[k_index] * K->area());
 
-		rkFc[k_index] = -Val / (porosities[k_index] * K->area());
-
-		c[k_index] = c_n[k_index] + dt * (θ * rkFc[k_index] + (1.0 - θ) * rkFc_n[k_index]);
+		c[k_index] = c_n[k_index] + dt * (1.0 - θ) * rkFc_n[k_index] + dt * θ * rkFc[k_index];
 
 	}
 
@@ -802,6 +785,7 @@ real solver<QuadraturePrecision>::upwindConcentration(t_pointer const & K, unsig
 		unsigned const kn_index = K->neighbors[El]->index;
 
 		Concentration = c_prev[kn_index];
+		VelocityDotNormal = v(kn_index, K->neighbors[El]->get_edge_index(E));
 
 	}
 
@@ -850,19 +834,22 @@ void solver<QuadraturePrecision>::assembleR() {
 			if (!K)
 				continue;
 
+			unsigned const dof = LI(K, E);
 			unsigned const k_index = K->index;
 
 			real Alpha = 0.0;
 
-			for (unsigned i = 0; i < 3; i++)
-				Alpha += α(k_index, LI(K, E), i);
+			for (unsigned j = 0; j < 3; j++)
+				Alpha += α(k_index, dof, j);
 
-			real const val = Alpha / viscosities[k_index];
+			real const Value = Alpha / viscosities[k_index];
 
-			R.coeffRef(e_index, k_index) = abs(val) < INTEGRAL_PRECISION ? 0.0 : val;
+			R.coeffRef(e_index, k_index) = abs(Value) < INTEGRAL_PRECISION ? 0.0 : Value;
 
 		}
 	}
+
+	//std::cout << R.toDense() << std::endl << std::endl;
 
 };
 template<unsigned QuadraturePrecision>
@@ -900,8 +887,6 @@ void solver<QuadraturePrecision>::assembleM() {
 
 
 			unsigned const dof = LI(K, E);
-
-
 			unsigned const k_index = K->index;
 
 
@@ -910,16 +895,16 @@ void solver<QuadraturePrecision>::assembleM() {
 
 				e_pointer const E_local = K->edges[El];
 
-				unsigned const e_local_index_local = K->get_edge_index(E_local);	// Local index of local edge
+				unsigned const e_local_index_local = K->get_edge_index(E_local);	// Local index of local edge ==== El
 				unsigned const e_local_index_global = E_local->index;				// Global index of local edge
 
 
-				real const Alpha = α(k_index, dof, El);
+				real const Value = α(k_index, dof, El) / viscosities[k_index];
 
-				Eigen::Triplet<real> const T(e_index, e_local_index_global, Alpha / viscosities[k_index]);
+				Eigen::Triplet<real> const T(e_index, e_local_index_global, Value);
 				triplet.push_back(T);
 
-				M.coeffRef(e_index, e_local_index_global) = Alpha / viscosities[k_index];
+				M.coeffRef(e_index, e_local_index_global) += Value;
 				
 
 			}
@@ -930,8 +915,8 @@ void solver<QuadraturePrecision>::assembleM() {
 
 	tracePressureSystem_LU.setFromTriplets(triplet.begin(), triplet.end());
 
-	std::cout << M.toDense() << std::endl << std::endl << std::endl << std::endl;
-	std::cout << tracePressureSystem_LU.toDense() << std::endl;
+	//std::cout << (M- tracePressureSystem_LU).toDense() << std::endl << std::endl << std::endl << std::endl;
+	//std::cout << tracePressureSystem_LU.toDense() << std::endl << std::endl << std::endl;
 
 	sparseLUsolver_TracePressureSystem.compute(tracePressureSystem_LU);
 
@@ -977,9 +962,11 @@ void solver<QuadraturePrecision>::assembleInverseD() {
 
 		t_pointer const K = mesh->get_triangle(k);
 		unsigned const k_index = K->index;
-		real const Area = K->area();
 
-		iD.coeffRef(k_index, k_index) = 1.0 / (1.0 + TimeCoeff * σ[k_index]);
+
+		real const DiagValue = 1.0 - TimeCoeff * σ[k_index];
+
+		iD.coeffRef(k_index, k_index) = 1.0 / DiagValue;
 
 	}
 
@@ -999,19 +986,15 @@ void solver<QuadraturePrecision>::assembleH() {
 		t_pointer const K = mesh->get_triangle(k);
 		unsigned const k_index = K->index;
 
-		e_pointer const E0 = K->edges[0];
-		e_pointer const E1 = K->edges[1];
-		e_pointer const E2 = K->edges[2];
 
-		unsigned const e_index0 = E0->index;
-		unsigned const e_index1 = E1->index;
-		unsigned const e_index2 = E2->index;
+		for (unsigned El = 0; El < 3; El++) {
 
+			e_pointer const E = K->edges[El];
+			unsigned const e_index = E->index;
 
-		H.coeffRef(k_index, e_index0) = TimeCoeff * λ(k_index, 0);
-		H.coeffRef(k_index, e_index1) = TimeCoeff * λ(k_index, 1);
-		H.coeffRef(k_index, e_index2) = TimeCoeff * λ(k_index, 2);
+			H.coeffRef(k_index, e_index) = TimeCoeff * λ(k_index, El);
 
+		}
 	}
 
 };
@@ -1170,7 +1153,7 @@ void solver<QuadraturePrecision>::assemble_σ() {
 
 		}
 
-		σ[k_index] = ElementCoeff * Val;
+		σ[k_index] = -ElementCoeff * Val;
 
 	}
 
@@ -1188,22 +1171,14 @@ void solver<QuadraturePrecision>::assemble_λ() {
 		real const ElementCoeff = betas[k_index] / (porosities[k_index] * viscosities[k_index] * Area);
 
 
-		for (unsigned j = 0; j < 3; j++) {
+		for (unsigned l = 0; l < 3; l++) {
 
-			real Val = 0.0;
+			real Value = 0.0;
 
-			for (unsigned El = 0; El < 3; El++) {
+			for (unsigned El = 0; El < 3; El++)
+				Value += upwindConcentration(K, El) * α(k_index, El, l);
 
-
-				real const Alpha = α(k_index, El, j);
-
-				real const tC = upwindConcentration(K, El);
-
-				Val += tC * Alpha;
-
-			}
-
-			λ.setCoeff(k_index, j) = ElementCoeff * Val;
+			λ.setCoeff(k_index, l) = ElementCoeff * Value;
 
 		}
 	}

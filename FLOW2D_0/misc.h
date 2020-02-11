@@ -16,7 +16,7 @@ typedef double real;
 
 double const TOL = DBL_EPSILON;
 
-unsigned const MAX_IT = 30;
+unsigned const MAX_IT = 100;
 //unsigned const quadratureRule = 17;
 //unsigned const error_quadRule = 17;
 
@@ -25,7 +25,7 @@ unsigned const quadrature_order = 6;
 
 //bool const RT_ORDER = 0;
 
-double const θ = 0.5;		// 1.0 = Backward Euler | 0.5 = Crank-Nicolson
+double const θ = 1.0;		// 1.0 = Backward Euler | 0.5 = Crank-Nicolson
 
 
 
