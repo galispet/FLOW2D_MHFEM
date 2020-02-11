@@ -467,13 +467,6 @@ template<unsigned QuadraturePrecision>
 bool solver<QuadraturePrecision>::stopCriterion() {
 
 
-
-	quadrature_triangle const QuadratureOnTriangle(9);
-	unsigned const NumberOfQuadraturePoints = QuadratureOnTriangle.NumberOfPoints;
-
-
-	Eigen::MatrixXd JF(2, 2);
-
 	real ErrorPressure = 0.0;
 	real NormPressure = 0.0;
 
@@ -489,44 +482,11 @@ bool solver<QuadraturePrecision>::stopCriterion() {
 		t_pointer const	K = mesh->get_triangle(k);
 		unsigned const k_index = K->index;
 
-		v_pointer const va = K->vertices[0];
-		v_pointer const vb = K->vertices[1];
-		v_pointer const vc = K->vertices[2];
+		real const IntegralError = sqr(p[k_index] - p_prev[k_index]);
+		real const IntegralNorm = sqr(p[k_index]);
 
-		real const x0 = (real)va->x;
-		real const y0 = (real)va->y;
-
-		real const x1 = (real)vb->x;
-		real const y1 = (real)vb->y;
-
-		real const x2 = (real)vc->x;
-		real const y2 = (real)vc->y;
-
-		real const detJF = (real)abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
-
-
-		real IntegralError = 0.0;
-		real IntegralNorm = 0.0;
-
-		for (unsigned n = 0; n < NumberOfQuadraturePoints; n++) {
-
-
-			real const s = (real) QuadratureOnTriangle.points_x[n];
-			real const t = (real) QuadratureOnTriangle.points_y[n];
-			real const w = (real) 0.5 * QuadratureOnTriangle.weights[n];
-
-
-			real const Difference	= p[k_index] - p_prev[k_index];
-			real const Norm			= p[k_index];
-				
-
-			IntegralError	+= w * sqr(Difference);
-			IntegralNorm	+= w * sqr(Norm);
-
-		}
-
-		ErrorPressure	+= detJF * IntegralError;
-		NormPressure	+= detJF * IntegralNorm;
+		ErrorPressure	+= IntegralError;
+		NormPressure	+= IntegralNorm;
 
 	}
 
@@ -542,48 +502,15 @@ bool solver<QuadraturePrecision>::stopCriterion() {
 		t_pointer const	K = mesh->get_triangle(k);
 		unsigned const k_index = K->index;
 
-		v_pointer const va = K->vertices[0];
-		v_pointer const vb = K->vertices[1];
-		v_pointer const vc = K->vertices[2];
+		real const IntegralError = sqr(c[k_index] - c_prev[k_index]);
+		real const IntegralNorm = sqr(c[k_index]);
 
-		real const x0 = (real)va->x;
-		real const y0 = (real)va->y;
-
-		real const x1 = (real)vb->x;
-		real const y1 = (real)vb->y;
-
-		real const x2 = (real)vc->x;
-		real const y2 = (real)vc->y;
-
-		real const detJF = (real)abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
-
-
-		real IntegralError = 0.0;
-		real IntegralNorm = 0.0;
-
-		for (unsigned n = 0; n < NumberOfQuadraturePoints; n++) {
-
-
-			real const s = (real)QuadratureOnTriangle.points_x[n];
-			real const t = (real)QuadratureOnTriangle.points_y[n];
-			real const w = (real) 0.5 * QuadratureOnTriangle.weights[n];
-
-
-			real const Difference = c[k_index] - c_prev[k_index];
-			real const Norm = c[k_index];
-
-
-			IntegralError	+= w * sqr(Difference);
-			IntegralNorm	+= w * sqr(Norm);
-
-		}
-
-		ErrorConcentration	+= detJF * IntegralError;
-		NormConcentration	+= detJF * IntegralNorm;
+		ErrorConcentration	+= IntegralError;
+		NormConcentration	+= IntegralNorm;
 
 	}
 
-	real const eC = ErrorPressure / NormPressure;
+	real const eC = ErrorConcentration / NormConcentration;
 
 	if (eC > TOL)
 		return false;
@@ -650,7 +577,7 @@ void solver<QuadraturePrecision>::computeTracePressures() {
 	assembleV();
 
 	traceSystemRhs	= R * p - V;
-	tp				= sparseLUsolver_TracePressureSystem.solve(traceSystemRhs);
+	tp				= sparseLUsolver_TracePressureSystem.solve(-traceSystemRhs);
 
 	std::cout << tp << std::endl;
 
@@ -790,6 +717,7 @@ real solver<QuadraturePrecision>::upwindConcentration(t_pointer const & K, unsig
 	}
 
 	return Concentration;
+	//return Concentration / E->length();;
 
 };
 
@@ -857,6 +785,8 @@ void solver<QuadraturePrecision>::assembleM() {
 
 
 	std::vector<Eigen::Triplet<real>> triplet;
+
+
 
 	for (unsigned e = 0; e < ne; e++) {
 
@@ -945,6 +875,7 @@ void solver<QuadraturePrecision>::assembleV() {
 
 	}
 
+	//std::cout << V << std::endl;
 };
 
 
@@ -1059,7 +990,7 @@ void solver<QuadraturePrecision>::assemble_α() {
 
 			real const s = (real)QuadratureOnTriangle.points_x[n];
 			real const t = (real)QuadratureOnTriangle.points_y[n];
-			real const w = (real) 0.5 * QuadratureOnTriangle.weights[n];
+			real const w = (real)0.5 * QuadratureOnTriangle.weights[n];
 
 			// Corresponding coordinates on the element K
 			real const x = x0 + JF(0, 0) * s + JF(0, 1) * t;
@@ -1081,36 +1012,31 @@ void solver<QuadraturePrecision>::assemble_α() {
 			evaluate_raviartthomas_basis(s, t, BasisRaviartThomas);
 
 
-			//real X[3] = { x0,x1,x2 };
-			//real Y[3] = { y0,y1,y2 };
-
 			for (unsigned i = 0; i < 3; i++) {
 
 
 				Eigen::VectorXd const JFWi = JF * BasisRaviartThomas.col(i);
-
-				//Eigen::Vector2d const JFWi_p(0.5 * (x - X[i]) / K->area(), 0.5 * (y - Y[i]) / K->area());
 
 				for (unsigned j = 0; j < 3; j++) {
 
 
 					Eigen::VectorXd const JFWj = JF * BasisRaviartThomas.col(j);
 
-					//Eigen::Vector2d const JFWj_p(0.5 * (x - X[j]) / K->area(), 0.5 * (y - Y[j]) / K->area());
-
 					Integral.coeffRef(i, j) += w * JFWi.dot(iK * JFWj);
-
-					//Integral.coeffRef(i, j) += w * JFWi_p.dot(iK * JFWj_p);
 
 				}
 			}
 		}
+
+		//std::cout << Integral << std::endl << std::endl;
 
 		Integral = Integral / detJF;
 
 		for (unsigned i = 0; i < 3; i++)
 			for (unsigned j = 0; j < 3; j++)
 				Integral.coeffRef(i, j) = abs(Integral(i, j)) < INTEGRAL_PRECISION ? 0.0 : Integral(i, j);
+
+		//std::cout << Integral << std::endl << std::endl;
 
 		Integral = Integral.inverse();
 
@@ -1268,7 +1194,7 @@ void solver<QuadraturePrecision>::getSolution() {
 		real val2 = 0.0;
 
 		for (unsigned El = 0; El < 3; El++)
-			val2 += λ(k_index, El) * tp[K->edges[El]->index];
+			val2 += λ(k_index, El) * tp(K->edges[El]->index);
 
 		rkFp[k_index] = val1 + val2;
 
@@ -1281,6 +1207,9 @@ void solver<QuadraturePrecision>::getSolution() {
 };
 template<unsigned QuadraturePrecision>
 void solver<QuadraturePrecision>::exportSolution(std::ofstream & txtFile) {
+
+	Eigen::MatrixXd JF(2, 2);
+	real const time = nt * dt;
 
 
 	for (unsigned k = 0; k < nk; k++) {
@@ -1307,12 +1236,33 @@ void solver<QuadraturePrecision>::exportSolution(std::ofstream & txtFile) {
 		double const y[3] = { y0, y1, y2 };
 
 
+		//JF.coeffRef(0, 0) = x1 - x0;
+		//JF.coeffRef(0, 1) = x2 - x0;
+		//JF.coeffRef(1, 0) = y1 - y0;
+		//JF.coeffRef(1, 1) = y2 - y0;
+
+		//real const X0 = x0 + JF(0, 0) * 0.0 + JF(0, 1) * 0.0;
+		//real const Y0 = y0 + JF(1, 0) * 0.0 + JF(1, 1) * 0.0;
+
+		//real const X1 = x0 + JF(0, 0) * 1.0 + JF(0, 1) * 0.0;
+		//real const Y1 = y0 + JF(1, 0) * 1.0 + JF(1, 1) * 0.0;
+
+		//real const X2 = x0 + JF(0, 0) * 0.0 + JF(0, 1) * 1.0;
+		//real const Y2 = y0 + JF(1, 0) * 0.0 + JF(1, 1) * 1.0;
+
+		//real const XX[3] = { X0,X1,X2 };
+		//real const YY[3] = { Y0,Y1,Y2 };
+
 		for (unsigned i = 0; i < 3; i++) {
 
 			//// Pressures
 			real const Value = p[k_index];
 			//// Concentrations
 			//real const Value = c[k_index];
+
+
+			//real const Value = barenblatt(XX[i], YY[i], time);
+
 
 			txtFile << std::setprecision(20) << x[i] << "\t" << y[i] << "\t" << Value << std::endl;
 			//txtFile << std::setprecision(20) << x[i] << "	" << y[i] << "	" << value << "	" << index << std::endl;

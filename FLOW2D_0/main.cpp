@@ -20,12 +20,19 @@
 //
 //const double a_y = 0.0;
 //const double b_y = 60.0;
-
+//
 const double a_x = -25.0;
 const double b_x = 25.0;
 
 const double a_y = -25.0;
 const double b_y = 25.0;
+
+//
+//const double a_x = 0.0;
+//const double b_x = 2.0;
+//
+//const double a_y = 0.0;
+//const double b_y = 2.0;
 
 //const double a_x = 0.0;
 //const double b_x = 100.0;
@@ -33,8 +40,8 @@ const double b_y = 25.0;
 //const double a_y = 0.0;
 //const double b_y = 20.0;
 
-const int N_x = 10;
-const int N_y = 10;
+const int N_x = 7;
+const int N_y = 7;
 
 
 unsigned const nt0 = 10;
