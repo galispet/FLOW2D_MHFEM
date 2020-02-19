@@ -40,8 +40,8 @@ const double b_y = 25.0;
 //const double a_y = 0.0;
 //const double b_y = 20.0;
 
-const int N_x = 160;
-const int N_y = 160;
+const int N_x = 60;
+const int N_y = 60;
 
 
 unsigned const nt0 = 10;
@@ -49,6 +49,7 @@ unsigned const NT = 30;
 double const dt = 50;
 
 
+std::string meshTxtFile = "C:\\Users\\pgali\\Desktop\\flow2d\\mesh.txt";
 
 std::string directory_solution = "C:\\Users\\pgali\\Desktop\\flow2d\\output_c_";
 std::string directory_error = "C:\\Users\\pgali\\Desktop\\error_";
@@ -65,7 +66,7 @@ GEOMETRIC_KERNEL const GK = GEOMETRIC_KERNEL::INEXACT_PREDICATES_INEXACT_CONSTRU
 
 
 void generate_vertices();
-
+void exportMesh(std::ofstream & txtFile, Mesh const & m);
 
 
 int main() {
@@ -162,6 +163,11 @@ int main() {
 	cout << "*********************************************" << endl << endl;
 	// ***********************************************************************
 	// ***********************************************************************
+
+
+	txtFile.open(meshTxtFile);
+	exportMesh(txtFile, mesh);
+	txtFile.close();
 
 
 	solver<quadrature_order> solution(mesh, nt0, dt);

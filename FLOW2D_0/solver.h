@@ -665,7 +665,6 @@ void solver<QuadraturePrecision>::computeVelocities() {
 				AlphaTP += α(k_index, El, l) * tp(K->edges[l]->index);
 				//AlphaTP += α(k_index, El, l) * tp(E->index);
 
-			//v.setCoeff(k_index, El) = (AlphaP * p[k_index] - AlphaTP) / viscosities[k_index];
 			v.setCoeff(k_index, El) = (AlphaP * p[k_index] - AlphaTP) / viscosities[k_index];
 
 		}
@@ -742,7 +741,7 @@ real solver<QuadraturePrecision>::upwindConcentration(t_pointer const & K, unsig
 		unsigned const kn_index = K->neighbors[El]->index;
 
 		Concentration = c_prev[kn_index];
-		VelocityDotNormal = v(kn_index, K->neighbors[El]->get_edge_index(E));
+		//VelocityDotNormal = v(kn_index, K->neighbors[El]->get_edge_index(E));
 
 	}
 
