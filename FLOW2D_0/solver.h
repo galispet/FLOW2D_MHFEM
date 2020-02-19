@@ -3537,6 +3537,18 @@ void solver<QuadraturePrecision>::getSolution() {
 
 	}
 
+
+	std::ofstream txtFile;
+	txtFile.open("C:\\Users\\pgali\\Desktop\\flow2d\\v.txt");
+	for (unsigned k = 0; k < nk; k++) {
+	
+		for (unsigned j = 0; j < 8; j++)
+			txtFile << υ(mesh->get_triangle(k)->index, j) << " ";
+
+		txtFile << std::endl;
+	}
+	txtFile.close();
+
 	std::cout << counter << std::endl;
 
 	assemble_λ();

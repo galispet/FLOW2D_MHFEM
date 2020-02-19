@@ -33,15 +33,16 @@ const double b_y = 25.0;
 //const double a_y = 0.0;
 //const double b_y = 20.0;
 
-const int N_x = 30;
-const int N_y = 30;
+const int N_x = 20;
+const int N_y = 20;
 
 
 unsigned const nt0 = 10;
-unsigned const NT = 25;
+unsigned const NT = 30;
 double const dt = 50;
 
 
+std::string meshTxtFile = "C:\\Users\\pgali\\Desktop\\flow2d\\mesh.txt";
 
 std::string directory_solution = "C:\\Users\\pgali\\Desktop\\flow2d\\output_c_";
 std::string directory_error = "C:\\Users\\pgali\\Desktop\\error_";
@@ -58,7 +59,7 @@ GEOMETRIC_KERNEL const GK = GEOMETRIC_KERNEL::INEXACT_PREDICATES_INEXACT_CONSTRU
 
 
 void generate_vertices();
-
+void exportMesh(std::ofstream & txtFile, Mesh const & m);
 
 
 int main() {
@@ -157,6 +158,11 @@ int main() {
 	// ***********************************************************************
 
 
+
+	txtFile.open(meshTxtFile);
+	exportMesh(txtFile, mesh);
+	txtFile.close();
+
 	solver<quadrature_order> solution(mesh, nt0, dt);
 
 
@@ -225,5 +231,41 @@ void generate_vertices() {
 
 		}
 	}
+
+};
+
+
+void exportMesh(std::ofstream & txtFile, Mesh const & m) {
+
+
+	for (unsigned k = 0; k < m.get_number_of_triangles(); k++) {
+
+
+		t_pointer const	K = m.get_triangle(k);
+
+		v_pointer const a = K->vertices[0];
+		v_pointer const b = K->vertices[1];
+		v_pointer const c = K->vertices[2];
+
+		double const x0 = a->x;
+		double const y0 = a->y;
+
+		double const x1 = b->x;
+		double const y1 = b->y;
+
+		double const x2 = c->x;
+		double const y2 = c->y;
+
+		double const x[3] = { x0, x1, x2 };
+		double const y[3] = { y0, y1, y2 };
+
+
+		for (unsigned i = 0; i < 3; i++)
+			txtFile << std::setprecision(20) << x[i] << "\t" << y[i] << std::endl;
+
+		txtFile << std::endl;
+
+	}
+
 
 };
