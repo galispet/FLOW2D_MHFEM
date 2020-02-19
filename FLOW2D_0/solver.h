@@ -576,10 +576,35 @@ void solver<QuadraturePrecision>::computeTracePressures() {
 
 	assembleV();
 
-	traceSystemRhs	= R * p - V;
-	tp				= sparseLUsolver_TracePressureSystem.solve(traceSystemRhs);
+	//traceSystemRhs	= R * p - V;
+	tp				= sparseLUsolver_TracePressureSystem.solve(R * p - V);
 
-	std::cout << tp << std::endl;
+	//std::cout << tp << std::endl;
+	//
+	//std::ofstream txtFile;
+	//
+	//txtFile.open("C:\\Users\\pgali\\Desktop\\flow2d\\tp.txt");
+	//
+	//for (unsigned e = 0; e < ne; e++) {
+	//
+	//
+	//	e_pointer const E = mesh->get_edge(e);
+	//
+	//	v_pointer const va = E->a;
+	//	v_pointer const vb = E->b;
+	//
+	//	real const x0 = (real)va->x;
+	//	real const y0 = (real)va->y;
+	//
+	//	real const x1 = (real)vb->x;
+	//	real const y1 = (real)vb->y;
+	//
+	//	txtFile << x0 << " " << y0 << " " << std::setprecision(20) << tp[e] << std::endl;
+	//	txtFile << x1 << " " << y1 << " " << std::setprecision(20) << tp[e] << std::endl;
+	//	txtFile << std::endl;
+	//}
+	//
+	//txtFile.close();
 
 };
 template<unsigned QuadraturePrecision>
@@ -594,8 +619,8 @@ void solver<QuadraturePrecision>::computePressureEquation() {
 
 	
 	Eigen::SparseLU<SparseMatrix> const solver(R * iD * H + M);
-	pressureSystemRhs = R * iD * G - V;
-	tp = solver.solve(pressureSystemRhs);
+	//pressureSystemRhs = R * iD * G - V;
+	tp = solver.solve(R * iD * G - V);
 
 	p = iD * (G - H * tp);
 
@@ -619,8 +644,11 @@ void solver<QuadraturePrecision>::computeVelocities() {
 
 			e_pointer const E = K->edges[El];
 
+			//unsigned const e_index_local = K->get_edge_index(E);
+
 			if (E->marker == E_MARKER::NEUMANN) {
 
+				//v.setCoeff(k_index, El) = NEUMANN_GAMMA_Q_velocity(E, time);
 				v.setCoeff(k_index, El) = NEUMANN_GAMMA_Q_velocity(E, time);
 				continue;
 
@@ -634,8 +662,10 @@ void solver<QuadraturePrecision>::computeVelocities() {
 				AlphaP += α(k_index, El, j);
 
 			for (unsigned l = 0; l < 3; l++)
-				AlphaTP += α(k_index, El, l) * tp(E->index);
+				AlphaTP += α(k_index, El, l) * tp(K->edges[l]->index);
+				//AlphaTP += α(k_index, El, l) * tp(E->index);
 
+			//v.setCoeff(k_index, El) = (AlphaP * p[k_index] - AlphaTP) / viscosities[k_index];
 			v.setCoeff(k_index, El) = (AlphaP * p[k_index] - AlphaTP) / viscosities[k_index];
 
 		}
@@ -736,6 +766,7 @@ void solver<QuadraturePrecision>::assembleR() {
 
 		if (e_marker == E_MARKER::DIRICHLET) {
 
+			//continue;
 
 			for (unsigned neighborElement = 0; neighborElement < 2; neighborElement++) {
 
@@ -786,7 +817,7 @@ void solver<QuadraturePrecision>::assembleM() {
 
 	std::vector<Eigen::Triplet<real>> triplet;
 
-
+	M.setZero();
 
 	for (unsigned e = 0; e < ne; e++) {
 
@@ -829,7 +860,7 @@ void solver<QuadraturePrecision>::assembleM() {
 				unsigned const e_local_index_global = E_local->index;				// Global index of local edge
 
 
-				real const Value = α(k_index, dof, El) / viscosities[k_index];
+				real const Value = α(k_index, dof, e_local_index_local) / viscosities[k_index];
 
 				Eigen::Triplet<real> const T(e_index, e_local_index_global, Value);
 				triplet.push_back(T);
@@ -840,6 +871,8 @@ void solver<QuadraturePrecision>::assembleM() {
 			}
 		}
 	}
+
+	//std::cout << M.toDense() << std::endl << std::endl << std::endl;
 
 	SparseMatrix tracePressureSystem_LU(ne, ne);
 
@@ -924,6 +957,7 @@ void solver<QuadraturePrecision>::assembleH() {
 			unsigned const e_index = E->index;
 
 			H.coeffRef(k_index, e_index) = TimeCoeff * λ(k_index, El);
+			//H.coeffRef(k_index, e_index) = TimeCoeff * λ(k_index, K->get_edge_index(E));
 
 		}
 	}
@@ -985,6 +1019,55 @@ void solver<QuadraturePrecision>::assemble_α() {
 
 		Integral.setZero();
 
+		real const X[3] = { x0,x1,x2 };
+		real const Y[3] = { y0,y1,y2 };
+
+		/*
+		for (unsigned n = 0; n < 3; n++) {
+
+
+			real const s = (real) X[n];
+			real const t = (real) Y[n];
+			real const w = (real) 1.0 / 3.0;
+
+			// Corresponding coordinates on the element K
+			real const x = x0 + JF(0, 0) * s + JF(0, 1) * t;
+			real const y = y0 + JF(1, 0) * s + JF(1, 1) * t;
+
+			// Get the inverse of the permeability tensor
+			Eigen::MatrixXd iK(2, 2);
+
+			//K << 1.0, 0.0,
+			//	 0.0, 1.0;
+
+			iK.coeffRef(0, 0) = 1.0;
+			iK.coeffRef(0, 1) = 0.0;
+			iK.coeffRef(1, 0) = 0.0;
+			iK.coeffRef(1, 1) = 1.0;
+
+			iK = iK.inverse();
+
+			evaluate_raviartthomas_basis(s, t, BasisRaviartThomas);
+
+
+			for (unsigned i = 0; i < 3; i++) {
+
+
+				Eigen::VectorXd const JFWi = JF * (BasisRaviartThomas.col(i));
+
+				for (unsigned j = 0; j < 3; j++) {
+
+
+					Eigen::VectorXd const JFWj = JF * (BasisRaviartThomas.col(j));
+
+					Integral.coeffRef(i, j) += w * JFWi.dot(iK * JFWj);
+
+				}
+			}
+		}
+		*/
+
+		
 		for (unsigned n = 0; n < NumberOfQuadraturePointsTriangle; n++) {
 
 
@@ -1015,32 +1098,51 @@ void solver<QuadraturePrecision>::assemble_α() {
 			for (unsigned i = 0; i < 3; i++) {
 
 
-				Eigen::VectorXd const JFWi = JF * BasisRaviartThomas.col(i);
+				Eigen::VectorXd const JFWi = JF * (BasisRaviartThomas.col(i));
 
 				for (unsigned j = 0; j < 3; j++) {
 
 
-					Eigen::VectorXd const JFWj = JF * BasisRaviartThomas.col(j);
+					Eigen::VectorXd const JFWj = JF * (BasisRaviartThomas.col(j));
 
 					Integral.coeffRef(i, j) += w * JFWi.dot(iK * JFWj);
 
 				}
 			}
 		}
+		
 
 		//std::cout << Integral << std::endl << std::endl;
 
 		Integral = Integral / detJF;
 
+		//Integral = K->area() * Integral / detJF;
+
+		//std::cout << Integral << std::endl << std::endl;
+
 		for (unsigned i = 0; i < 3; i++)
 			for (unsigned j = 0; j < 3; j++)
 				Integral.coeffRef(i, j) = abs(Integral(i, j)) < INTEGRAL_PRECISION ? 0.0 : Integral(i, j);
 
+		//real const r0 = Integral.row(0).sum();
+		//real const r1 = Integral.row(1).sum();
+		//real const r2 = Integral.row(2).sum();
+		//
 		//std::cout << Integral << std::endl << std::endl;
+		//
+		//Integral.setZero();
+		//
+		//Integral(0, 0) = r0;
+		//Integral(1, 1) = r1;
+		//Integral(2, 2) = r2;
+
+
+		//std::cout << Integral << std::endl << std::endl;
+		//Eigen::MatrixXd iii = Integral;
 
 		Integral = Integral.inverse();
 
-		//std::cout << Integral << std::endl << std::endl;
+		//std::cout << Integral* iii << std::endl << std::endl;
 
 		for (unsigned i = 0; i < 3; i++)
 			for (unsigned j = 0; j < 3; j++)
@@ -1208,8 +1310,8 @@ void solver<QuadraturePrecision>::getSolution() {
 template<unsigned QuadraturePrecision>
 void solver<QuadraturePrecision>::exportSolution(std::ofstream & txtFile) {
 
-	Eigen::MatrixXd JF(2, 2);
-	real const time = nt * dt;
+	//Eigen::MatrixXd JF(2, 2);
+	//real const time = nt * dt;
 
 
 	for (unsigned k = 0; k < nk; k++) {
@@ -1287,7 +1389,6 @@ void solver<QuadraturePrecision>::compute_error(std::ofstream & txtFile) {
 	quadrature_triangle const QuadratureOnTriangle(9);
 	unsigned const NumberOfQuadraturePoints = QuadratureOnTriangle.NumberOfPoints;
 
-	Eigen::VectorXd BasisPolynomial(3);
 	Eigen::MatrixXd JF(2, 2);
 
 	real errorL1 = 0.0;
