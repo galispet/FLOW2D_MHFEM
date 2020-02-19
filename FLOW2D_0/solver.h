@@ -1462,7 +1462,46 @@ void solver<QuadraturePrecision>::computeVelocities() {
 		unsigned const k_index = K->index;
 		//unsigned const k_index = ElementIndeces[k];
 
+		for (unsigned dof = 0; dof < 8; dof++) {
 
+
+			real val1 = 0.0;
+			real val2 = 0.0;
+
+			for (unsigned m = 0; m < 8; m++) {
+
+
+				real const alpha = α(k_index, dof, m);
+
+				real PB = 0.0;
+				real ECHITP = 0.0;
+
+				for (unsigned i = 0; i < 3; i++)
+					PB += β(m, i) * π(k_index, i);
+
+				val1 += alpha * PB;
+
+
+				for (unsigned l = 0; l < 3; l++) {
+
+					real CHITP = 0.0;
+
+					for (unsigned s = 0; s < 2; s++)
+						CHITP += χ(m, l, s) * tπ(k_index, l, s);
+
+					ECHITP += CHITP;
+
+				}
+
+				val2 += alpha * ECHITP;
+
+			}
+
+			υ.setCoeff(k_index, dof) = (val1 - val2) / viscosities[k_index];
+
+		}
+
+		/*
 		// Loop over element's edges and their degrees of freedom
 		for (unsigned El = 0; El < 3; El++) {
 
@@ -1561,6 +1600,7 @@ void solver<QuadraturePrecision>::computeVelocities() {
 			υ.setCoeff(k_index, dof) = (val1 - val2) / viscosities[k_index];
 
 		}
+		*/
 	}
 
 };
@@ -1661,10 +1701,10 @@ real solver<QuadraturePrecision>::upwindConcentration(t_pointer const & K, unsig
 	
 	if (VelocityDotNormal >= 0.0) {
 
-		for (unsigned m = 0; m < 3; m++)
-			Concentration += ξ_prev(k_index, m) * QuadraturePoints_PolynomialBasis(n, El, m);
+		//for (unsigned m = 0; m < 3; m++)
+		//	Concentration += ξ_prev(k_index, m) * QuadraturePoints_PolynomialBasis(n, El, m);
 
-		//Concentration = ξ_prev(k_index, 0) * QuadraturePoints_PolynomialBasis(n, El, 0);
+		Concentration = ξ_prev(k_index, 0) * QuadraturePoints_PolynomialBasis(n, El, 0);
 
 	}
 	else {
@@ -1684,10 +1724,10 @@ real solver<QuadraturePrecision>::upwindConcentration(t_pointer const & K, unsig
 		unsigned const e_index_Kn_loc = K->neighbors[El]->get_edge_index(E);
 
 
-		for (unsigned m = 0; m < 3; m++)
-			Concentration += ξ_prev(kn_index, m) * QuadraturePoints_PolynomialBasis(n, e_index_Kn_loc, m);
+		//for (unsigned m = 0; m < 3; m++)
+		//	Concentration += ξ_prev(kn_index, m) * QuadraturePoints_PolynomialBasis(n, e_index_Kn_loc, m);
 
-		//Concentration = ξ_prev(kn_index, 0) * QuadraturePoints_PolynomialBasis(n, e_index_Kn_loc, 0);
+		Concentration = ξ_prev(kn_index, 0) * QuadraturePoints_PolynomialBasis(n, e_index_Kn_loc, 0);
 
 	}
 	
@@ -3479,6 +3519,18 @@ void solver<QuadraturePrecision>::getSolution() {
 	computeVelocities();
 	computeBetas();
 
+
+	std::ofstream txtFile;
+	txtFile.open("C:\\Users\\pgali\\Desktop\\flow2d\\v.txt");
+	for (unsigned k = 0; k < nk; k++) {
+
+		for (unsigned j = 0; j < 8; j++)
+			txtFile << υ(mesh->get_triangle(k)->index, j) << " ";
+
+		txtFile << std::endl;
+	}
+	txtFile.close();
+
 	// Set iteration level l := 0
 	π_n = π;
 	π_prev = π;
@@ -3538,16 +3590,16 @@ void solver<QuadraturePrecision>::getSolution() {
 	}
 
 
-	std::ofstream txtFile;
-	txtFile.open("C:\\Users\\pgali\\Desktop\\flow2d\\v.txt");
-	for (unsigned k = 0; k < nk; k++) {
-	
-		for (unsigned j = 0; j < 8; j++)
-			txtFile << υ(mesh->get_triangle(k)->index, j) << " ";
+	//std::ofstream txtFile;
+	//txtFile.open("C:\\Users\\pgali\\Desktop\\flow2d\\v.txt");
+	//for (unsigned k = 0; k < nk; k++) {
+	//
+	//	for (unsigned j = 0; j < 8; j++)
+	//		txtFile << υ(mesh->get_triangle(k)->index, j) << " ";
 
-		txtFile << std::endl;
-	}
-	txtFile.close();
+	//	txtFile << std::endl;
+	//}
+	//txtFile.close();
 
 	std::cout << counter << std::endl;
 
