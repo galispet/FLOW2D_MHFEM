@@ -234,3 +234,40 @@ void generate_vertices() {
 	}
 
 };
+
+
+
+void exportMesh(std::ofstream & txtFile, Mesh const & m) {
+
+
+	for (unsigned k = 0; k < m.get_number_of_triangles(); k++) {
+
+
+		t_pointer const	K = m.get_triangle(k);
+
+		v_pointer const a = K->vertices[0];
+		v_pointer const b = K->vertices[1];
+		v_pointer const c = K->vertices[2];
+
+		double const x0 = a->x;
+		double const y0 = a->y;
+
+		double const x1 = b->x;
+		double const y1 = b->y;
+
+		double const x2 = c->x;
+		double const y2 = c->y;
+
+		double const x[3] = { x0, x1, x2 };
+		double const y[3] = { y0, y1, y2 };
+
+
+		for (unsigned i = 0; i < 3; i++)
+			txtFile << std::setprecision(20) << x[i] << "\t" << y[i] << std::endl;
+
+		txtFile << std::endl;
+
+	}
+
+
+};
