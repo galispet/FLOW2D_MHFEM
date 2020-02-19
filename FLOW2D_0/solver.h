@@ -1362,11 +1362,24 @@ void solver<QuadraturePrecision>::computePressureEquation() {
 	assembleG();
 	assembleV();
 
-	//assemblePressureSystemMatrixAndInverseDAndH_1();
+	////assemblePressureSystemMatrixAndInverseDAndH_1();
 	assemblePressureSystemMatrixAndInverseDAndH_2();
 
 	pressureSystemRhs.head(ne) = R1iD * G - V1;
 	pressureSystemRhs.tail(ne) = R2iD * G - V2;
+
+
+
+
+	//assembleInverseD();
+	//assembleH();
+
+	//pressureSystemRhs.head(ne) = R1 * iD * G - V1;
+	//pressureSystemRhs.tail(ne) = R2 * iD * G - V2;
+
+
+
+
 
 
 	Eigen::SparseLU<SparseMatrix> const solver(internalPressureSystem);
@@ -1462,6 +1475,30 @@ void solver<QuadraturePrecision>::computeVelocities() {
 		unsigned const k_index = K->index;
 		//unsigned const k_index = ElementIndeces[k];
 
+
+		for (unsigned m = 0; m < 8; m++) {
+
+
+			real Value1 = 0.0;
+			real Value2 = 0.0;
+
+
+			for (unsigned l = 0; l < 3; l++)
+				for (unsigned j = 0; j < 8; j++)
+					Value1 += α(k_index, m, j) * β(j, l) * π(k_index, l);
+
+			for (unsigned El = 0; El < 3; El++)
+				for (unsigned j = 0; j < 8; j++)
+					for (unsigned s = 0; s < 2; s++)
+						Value2 += α(k_index, m, j) * χ(j, El, s) * tπ(k_index, El, s);
+
+
+			υ.setCoeff(k_index, m) = (Value1 - Value2) / viscosities[k_index];
+
+		}
+
+
+		/*
 		for (unsigned dof = 0; dof < 8; dof++) {
 
 
@@ -1500,6 +1537,7 @@ void solver<QuadraturePrecision>::computeVelocities() {
 			υ.setCoeff(k_index, dof) = (val1 - val2) / viscosities[k_index];
 
 		}
+		*/
 
 		/*
 		// Loop over element's edges and their degrees of freedom
@@ -1886,9 +1924,52 @@ template<unsigned QuadraturePrecision>
 void solver<QuadraturePrecision>::assembleR() {
 
 
+	
 	for (unsigned e = 0; e < ne; e++) {
 
 
+		e_pointer const		E			= mesh->get_edge(e);
+		unsigned const		e_index		= E->index;
+		E_MARKER const		e_marker	= E->marker;
+
+
+		if (e_marker == E_MARKER::DIRICHLET)
+			continue;
+
+
+		for (unsigned neighborElement = 0; neighborElement < 2; neighborElement++) {
+
+			t_pointer const K = E->neighbors[neighborElement];
+
+			if (!K)
+				continue;
+
+			unsigned const k_index = K->index;
+
+			unsigned const dof0 = LI(K, E, 0);
+			unsigned const dof1 = LI(K, E, 1);
+
+
+			for (unsigned l = 0; l < 3; l++) {
+
+				real Value1 = 0.0;
+				real Value2 = 0.0;
+
+				for (unsigned j = 0; j < 8; j++) {
+
+					Value1 += α(k_index, dof0, j) * β(j, l) / viscosities[k_index];
+					Value2 += α(k_index, dof1, j) * β(j, l) / viscosities[k_index];
+
+				}
+
+				R1.coeffRef(e_index, 3 * k_index + l) = abs(Value1) < INTEGRAL_PRECISION ? 0.0 : Value1;
+				R2.coeffRef(e_index, 3 * k_index + l) = abs(Value2) < INTEGRAL_PRECISION ? 0.0 : Value2;
+					
+			}
+		}
+
+
+	/*
 		e_pointer const E = mesh->get_edge(e);
 		unsigned const e_index = E->index;
 		E_MARKER const e_marker = E->marker;
@@ -1952,21 +2033,19 @@ void solver<QuadraturePrecision>::assembleR() {
 
 			}
 		}
+		*/
+
+
 	}
+	
 
 };
 template<unsigned QuadraturePrecision>
 void solver<QuadraturePrecision>::assembleM() {
 
 
-	//M_j1_s1.setZero();
-	//M_j1_s2.setZero();
-
-	//M_j2_s1.setZero();
-	//M_j2_s2.setZero();
 
 	std::vector<Eigen::Triplet<real>> triplet;
-
 
 	for (unsigned e = 0; e < ne; e++) {
 
@@ -1977,6 +2056,89 @@ void solver<QuadraturePrecision>::assembleM() {
 
 
 
+		if (e_marker == E_MARKER::DIRICHLET) {
+
+			M_j1_s1.coeffRef(e_index, e_index) = -1.0;
+			M_j1_s2.coeffRef(e_index, e_index) = +0.0;
+
+			M_j2_s1.coeffRef(e_index, e_index) = +0.0;
+			M_j2_s2.coeffRef(e_index, e_index) = -1.0;
+
+			Eigen::Triplet<real> const T_j1_s1(e_index,			e_index,		-1.0);
+			Eigen::Triplet<real> const T_j1_s2(e_index,			e_index + ne,	+0.0);
+			Eigen::Triplet<real> const T_j2_s1(e_index + ne,	e_index,		+0.0);
+			Eigen::Triplet<real> const T_j2_s2(e_index + ne,	e_index + ne,	-1.0);
+
+			triplet.push_back(T_j1_s1);
+			triplet.push_back(T_j1_s2);
+			triplet.push_back(T_j2_s1);
+			triplet.push_back(T_j2_s2);
+
+			continue;
+
+		}
+
+
+		for (unsigned neighborElement = 0; neighborElement < 2; neighborElement++) {
+
+
+			t_pointer const K = E->neighbors[neighborElement];
+
+			if (!K)
+				continue;
+
+
+			unsigned const k_index = K->index;
+
+			unsigned const dof0 = LI(K, E, 0);
+			unsigned const dof1 = LI(K, E, 1);
+
+
+
+			for (unsigned El = 0; El < 3; El++) {
+
+				e_pointer const E_local					= K->edges[El];
+				unsigned const	e_local_index_global	= E_local->index;
+
+				real ACHI_j1_s1 = 0.0;
+				real ACHI_j1_s2 = 0.0;
+				real ACHI_j2_s1 = 0.0;
+				real ACHI_j2_s2 = 0.0;
+
+				for (unsigned j = 0; j < 8; j++) {
+
+					ACHI_j1_s1 += α(k_index, dof0, j) * χ(j, El, 0) / viscosities[k_index];
+					ACHI_j1_s2 += α(k_index, dof0, j) * χ(j, El, 1) / viscosities[k_index];
+
+					ACHI_j2_s1 += α(k_index, dof1, j) * χ(j, El, 0) / viscosities[k_index];
+					ACHI_j2_s2 += α(k_index, dof1, j) * χ(j, El, 1) / viscosities[k_index];
+
+				}
+
+
+				M_j1_s1.coeffRef(e_index, e_local_index_global) += ACHI_j1_s1;
+				M_j1_s2.coeffRef(e_index, e_local_index_global) += ACHI_j1_s2;
+
+				M_j2_s1.coeffRef(e_index, e_local_index_global) += ACHI_j2_s1;
+				M_j2_s2.coeffRef(e_index, e_local_index_global) += ACHI_j2_s2;
+
+
+				Eigen::Triplet<real> const T_j1_s1(e_index,			e_local_index_global,		ACHI_j1_s1);
+				Eigen::Triplet<real> const T_j1_s2(e_index,			e_local_index_global + ne,	ACHI_j1_s2);
+				Eigen::Triplet<real> const T_j2_s1(e_index + ne,	e_local_index_global,		ACHI_j2_s1);
+				Eigen::Triplet<real> const T_j2_s2(e_index + ne,	e_local_index_global + ne,	ACHI_j2_s2);
+
+				triplet.push_back(T_j1_s1);
+				triplet.push_back(T_j1_s2);
+				triplet.push_back(T_j2_s1);
+				triplet.push_back(T_j2_s2);
+
+			}
+		}
+
+
+
+		/*
 		if (e_marker == E_MARKER::DIRICHLET) {
 
 			M_j1_s1.coeffRef(e_index, e_index) = -1.0;
@@ -2046,17 +2208,17 @@ void solver<QuadraturePrecision>::assembleM() {
 				real const val4 = ACHI_j2_s2 / viscosities[k_index];
 
 				
-				/*if (e_local_index_global == e_index) {
-					M_j1_s1.coeffRef(e_index, e_local_index_global) += val1;
-					M_j1_s2.coeffRef(e_index, e_local_index_global) += val2;
-					M_j2_s1.coeffRef(e_index, e_local_index_global) += val3;
-					M_j2_s2.coeffRef(e_index, e_local_index_global) += val4;
-					continue;
-				}
-				M_j1_s1.coeffRef(e_index, e_local_index_global) = val1;
-				M_j1_s2.coeffRef(e_index, e_local_index_global) = val2;
-				M_j2_s1.coeffRef(e_index, e_local_index_global) = val3;
-				M_j2_s2.coeffRef(e_index, e_local_index_global) = val4;*/
+				//if (e_local_index_global == e_index) {
+				//	M_j1_s1.coeffRef(e_index, e_local_index_global) += val1;
+				//	M_j1_s2.coeffRef(e_index, e_local_index_global) += val2;
+				//	M_j2_s1.coeffRef(e_index, e_local_index_global) += val3;
+				//	M_j2_s2.coeffRef(e_index, e_local_index_global) += val4;
+				//	continue;
+				//}
+				//M_j1_s1.coeffRef(e_index, e_local_index_global) = val1;
+				//M_j1_s2.coeffRef(e_index, e_local_index_global) = val2;
+				//M_j2_s1.coeffRef(e_index, e_local_index_global) = val3;
+				//M_j2_s2.coeffRef(e_index, e_local_index_global) = val4;
 				
 
 				M_j1_s1.coeffRef(e_index, e_local_index_global) += val1;
@@ -2077,6 +2239,8 @@ void solver<QuadraturePrecision>::assembleM() {
 
 			}
 		}
+		*/
+
 	}
 
 	SparseMatrix tracePressureSystem_LU(2 * ne, 2 * ne);
