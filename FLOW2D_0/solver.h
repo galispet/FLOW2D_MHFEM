@@ -1223,6 +1223,17 @@ void solver<QuadraturePrecision>::getSolution() {
 	computeVelocities();
 	computeBetas();
 
+	std::ofstream txtFile;
+	txtFile.open("C:\\Users\\pgali\\Desktop\\flow2d\\v.txt");
+	for (unsigned k = 0; k < nk; k++) {
+
+		for (unsigned j = 0; j < 3; j++)
+			txtFile << v(mesh->get_triangle(k)->index, j) << " ";
+
+		txtFile << std::endl;
+	}
+	txtFile.close();
+
 	// Set iteration level l := 0
 	p_n		= p;
 	p_prev	= p;
@@ -1279,16 +1290,16 @@ void solver<QuadraturePrecision>::getSolution() {
 	}
 
 
-	std::ofstream txtFile;
-	txtFile.open("C:\\Users\\pgali\\Desktop\\flow2d\\v.txt");
-	for (unsigned k = 0; k < nk; k++) {
+	//std::ofstream txtFile;
+	//txtFile.open("C:\\Users\\pgali\\Desktop\\flow2d\\v.txt");
+	//for (unsigned k = 0; k < nk; k++) {
 
-		for (unsigned j = 0; j < 3; j++)
-			txtFile << v(mesh->get_triangle(k)->index, j) << " ";
+	//	for (unsigned j = 0; j < 3; j++)
+	//		txtFile << v(mesh->get_triangle(k)->index, j) << " ";
 
-		txtFile << std::endl;
-	}
-	txtFile.close();
+	//	txtFile << std::endl;
+	//}
+	//txtFile.close();
 
 
 	std::cout << counter << std::endl;
