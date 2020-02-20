@@ -209,6 +209,9 @@ private:
 	void assemble_σ();
 	void assemble_λ();
 
+
+	void exportVelocityField(std::ofstream & txtFile);
+
 };
 
 
@@ -1224,7 +1227,8 @@ void solver<QuadraturePrecision>::getSolution() {
 	computeBetas();
 
 	std::ofstream txtFile;
-	txtFile.open("C:\\Users\\pgali\\Desktop\\flow2d\\v.txt");
+	txtFile.open("C:\\Users\\pgali\\Desktop\\flow2d\\velocity.txt");
+	//exportVelocityField(txtFile);
 	for (unsigned k = 0; k < nk; k++) {
 
 		for (unsigned j = 0; j < 3; j++)
@@ -1400,7 +1404,75 @@ void solver<QuadraturePrecision>::exportSolution(std::ofstream & txtFile) {
 	}
 
 };
+template<unsigned QuadraturePrecision>
+void solver<QuadraturePrecision>::exportVelocityField(std::ofstream & txtFile) {
 
+
+
+	quadrature_triangle const QuadratureOnTriangle(3);
+	unsigned const NumberOfQuadraturePoints = QuadratureOnTriangle.NumberOfPoints;
+
+	Eigen::MatrixXd BasisRaviartThomas(2, 8);
+	Eigen::MatrixXd JF(2, 2);
+
+
+	for (unsigned k = 0; k < nk; k++) {
+
+
+		t_pointer const	K = mesh->get_triangle(k);
+
+		unsigned const k_index = K->index;
+
+		v_pointer const a = K->vertices[0];
+		v_pointer const b = K->vertices[1];
+		v_pointer const c = K->vertices[2];
+
+		double const x0 = a->x;
+		double const y0 = a->y;
+
+		double const x1 = b->x;
+		double const y1 = b->y;
+
+		double const x2 = c->x;
+		double const y2 = c->y;
+
+		real const detJF = abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
+
+		JF(0, 0) = x1 - x0;
+		JF(0, 1) = x2 - x0;
+		JF(1, 0) = y1 - y0;
+		JF(1, 1) = y2 - y0;
+
+
+		for (unsigned n = 0; n < NumberOfQuadraturePoints; n++) {
+
+
+			real const s = (real)QuadratureOnTriangle.points_x[n];
+			real const t = (real)QuadratureOnTriangle.points_y[n];
+
+
+			// Corresponding coordinates on the element K
+			real const x = x0 + JF(0, 0) * s + JF(0, 1) * t;
+			real const y = y0 + JF(1, 0) * s + JF(1, 1) * t;
+
+			evaluate_raviartthomas_basis(s, t, BasisRaviartThomas);
+
+
+			Eigen::Vector2d Velocity(0.0, 0.0);
+
+			for (unsigned i = 0; i < 3; i++)
+				Velocity += v(k_index, i) * JF * BasisRaviartThomas.col(i) / detJF;
+
+
+			txtFile << std::setprecision(20) << x << "\t" << y << "\t" << Velocity(0) << "\t" << Velocity(1) << std::endl;
+
+		}
+
+	}
+
+
+
+};
 
 
 template<unsigned QuadraturePrecision>
