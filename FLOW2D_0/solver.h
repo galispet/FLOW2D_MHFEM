@@ -1359,6 +1359,44 @@ void solver<QuadraturePrecision>::computeTracePressures() {
 		}
 	}
 
+
+
+
+	/*std::ofstream txtFile;
+	
+	txtFile.open("C:\\Users\\pgali\\Desktop\\flow2d\\tp.txt");
+	
+	for (unsigned e = 0; e < ne; e++) {
+	
+	
+		e_pointer const E = mesh->get_edge(e);
+
+
+		real const tpval1 = Tp1[E->index];
+		real const tpval2 = Tp2[E->index];
+
+	
+		v_pointer const va = E->a;
+		v_pointer const vb = E->b;
+	
+		real const x0 = (real)va->x;
+		real const y0 = (real)va->y;
+	
+		real const x1 = (real)vb->x;
+		real const y1 = (real)vb->y;
+	
+		txtFile << x0 << " " << y0 << " " << std::setprecision(20) << tpval1 << std::endl;
+		txtFile << x1 << " " << y1 << " " << std::setprecision(20) << tpval1 << std::endl;
+		txtFile << std::endl;
+	}
+	
+	txtFile.close();*/
+
+
+
+
+
+
 };
 template<unsigned QuadraturePrecision>
 void solver<QuadraturePrecision>::computePressureEquation() {
@@ -1495,15 +1533,15 @@ void solver<QuadraturePrecision>::computeVelocities() {
 
 			for (unsigned El = 0; El < 3; El++) {
 
-				real const orientation = 1.0;
-				//real const orientation = edgeOrientation(k_index, El);
+				//real const orientation = 1.0;
+				real const orientation = edgeOrientation(k_index, El);
 
 				for (unsigned j = 0; j < 8; j++)
 					for (unsigned s = 0; s < 2; s++)
-						Value2 += α(k_index, m, j) * orientation * χ(j, El, s) * tπ(k_index, El, s);
+						Value2 += α(k_index, m, j) * (orientation) * χ(j, El, s) * tπ(k_index, El, s);
+						//Value2 += α(k_index, m, j) * (s == 1 ? edgeOrientation(k_index, El) : 1.0) * χ(j, El, s) * tπ(k_index, El, s);
 
 			}
-
 
 			υ.setCoeff(k_index, m) = (Value1 - Value2) / viscosities[k_index];
 
@@ -1962,6 +2000,9 @@ void solver<QuadraturePrecision>::assembleR() {
 			unsigned const dof1 = LI(K, E, 1);
 
 
+			real const ChiCoeff = edgeOrientation(k_index, K->get_edge_index(E));
+
+
 			for (unsigned l = 0; l < 3; l++) {
 
 				real Value1 = 0.0;
@@ -1970,7 +2011,7 @@ void solver<QuadraturePrecision>::assembleR() {
 				for (unsigned j = 0; j < 8; j++) {
 
 					Value1 += α(k_index, dof0, j) * β(j, l) / viscosities[k_index];
-					Value2 += α(k_index, dof1, j) * β(j, l) / viscosities[k_index];
+					Value2 += ChiCoeff * α(k_index, dof1, j) * β(j, l) / viscosities[k_index];
 
 				}
 
@@ -2106,6 +2147,9 @@ void solver<QuadraturePrecision>::assembleM() {
 			unsigned const dof1 = LI(K, E, 1);
 
 
+			real const ChiCoeff = edgeOrientation(k_index, K->get_edge_index(E));
+
+
 			for (unsigned El = 0; El < 3; El++) {
 
 				e_pointer const E_local					= K->edges[El];
@@ -2124,10 +2168,10 @@ void solver<QuadraturePrecision>::assembleM() {
 				for (unsigned j = 0; j < 8; j++) {
 
 					ACHI_j1_s1 += α(k_index, dof0, j) * orientation * χ(j, El, 0) / viscosities[k_index];
-					ACHI_j1_s2 += α(k_index, dof0, j) * orientation * χ(j, El, 1) / viscosities[k_index];
+					ACHI_j1_s2 += ChiCoeff * α(k_index, dof0, j) * orientation * χ(j, El, 1) / viscosities[k_index];
 
-					ACHI_j2_s1 += α(k_index, dof1, j) * orientation * χ(j, El, 0) / viscosities[k_index];
-					ACHI_j2_s2 += α(k_index, dof1, j) * orientation * χ(j, El, 1) / viscosities[k_index];
+					ACHI_j2_s1 += ChiCoeff * α(k_index, dof1, j) * orientation * χ(j, El, 0) / viscosities[k_index];
+					ACHI_j2_s2 +=  α(k_index, dof1, j) * orientation * χ(j, El, 1) / viscosities[k_index];
 
 				}
 
