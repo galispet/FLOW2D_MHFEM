@@ -3700,18 +3700,17 @@ void solver<QuadraturePrecision>::getSolution() {
 
 
 	std::ofstream txtFile;
-	txtFile.open("C:\\Users\\pgali\\Desktop\\flow2d\\velocity.txt");
-	exportVelocityField(txtFile);
-
-
-	/*for (unsigned k = 0; k < nk; k++) {
+	txtFile.open("C:\\Users\\pgali\\Desktop\\flow2d\\v.txt");
+	//txtFile.open("C:\\Users\\pgali\\Desktop\\flow2d\\velocity.txt");
+	//exportVelocityField(txtFile);
+	for (unsigned k = 0; k < nk; k++) {
 
 		for (unsigned j = 0; j < 8; j++)
 			txtFile << υ(mesh->get_triangle(k)->index, j) << " ";
 
 		txtFile << std::endl;
 	}
-	txtFile.close();*/
+	txtFile.close();
 
 	// Set iteration level l := 0
 	π_n = π;
@@ -3908,7 +3907,7 @@ void solver<QuadraturePrecision>::exportVelocityField(std::ofstream & txtFile) {
 
 
 
-	quadrature_triangle const QuadratureOnTriangle(9);
+	quadrature_triangle const QuadratureOnTriangle(4);
 	unsigned const NumberOfQuadraturePoints = QuadratureOnTriangle.NumberOfPoints;
 
 	Eigen::MatrixXd BasisRaviartThomas(2, 8);
@@ -3945,7 +3944,7 @@ void solver<QuadraturePrecision>::exportVelocityField(std::ofstream & txtFile) {
 		//JF = matrixJF[k_index];
 
 
-		for (unsigned n = 0; n < NumberOfQuadraturePointsTriangle; n++) {
+		for (unsigned n = 0; n < NumberOfQuadraturePoints; n++) {
 
 
 			real const s = (real)QuadratureOnTriangle.points_x[n];
