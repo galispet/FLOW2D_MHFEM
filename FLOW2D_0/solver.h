@@ -186,6 +186,8 @@ private:
 
 	CoeffMatrix1D<3> edgeOrientation;
 
+	Eigen::Matrix2d * matrixJF = NULL;
+
 
 	real * viscosities;
 	real * porosities;
@@ -280,6 +282,9 @@ private:
 	void assemble_φ();
 	void assemble_ψ();
 
+
+
+	void exportVelocityField(std::ofstream & txtFile);
 
 
 	real velocity_in_normal_direction(t_pointer const K, e_pointer const E, real const x);
@@ -487,6 +492,7 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	/*                                                                           */
 	/*****************************************************************************/
 	edgeOrientation.setNumberOfElements(nk);
+	matrixJF = new Eigen::Matrix2d[nk];
 
 	initializeValues();	
 
@@ -613,7 +619,7 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 
 		Eigen::MatrixXd const itJF = (JF.inverse()).transpose();
 
-
+		matrixJF[k_index] = JF;
 
 
 		/*****************************************************************************/
@@ -1487,10 +1493,16 @@ void solver<QuadraturePrecision>::computeVelocities() {
 				for (unsigned j = 0; j < 8; j++)
 					Value1 += α(k_index, m, j) * β(j, l) * π(k_index, l);
 
-			for (unsigned El = 0; El < 3; El++)
+			for (unsigned El = 0; El < 3; El++) {
+
+				real const orientation = 1.0;
+				//real const orientation = edgeOrientation(k_index, El);
+
 				for (unsigned j = 0; j < 8; j++)
 					for (unsigned s = 0; s < 2; s++)
-						Value2 += α(k_index, m, j) * χ(j, El, s) * tπ(k_index, El, s);
+						Value2 += α(k_index, m, j) * orientation * χ(j, El, s) * tπ(k_index, El, s);
+
+			}
 
 
 			υ.setCoeff(k_index, m) = (Value1 - Value2) / viscosities[k_index];
@@ -2094,11 +2106,15 @@ void solver<QuadraturePrecision>::assembleM() {
 			unsigned const dof1 = LI(K, E, 1);
 
 
-
 			for (unsigned El = 0; El < 3; El++) {
 
 				e_pointer const E_local					= K->edges[El];
 				unsigned const	e_local_index_global	= E_local->index;
+
+
+				real const orientation = 1.0;
+				//real const orientation = edgeOrientation(k_index, El);
+
 
 				real ACHI_j1_s1 = 0.0;
 				real ACHI_j1_s2 = 0.0;
@@ -2107,11 +2123,11 @@ void solver<QuadraturePrecision>::assembleM() {
 
 				for (unsigned j = 0; j < 8; j++) {
 
-					ACHI_j1_s1 += α(k_index, dof0, j) * χ(j, El, 0) / viscosities[k_index];
-					ACHI_j1_s2 += α(k_index, dof0, j) * χ(j, El, 1) / viscosities[k_index];
+					ACHI_j1_s1 += α(k_index, dof0, j) * orientation * χ(j, El, 0) / viscosities[k_index];
+					ACHI_j1_s2 += α(k_index, dof0, j) * orientation * χ(j, El, 1) / viscosities[k_index];
 
-					ACHI_j2_s1 += α(k_index, dof1, j) * χ(j, El, 0) / viscosities[k_index];
-					ACHI_j2_s2 += α(k_index, dof1, j) * χ(j, El, 1) / viscosities[k_index];
+					ACHI_j2_s1 += α(k_index, dof1, j) * orientation * χ(j, El, 0) / viscosities[k_index];
+					ACHI_j2_s2 += α(k_index, dof1, j) * orientation * χ(j, El, 1) / viscosities[k_index];
 
 				}
 
@@ -3340,7 +3356,6 @@ void solver<QuadraturePrecision>::assemble_χ() {
 
 		Eigen::VectorXd const ReferenceNormal = ReferenceNormals.col(El);
 
-
 		for (unsigned n = 0; n < NumberOfQuadraturePointsEdge; n++) {
 
 
@@ -3685,15 +3700,18 @@ void solver<QuadraturePrecision>::getSolution() {
 
 
 	std::ofstream txtFile;
-	txtFile.open("C:\\Users\\pgali\\Desktop\\flow2d\\v.txt");
-	for (unsigned k = 0; k < nk; k++) {
+	txtFile.open("C:\\Users\\pgali\\Desktop\\flow2d\\velocity.txt");
+	exportVelocityField(txtFile);
+
+
+	/*for (unsigned k = 0; k < nk; k++) {
 
 		for (unsigned j = 0; j < 8; j++)
 			txtFile << υ(mesh->get_triangle(k)->index, j) << " ";
 
 		txtFile << std::endl;
 	}
-	txtFile.close();
+	txtFile.close();*/
 
 	// Set iteration level l := 0
 	π_n = π;
@@ -3810,7 +3828,7 @@ void solver<QuadraturePrecision>::exportSolution(std::ofstream & txtFile) {
 
 		t_pointer const	K = mesh->get_triangle(k);
 
-		unsigned const index = K->index;
+		unsigned const k_index = K->index;
 
 		v_pointer const a = K->vertices[0];
 		v_pointer const b = K->vertices[1];
@@ -3870,9 +3888,9 @@ void solver<QuadraturePrecision>::exportSolution(std::ofstream & txtFile) {
 		for (unsigned i = 0; i < 3; i++) {
 
 			//// Pressures
-			real const value = π(index, 0) * phi1(S[i], T[i]) + π(index, 1) * phi2(S[i], T[i]) + π(index, 2) * phi3(S[i], T[i]);
+			real const value = π(k_index, 0) * phi1(S[i], T[i]) + π(k_index, 1) * phi2(S[i], T[i]) + π(k_index, 2) * phi3(S[i], T[i]);
 			//// Concentrations
-			//real const value = ξ(index, 0) * phi1(S[i], T[i]) + ξ(index, 1) * phi2(S[i], T[i]) + ξ(index, 2) * phi3(S[i], T[i]);
+			//real const value = ξ(k_index, 0) * phi1(S[i], T[i]) + ξ(k_index, 1) * phi2(S[i], T[i]) + ξ(k_index, 2) * phi3(S[i], T[i]);
 
 			txtFile << std::setprecision(20) << x[i] << "\t" << y[i] << "\t" << value << std::endl;
 			//txtFile << std::setprecision(20) << x[i] << "	" << y[i] << "	" << value << "	" << index << std::endl;
@@ -3885,7 +3903,77 @@ void solver<QuadraturePrecision>::exportSolution(std::ofstream & txtFile) {
 	}
 
 };
+template<unsigned QuadraturePrecision>
+void solver<QuadraturePrecision>::exportVelocityField(std::ofstream & txtFile) {
 
+
+
+	quadrature_triangle const QuadratureOnTriangle(9);
+	unsigned const NumberOfQuadraturePoints = QuadratureOnTriangle.NumberOfPoints;
+
+	Eigen::MatrixXd BasisRaviartThomas(2, 8);
+	Eigen::MatrixXd JF(2, 2);
+
+
+	for (unsigned k = 0; k < nk; k++) {
+
+
+		t_pointer const	K = mesh->get_triangle(k);
+
+		unsigned const k_index = K->index;
+
+		v_pointer const a = K->vertices[0];
+		v_pointer const b = K->vertices[1];
+		v_pointer const c = K->vertices[2];
+
+		double const x0 = a->x;
+		double const y0 = a->y;
+
+		double const x1 = b->x;
+		double const y1 = b->y;
+
+		double const x2 = c->x;
+		double const y2 = c->y;
+
+		real const detJF = abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
+
+		JF(0, 0) = x1 - x0;
+		JF(0, 1) = x2 - x0;
+		JF(1, 0) = y1 - y0;
+		JF(1, 1) = y2 - y0;
+
+		//JF = matrixJF[k_index];
+
+
+		for (unsigned n = 0; n < NumberOfQuadraturePointsTriangle; n++) {
+
+
+			real const s = (real)QuadratureOnTriangle.points_x[n];
+			real const t = (real)QuadratureOnTriangle.points_y[n];
+
+
+			// Corresponding coordinates on the element K
+			real const x = x0 + JF(0, 0) * s + JF(0, 1) * t;
+			real const y = y0 + JF(1, 0) * s + JF(1, 1) * t;
+
+			evaluate_raviartthomas_basis(s, t, BasisRaviartThomas);
+
+
+			Eigen::Vector2d Velocity(0.0, 0.0);
+
+			for (unsigned i = 0; i < 8; i++)
+				Velocity += υ(k_index, i) * JF * BasisRaviartThomas.col(i) / detJF;
+
+
+			txtFile << std::setprecision(20) << x << "\t" << y << "\t" << Velocity(0) << "\t" << Velocity(1) << std::endl;
+
+		}
+
+	}
+
+
+
+};
 
 
 template<unsigned QuadraturePrecision>
