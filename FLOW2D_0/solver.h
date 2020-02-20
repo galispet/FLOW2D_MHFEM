@@ -149,7 +149,7 @@ private:
 	CoeffMatrix3D<3, 3, 8>			δ;
 	CoeffMatrix2D<3, 8>				γ;
 	SingleCoeffMatrix2D<8, 3>		β;
-	SingleCoeffMatrix3D<8, 3, 2>	χ;
+	CoeffMatrix3D<8, 3, 2>			χ;
 	SingleCoeffMatrix2D<3, 3>		η;
 	SingleCoeffMatrix3D<3, 8, 3>	τ;
 
@@ -402,6 +402,7 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	α.setNumberOfElements(nk);
 	γ.setNumberOfElements(nk);
 	δ.setNumberOfElements(nk);
+	χ.setNumberOfElements(nk);
 
 	σ.setNumberOfElements(nk);
 	λ.setNumberOfElements(nk);
@@ -724,7 +725,7 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 					real ACHI = 0.0;
 
 					for (unsigned i = 0; i < 8; i++)
-						ACHI += α(k_index, j, i) * χ(i, El, s);
+						ACHI += α(k_index, j, i) * χ(k_index, i, El, s);
 
 					AlphaTimesChi.setCoeff(k_index, j, El, s) = ACHI;
 
@@ -761,8 +762,8 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 
 				for (unsigned i = 0; i < 8; i++) {
 
-					AB1 += α(k_index, dof0, i)*β(i, m);
-					AB2 += α(k_index, dof1, i)*β(i, m);
+					AB1 += α(k_index, dof0, i) * β(i, m);
+					AB2 += α(k_index, dof1, i) * β(i, m);
 
 				}
 
@@ -1359,9 +1360,6 @@ void solver<QuadraturePrecision>::computeTracePressures() {
 		}
 	}
 
-
-
-
 	/*std::ofstream txtFile;
 	
 	txtFile.open("C:\\Users\\pgali\\Desktop\\flow2d\\tp.txt");
@@ -1391,11 +1389,6 @@ void solver<QuadraturePrecision>::computeTracePressures() {
 	}
 	
 	txtFile.close();*/
-
-
-
-
-
 
 };
 template<unsigned QuadraturePrecision>
@@ -1531,17 +1524,10 @@ void solver<QuadraturePrecision>::computeVelocities() {
 				for (unsigned j = 0; j < 8; j++)
 					Value1 += α(k_index, m, j) * β(j, l) * π(k_index, l);
 
-			for (unsigned El = 0; El < 3; El++) {
-
-				//real const orientation = 1.0;
-				real const orientation = edgeOrientation(k_index, El);
-
+			for (unsigned El = 0; El < 3; El++)
 				for (unsigned j = 0; j < 8; j++)
 					for (unsigned s = 0; s < 2; s++)
-						Value2 += α(k_index, m, j) * (orientation) * χ(j, El, s) * tπ(k_index, El, s);
-						//Value2 += α(k_index, m, j) * (s == 1 ? edgeOrientation(k_index, El) : 1.0) * χ(j, El, s) * tπ(k_index, El, s);
-
-			}
+						Value2 += α(k_index, m, j) * χ(k_index, j, El, s) * tπ(k_index, El, s);
 
 			υ.setCoeff(k_index, m) = (Value1 - Value2) / viscosities[k_index];
 
@@ -1735,7 +1721,6 @@ void solver<QuadraturePrecision>::updateConcentrations_explicit() {
 		rkFc.setCoeff(k_index, 1) = -val1 / Porosity;
 		rkFc.setCoeff(k_index, 2) = -val2 / Porosity;
 
-		// General θ scheme
 		ξ.setCoeff(k_index, 0) = ξ_n(k_index, 0) + dt * (θ * rkFc(k_index, 0) + (1.0 - θ) * rkFc_n(k_index, 0));
 		ξ.setCoeff(k_index, 1) = ξ_n(k_index, 1) + dt * (θ * rkFc(k_index, 1) + (1.0 - θ) * rkFc_n(k_index, 1));
 		ξ.setCoeff(k_index, 2) = ξ_n(k_index, 2) + dt * (θ * rkFc(k_index, 2) + (1.0 - θ) * rkFc_n(k_index, 2));
@@ -1789,10 +1774,10 @@ real solver<QuadraturePrecision>::upwindConcentration(t_pointer const & K, unsig
 	
 	if (VelocityDotNormal >= 0.0) {
 
-		//for (unsigned m = 0; m < 3; m++)
-		//	Concentration += ξ_prev(k_index, m) * QuadraturePoints_PolynomialBasis(n, El, m);
+		for (unsigned m = 0; m < 3; m++)
+			Concentration += ξ_prev(k_index, m) * QuadraturePoints_PolynomialBasis(n, El, m);
 
-		Concentration = ξ_prev(k_index, 0) * QuadraturePoints_PolynomialBasis(n, El, 0);
+		//Concentration = ξ_prev(k_index, 0) * QuadraturePoints_PolynomialBasis(n, El, 0);
 
 	}
 	else {
@@ -1812,10 +1797,10 @@ real solver<QuadraturePrecision>::upwindConcentration(t_pointer const & K, unsig
 		unsigned const e_index_Kn_loc = K->neighbors[El]->get_edge_index(E);
 
 
-		//for (unsigned m = 0; m < 3; m++)
-		//	Concentration += ξ_prev(kn_index, m) * QuadraturePoints_PolynomialBasis(n, e_index_Kn_loc, m);
+		for (unsigned m = 0; m < 3; m++)
+			Concentration += ξ_prev(kn_index, m) * QuadraturePoints_PolynomialBasis(n, e_index_Kn_loc, m);
 
-		Concentration = ξ_prev(kn_index, 0) * QuadraturePoints_PolynomialBasis(n, e_index_Kn_loc, 0);
+		//Concentration = ξ_prev(kn_index, 0) * QuadraturePoints_PolynomialBasis(n, e_index_Kn_loc, 0);
 
 	}
 	
@@ -1999,8 +1984,8 @@ void solver<QuadraturePrecision>::assembleR() {
 			unsigned const dof0 = LI(K, E, 0);
 			unsigned const dof1 = LI(K, E, 1);
 
-
-			real const ChiCoeff = edgeOrientation(k_index, K->get_edge_index(E));
+			real const ChiCoeff0 = χ(k_index, dof0, K->get_edge_index(E), 0);
+			real const ChiCoeff1 = χ(k_index, dof1, K->get_edge_index(E), 1);
 
 
 			for (unsigned l = 0; l < 3; l++) {
@@ -2010,8 +1995,8 @@ void solver<QuadraturePrecision>::assembleR() {
 
 				for (unsigned j = 0; j < 8; j++) {
 
-					Value1 += α(k_index, dof0, j) * β(j, l) / viscosities[k_index];
-					Value2 += ChiCoeff * α(k_index, dof1, j) * β(j, l) / viscosities[k_index];
+					Value1 += ChiCoeff0 * α(k_index, dof0, j) * β(j, l) / viscosities[k_index];
+					Value2 += ChiCoeff1 * α(k_index, dof1, j) * β(j, l) / viscosities[k_index];
 
 				}
 
@@ -2146,19 +2131,15 @@ void solver<QuadraturePrecision>::assembleM() {
 			unsigned const dof0 = LI(K, E, 0);
 			unsigned const dof1 = LI(K, E, 1);
 
-
-			real const ChiCoeff = edgeOrientation(k_index, K->get_edge_index(E));
+			real const ChiCoeff0 = χ(k_index, dof0, K->get_edge_index(E), 0);
+			real const ChiCoeff1 = χ(k_index, dof1, K->get_edge_index(E), 1);
 
 
 			for (unsigned El = 0; El < 3; El++) {
 
+
 				e_pointer const E_local					= K->edges[El];
 				unsigned const	e_local_index_global	= E_local->index;
-
-
-				real const orientation = 1.0;
-				//real const orientation = edgeOrientation(k_index, El);
-
 
 				real ACHI_j1_s1 = 0.0;
 				real ACHI_j1_s2 = 0.0;
@@ -2167,11 +2148,11 @@ void solver<QuadraturePrecision>::assembleM() {
 
 				for (unsigned j = 0; j < 8; j++) {
 
-					ACHI_j1_s1 += α(k_index, dof0, j) * orientation * χ(j, El, 0) / viscosities[k_index];
-					ACHI_j1_s2 += ChiCoeff * α(k_index, dof0, j) * orientation * χ(j, El, 1) / viscosities[k_index];
+					ACHI_j1_s1 += ChiCoeff0 * α(k_index, dof0, j) * χ(k_index, j, El, 0) / viscosities[k_index];
+					ACHI_j1_s2 += ChiCoeff0 * α(k_index, dof0, j) * χ(k_index, j, El, 1) / viscosities[k_index];
 
-					ACHI_j2_s1 += ChiCoeff * α(k_index, dof1, j) * orientation * χ(j, El, 0) / viscosities[k_index];
-					ACHI_j2_s2 +=  α(k_index, dof1, j) * orientation * χ(j, El, 1) / viscosities[k_index];
+					ACHI_j2_s1 += ChiCoeff1 * α(k_index, dof1, j) * χ(k_index, j, El, 0) / viscosities[k_index];
+					ACHI_j2_s2 += ChiCoeff1 * α(k_index, dof1, j) * χ(k_index, j, El, 1) / viscosities[k_index];
 
 				}
 
@@ -3388,73 +3369,107 @@ void solver<QuadraturePrecision>::assemble_χ() {
 
 	evaluate_edge_normal(ReferenceNormals);
 
+	χ.setZero();
 
-	for (unsigned El = 0; El < 3; El++) {
-
-
-		real const a = (real) 0.0;
-		real const b = (real)El != 0 ? 1.0 : sqrt(2.0);
-
-		real const c = (real)(b - a) / 2.0;
-		real const d = (real)(b + a) / 2.0;
-
-		Eigen::VectorXd const ReferenceNormal = ReferenceNormals.col(El);
-
-		for (unsigned n = 0; n < NumberOfQuadraturePointsEdge; n++) {
+	for (unsigned e = 0; e < ne; e++) {
 
 
-			real const x = (real)QuadratureOnEdge.points[n] * c + d;
-			real const w = (real)QuadratureOnEdge.weights[n] * c;
+		e_pointer const E			= mesh->get_edge(e);
+		unsigned const	e_index		= E->index;
 
 
-			evaluate_edge_parametrization(x, El, Parametrization);
-
-			real const s = Parametrization(0);
-			real const t = Parametrization(1);
-			real const drNorm = 1.0;
+		for (unsigned neighborElement = 0; neighborElement < 2; neighborElement++) {
 
 
-			evaluate_raviartthomas_basis(s, t, BasisRaviartThomas);
-			evaluate_edge_polynomial_basis(x, El, BasisEdgePolynomial);
+			t_pointer const K = E->neighbors[neighborElement];
+
+			if (!K)
+				continue;
 
 
-			for (unsigned m = 0; m < 8; m++) {
+			unsigned const k_index			= K->index;
+			unsigned const e_index_local	= K->get_edge_index(E);
+
+			real const orientation = edgeOrientation(k_index, K->get_edge_index(E));
+
+			real const a = (real) 0.0;
+			real const b = (real) e_index_local != 0 ? 1.0 : sqrt(2.0);
+
+			real const c = (real) (b - a) / 2.0;
+			real const d = (real) (b + a) / 2.0;
 
 
-				Eigen::VectorXd const Wm = BasisRaviartThomas.col(m);
-
-				real const dotProduct = Wm.dot(ReferenceNormal);
+			Eigen::VectorXd const ReferenceNormal = ReferenceNormals.col(e_index_local);
 
 
-				for (unsigned s = 0; s < 2; s++) {
+			for (unsigned n = 0; n < NumberOfQuadraturePointsEdge; n++) {
 
-					real const varPhis = BasisEdgePolynomial(s);
 
-					χ.setCoeff(m, El, s) = χ(m, El, s) + w * dotProduct * varPhis * drNorm;
+				real const x = (real)QuadratureOnEdge.points[n] * c + d;
+				real const w = (real)QuadratureOnEdge.weights[n] * c;
 
+
+				evaluate_edge_parametrization(x, e_index_local, Parametrization);
+
+				real const s = Parametrization(0);
+				real const t = Parametrization(1);
+				real const drNorm = 1.0;
+
+
+				evaluate_raviartthomas_basis(s, t, BasisRaviartThomas);
+				evaluate_edge_polynomial_basis(x, e_index_local, BasisEdgePolynomial);
+
+
+				for (unsigned m = 0; m < 8; m++) {
+
+
+					Eigen::VectorXd const Wm = BasisRaviartThomas.col(m);
+
+					real const dotProduct = Wm.dot(ReferenceNormal);
+
+
+					for (unsigned s = 0; s < 2; s++) {
+
+						//real const varPhis = BasisEdgePolynomial(s);
+						real const varPhis = s == 1 ? orientation * BasisEdgePolynomial(s) : BasisEdgePolynomial(s);
+
+						χ.setCoeff(k_index, m, e_index_local, s) = χ(k_index, m, e_index_local, s) + w * dotProduct * varPhis * drNorm;
+
+					}
 				}
 			}
-		}
+			
+
+			for (unsigned m = 0; m < 8; m++)
+				for (unsigned s = 0; s < 2; s++)
+					χ.setCoeff(k_index, m, e_index_local, s) = abs(χ(k_index, m, e_index_local, s)) < INTEGRAL_PRECISION ? 0.0 : χ(k_index, m, e_index_local, s);
+
+
+
+
+		}	
 	}
 
-	for (unsigned m = 0; m < 8; m++)
-		for (unsigned El = 0; El < 3; El++)
-			for (unsigned j = 0; j < 2; j++)
-				χ.setCoeff(m, El, j) = abs(χ(m, El, j)) < INTEGRAL_PRECISION ? 0.0 : χ(m, El, j);
 
-	//for (unsigned m = 0; m < 8; m++) {
-	//	//
-	//	Matrix<real> integral(3, 2);
-	//	integral.setZero();
-	//	//
-	//	for (unsigned El = 0; El < 3; El++)
-	//		for (unsigned j = 0; j < 2; j++)
-	//			integral(El, j) = χ(m, El, j);
-	//	//
-	//	std::cout << integral << std::endl;
-	//	//
+	//for (unsigned k = 0; k < nk; k++) {
+	//
+	//
+	//	t_pointer const K = mesh->get_triangle(k);
+	//	unsigned const k_index = K->index;
+	//
+	//	for (unsigned m = 0; m < 8; m++) {
+	//		//
+	//		Matrix<real> integral(3, 2);
+	//		integral.setZero();
+	//		//
+	//		for (unsigned El = 0; El < 3; El++)
+	//			for (unsigned j = 0; j < 2; j++)
+	//				integral(El, j) = χ(k_index, m, El, j);
+	//		//
+	//		std::cout << integral << std::endl;
+	//		//
+	//	}
 	//}
-
 
 };
 template<unsigned QuadraturePrecision>
@@ -3743,18 +3758,21 @@ void solver<QuadraturePrecision>::getSolution() {
 	computeBetas();
 
 
-	std::ofstream txtFile;
-	txtFile.open("C:\\Users\\pgali\\Desktop\\flow2d\\v.txt");
-	//txtFile.open("C:\\Users\\pgali\\Desktop\\flow2d\\velocity.txt");
-	//exportVelocityField(txtFile);
-	for (unsigned k = 0; k < nk; k++) {
+	/**************************************************/
+	//std::ofstream txtFile;
+	//txtFile.open("C:\\Users\\pgali\\Desktop\\flow2d\\v.txt");
+	////txtFile.open("C:\\Users\\pgali\\Desktop\\flow2d\\velocity.txt");
+	////exportVelocityField(txtFile);
+	//for (unsigned k = 0; k < nk; k++) {
 
-		for (unsigned j = 0; j < 8; j++)
-			txtFile << υ(mesh->get_triangle(k)->index, j) << " ";
+	//	for (unsigned j = 0; j < 8; j++)
+	//		txtFile << υ(mesh->get_triangle(k)->index, j) << " ";
 
-		txtFile << std::endl;
-	}
-	txtFile.close();
+	//	txtFile << std::endl;
+	//}
+	//txtFile.close();
+	/***********************************************/
+
 
 	// Set iteration level l := 0
 	π_n = π;
