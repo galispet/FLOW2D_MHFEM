@@ -16,7 +16,7 @@ typedef double real;
 
 double const TOL = DBL_EPSILON;
 
-unsigned const MAX_IT = 100;
+unsigned const MAX_IT = 500;
 //unsigned const quadratureRule = 17;
 //unsigned const error_quadRule = 17;
 
@@ -25,7 +25,7 @@ unsigned const quadrature_order = 6;
 
 //bool const RT_ORDER = 0;
 
-double const θ = 1.0;		// 1.0 = Backward Euler | 0.5 = Crank-Nicolson
+double const θ = 0.5;		// 1.0 = Backward Euler | 0.5 = Crank-Nicolson
 
 
 
@@ -67,23 +67,6 @@ inline double barenblatt(double x, double y, double time) {
 	//return (1.0 / pow(time, (1.0 / 3.0)))*fmax(1.0 - norm_squared / (12.0 * pow(time, (2.0 / 3.0))), 0.0);
 
 	return (1.0 / sqrt(time))*fmax(1.0 - norm_squared / (16.0 * sqrt(time)), 0.0);
-
-};
-
-inline double barenblatt_dx(double x, double y, double time) {
-
-	//if (abs(x) >= 2.0 *sqrt(3.0) * pow(t, 1.0 / 3.0))
-	//	return 0.0;
-
-	return x / (-6.0*time);
-
-};
-inline double barenblatt_dy(double x, double y, double time) {
-
-	//if (abs(x) >= 2.0 *sqrt(3.0) * pow(t, 1.0 / 3.0))
-	//	return 0.0;
-
-	return y / (-6.0*time);
 
 };
 
@@ -712,21 +695,21 @@ inline void evaluate_polynomial_basis_gradient(real const s, real const t, Matri
 
 }
 
-inline void evaluate_edge_polynomial_basis(real const ksi, unsigned const El, Vector<real> & out) {
+inline void evaluate_edge_polynomial_basis(real const ksi, unsigned const El, Vector<real> & out, real const & orientation) {
 
 	switch (El) {
 
 	case 0:
 		out(0) = 1.0;
-		out(1) = (2.0 / sqrt(2.0)) * (ksi - sqrt(2.0) / 2.0);
+		out(1) = orientation * (2.0 / sqrt(2.0)) * (ksi - sqrt(2.0) / 2.0);
 		return;
 	case 1:
 		out(0) = 1.0;
-		out(1) = 2.0*(ksi - 0.5);
+		out(1) = orientation * 2.0*(ksi - 0.5);
 		return;
 	case 2:
 		out(0) = 1.0;
-		out(1) = 2.0*(ksi - 0.5);
+		out(1) = orientation * 2.0*(ksi - 0.5);
 		return;
 
 	}
@@ -855,22 +838,22 @@ inline void evaluate_polynomial_basis_gradient(real const s, real const t, Eigen
 
 };
 
-inline void evaluate_edge_polynomial_basis(real const ksi, unsigned const El, Eigen::VectorXd & out) {
+inline void evaluate_edge_polynomial_basis(real const ksi, unsigned const El, Eigen::VectorXd & out, real const & orientation) {
 
 
 	switch (El) {
 
 	case 0:
 		out.coeffRef(0) = 1.0;
-		out.coeffRef(1) = (2.0 / sqrt(2.0)) * (ksi - sqrt(2.0) / 2.0);
+		out.coeffRef(1) = orientation * (2.0 / sqrt(2.0)) * (ksi - sqrt(2.0) / 2.0);
 		return;
 	case 1:
 		out.coeffRef(0) = 1.0;
-		out.coeffRef(1) = 2.0*(ksi - 0.5);
+		out.coeffRef(1) = orientation * 2.0*(ksi - 0.5);
 		return;
 	case 2:
 		out.coeffRef(0) = 1.0;
-		out.coeffRef(1) = 2.0*(ksi - 0.5);
+		out.coeffRef(1) = orientation * 2.0*(ksi - 0.5);
 		return;
 
 	}
@@ -905,6 +888,27 @@ inline void evaluate_edge_parametrization(real const ksi, unsigned const El, Eig
 		return;
 	case 2:
 		out.coeffRef(0) = ksi;
+		out.coeffRef(1) = 0.0;
+		return;
+
+	}
+
+};
+inline void evaluate_edge_parametrization2(real const ksi, unsigned const El, Eigen::VectorXd & out) {
+
+
+	switch (El) {
+
+	case 0:
+		out.coeffRef(0) = ksi / sqrt(2.0);
+		out.coeffRef(1) = 1.0 - ksi / sqrt(2.0);
+		return;
+	case 1:
+		out.coeffRef(0) = 0.0;
+		out.coeffRef(1) = ksi;
+		return;
+	case 2:
+		out.coeffRef(0) = 1.0 - ksi;
 		out.coeffRef(1) = 0.0;
 		return;
 

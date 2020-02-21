@@ -8,6 +8,8 @@
 /*                                                                           */
 /*****************************************************************************/
 
+// Locally make container of pointers for triangles and edges. No calling mesh needed?
+
 // Upwind : Insert JF/iJFT, transformed normal as argument -: it will be computed only once per element. Not every time in the quadrature
 //		  : Insert computed bases. There is no need for computing it twice !!
 
