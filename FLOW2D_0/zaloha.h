@@ -7661,6 +7661,272 @@ void solver::assembleRInverseDH_whole() {
 
 */
 
+/*
+
+template<unsigned QuadraturePrecision>
+void solver<QuadraturePrecision>::assemblePressureSystemMatrix3() {
+
+
+	real const coefficient = θ * dt;
+
+	Eigen::Matrix3d block;
+	Eigen::Matrix3d block1;
+	Eigen::Matrix3d block2;
+
+
+	// It is sufficient to zero only diagonal elements. Therefore, there is no need for += in the sequel
+	for (unsigned e = 0; e < ne; e++) {
+
+		internalPressureSystem.coeffRef(e, e) = M_j1_s1.coeff(e, e);
+		internalPressureSystem.coeffRef(e, e + ne) = M_j1_s2.coeff(e, e);
+		internalPressureSystem.coeffRef(e + ne, e) = M_j2_s1.coeff(e, e);
+		internalPressureSystem.coeffRef(e + ne, e + ne) = M_j2_s2.coeff(e, e);
+
+	}
+
+	for (unsigned k = 0; k < nk; k++) {
+
+
+
+		t_pointer const K = mesh->get_triangle(k);
+
+		unsigned const k_index = K->index;
+
+
+
+
+for (unsigned r = 0; r < 3; r++)
+	for (unsigned s = 0; s < 3; s++)
+		block(r, s) = δij(r, s) - coefficient * σ(k_index, r, s);
+
+Eigen::Matrix3d const inverse_block = block.inverse();
+
+
+
+
+for (unsigned m = 0; m < 3; m++) {
+	for (unsigned Ei = 0; Ei < 3; Ei++) {
+
+		block1(m, Ei) = λ(k_index, 0, m, Ei);
+		block2(m, Ei) = λ(k_index, 1, m, Ei);
+
+	}
+}
+
+block1 *= -coefficient;
+block2 *= -coefficient;
+
+
+
+
+Eigen::Matrix3d const iDH1block = inverse_block * block1;
+Eigen::Matrix3d const iDH2block = inverse_block * block2;
+
+
+
+
+
+for (unsigned ei = 0; ei < 3; ei++) {
+
+
+	e_pointer const Ei = K->edges[ei];
+	unsigned const e_index_i = K->edges[ei]->index;
+
+
+	// Diagonal elements are already zeroed
+	if (Ei->marker == E_MARKER::DIRICHLET)
+		continue;
+
+
+	for (unsigned ej = 0; ej < 3; ej++) {
+
+
+		unsigned const e_index_j = K->edges[ej]->index;
+
+
+		real sum11 = 0.0;
+		real sum12 = 0.0;
+		real sum21 = 0.0;
+		real sum22 = 0.0;
+
+		// Number of degrees of freedom of internal pressure
+		for (unsigned m = 0; m < 3; m++) {
+
+			sum11 += R1_block(k_index, ei, m) * iDH1block(m, ej);
+			sum12 += R1_block(k_index, ei, m) * iDH2block(m, ej);
+			sum21 += R2_block(k_index, ei, m) * iDH1block(m, ej);
+			sum22 += R2_block(k_index, ei, m) * iDH2block(m, ej);
+
+		}
+
+		// Because diagonal elements were zeroed at the beginning, the += operator is needed only here
+		if (e_index_i == e_index_j) {
+
+			internalPressureSystem.coeffRef(e_index_i, e_index_i) += sum11;
+			internalPressureSystem.coeffRef(e_index_i, e_index_i + ne) += sum12;
+			internalPressureSystem.coeffRef(e_index_i + ne, e_index_i) += sum21;
+			internalPressureSystem.coeffRef(e_index_i + ne, e_index_i + ne) += sum22;
+
+			continue;
+
+		}
+
+		internalPressureSystem.coeffRef(e_index_i, e_index_j) = sum11 + M_j1_s1.coeff(e_index_i, e_index_j);
+		internalPressureSystem.coeffRef(e_index_i, e_index_j + ne) = sum12 + M_j1_s2.coeff(e_index_i, e_index_j);
+		internalPressureSystem.coeffRef(e_index_i + ne, e_index_j) = sum21 + M_j2_s1.coeff(e_index_i, e_index_j);
+		internalPressureSystem.coeffRef(e_index_i + ne, e_index_j + ne) = sum22 + M_j2_s2.coeff(e_index_i, e_index_j);
+
+	}
+}
+	}
+
+};
+template<unsigned QuadraturePrecision>
+void solver<QuadraturePrecision>::assemblePressureSystemMatrix4() {
+
+
+	real const coefficient = θ * dt;
+
+	Eigen::Matrix3d block;
+	Eigen::Matrix3d block1;
+	Eigen::Matrix3d block2;
+
+	std::vector<Eigen::Triplet<real>> tri;
+
+
+	// It is sufficient to zero only diagonal elements. Therefore, there is no need for += in the sequel
+	for (unsigned e = 0; e < ne; e++) {
+
+		real const M11 = M_j1_s1.coeff(e, e);
+		real const M12 = M_j1_s2.coeff(e, e);
+		real const M21 = M_j2_s1.coeff(e, e);
+		real const M22 = M_j2_s2.coeff(e, e);
+
+		Eigen::Triplet<real> const T1(e, e, M11);
+		Eigen::Triplet<real> const T2(e, e + ne, M12);
+		Eigen::Triplet<real> const T3(e + ne, e, M21);
+		Eigen::Triplet<real> const T4(e + ne, e + ne, M22);
+
+		tri.push_back(T1);
+		tri.push_back(T2);
+		tri.push_back(T3);
+		tri.push_back(T4);
+
+	}
+
+	for (unsigned k = 0; k < nk; k++) {
+
+
+
+		t_pointer const K = mesh->get_triangle(k);
+
+		unsigned const k_index = K->index;
+
+
+
+		for (unsigned r = 0; r < 3; r++)
+			for (unsigned s = 0; s < 3; s++)
+				block(r, s) = δij(r, s) - coefficient * σ(k_index, r, s);
+
+		Eigen::Matrix3d const inverse_block = block.inverse();
+
+
+		for (unsigned m = 0; m < 3; m++) {
+			for (unsigned Ei = 0; Ei < 3; Ei++) {
+
+				block1(m, Ei) = λ(k_index, 0, m, Ei);
+				block2(m, Ei) = λ(k_index, 1, m, Ei);
+
+			}
+		}
+
+		block1 *= -coefficient;
+		block2 *= -coefficient;
+
+
+
+		Eigen::Matrix3d const iDH1block = inverse_block * block1;
+		Eigen::Matrix3d const iDH2block = inverse_block * block2;
+
+
+
+
+		for (unsigned ei = 0; ei < 3; ei++) {
+
+
+			e_pointer const Ei = K->edges[ei];
+			unsigned const e_index_i = K->edges[ei]->index;
+
+
+			// Diagonal elements are already zeroed/or there is Mij already
+			if (Ei->marker == E_MARKER::DIRICHLET)
+				continue;
+
+
+			for (unsigned ej = 0; ej < 3; ej++) {
+
+
+				unsigned const e_index_j = K->edges[ej]->index;
+
+
+				real sum11 = 0.0;
+				real sum12 = 0.0;
+				real sum21 = 0.0;
+				real sum22 = 0.0;
+
+				// Number of degrees of freedom of internal pressure
+				for (unsigned m = 0; m < 3; m++) {
+
+					sum11 += R1_block(k_index, ei, m) * iDH1block(m, ej);
+					sum12 += R1_block(k_index, ei, m) * iDH2block(m, ej);
+					sum21 += R2_block(k_index, ei, m) * iDH1block(m, ej);
+					sum22 += R2_block(k_index, ei, m) * iDH2block(m, ej);
+
+				}
+
+				// Because diagonal elements were zeroed at the beginning, the += operator is needed only here
+				if (e_index_i == e_index_j) {
+
+					Eigen::Triplet<real> const T1(e_index_i, e_index_i, sum11);
+					Eigen::Triplet<real> const T2(e_index_i, e_index_i + ne, sum12);
+					Eigen::Triplet<real> const T3(e_index_i + ne, e_index_i, sum21);
+					Eigen::Triplet<real> const T4(e_index_i + ne, e_index_i + ne, sum22);
+
+					tri.push_back(T1);
+					tri.push_back(T2);
+					tri.push_back(T3);
+					tri.push_back(T4);
+
+					continue;
+
+				}
+
+				real const M11 = sum11 + M_j1_s1.coeff(e_index_i, e_index_j);
+				real const M12 = sum12 + M_j1_s2.coeff(e_index_i, e_index_j);
+				real const M21 = sum21 + M_j2_s1.coeff(e_index_i, e_index_j);
+				real const M22 = sum22 + M_j2_s2.coeff(e_index_i, e_index_j);
+
+				Eigen::Triplet<real> const T1(e_index_i, e_index_j, M11);
+				Eigen::Triplet<real> const T2(e_index_i, e_index_j + ne, M12);
+				Eigen::Triplet<real> const T3(e_index_i + ne, e_index_j, M21);
+				Eigen::Triplet<real> const T4(e_index_i + ne, e_index_j + ne, M22);
+
+				tri.push_back(T1);
+				tri.push_back(T2);
+				tri.push_back(T3);
+				tri.push_back(T4);
+
+			}
+		}
+	}
+
+	internalPressureSystem.setFromTriplets(tri.begin(), tri.end());
+
+};
+
+
+*/
+
 //pressure
 /*
 void solver::computePressureEquation() {

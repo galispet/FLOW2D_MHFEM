@@ -28,18 +28,19 @@
 //const double b_y = 25.0;
 
 const double a_x = 0.0;
-const double b_x = 100.0;
+const double b_x = 40.0;
 
 const double a_y = 0.0;
-const double b_y = 100.0;
+const double b_y = 40.0;
 
-const int N_x = 2*2*2*2;
-const int N_y = 2*2*2*2;
+unsigned const refinement = 4;
 
+const int N_x = 2 * 2 * refinement;
+const int N_y = N_x;
 
-unsigned const nt0 = 100;
-unsigned const NT = 500;
-double const dt = 300;
+unsigned const nt0 = 10 * refinement;
+unsigned const NT = 150 * refinement;
+double const dt = 300.0 / refinement;
 
 
 std::string meshTxtFile = "C:\\Users\\pgali\\Desktop\\flow2d\\mesh.txt";

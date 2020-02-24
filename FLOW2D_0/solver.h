@@ -213,6 +213,7 @@ private:
 	real * AffineMappingMatrixDeterminant = NULL;
 	unsigned * ElementIndeces = NULL;
 	t_pointer * Elements = NULL;
+	real * PorosityViscosityDeterminant = NULL;
 
 
 
@@ -237,6 +238,9 @@ private:
 
 	SparseMatrix R1iD;
 	SparseMatrix R2iD;
+
+	CoeffMatrix2D<3, 3> R1_block;
+	CoeffMatrix2D<3, 3> R2_block;
 
 	// Pressure system matrix
 	SparseMatrix iD;
@@ -290,10 +294,10 @@ private:
 	void assemblePressureSystemMatrix4();
 	void assemblePressureSystemMatrixAndInverseDAndH_1();
 	void assemblePressureSystemMatrixAndInverseDAndH_2();
+	
+	void assemblePressureSystem();
+	void assemblePressureSystem_NoTriplet();
 
-
-	CoeffMatrix2D<3, 3> R1_block;
-	CoeffMatrix2D<3, 3> R2_block;
 
 
 	void assemble_α();
@@ -559,7 +563,7 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	AffineMappingMatrixDeterminant	= new real[nk];
 	Elements						= new t_pointer[nk];
 	ElementIndeces					= new unsigned[nk];
-
+	PorosityViscosityDeterminant	= new real[nk];
 
 
 
@@ -615,6 +619,8 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 		/*****************************************************************************/
 
 		AffineMappingMatrixDeterminant[k_index] = detJF;
+
+		PorosityViscosityDeterminant[k_index] = 1.0 / (viscosities[k_index] * porosities[k_index] * detJF);
 
 		JF(0, 0) = x1 - x0;
 		JF(0, 1) = x2 - x0;
@@ -886,6 +892,7 @@ solver<QuadraturePrecision>::~solver() {
 	delete[] AffineMappingMatrixDeterminant;
 	delete[] Elements;
 	delete[] ElementIndeces;
+	delete[] PorosityViscosityDeterminant;
 
 };
 
@@ -1375,48 +1382,10 @@ void solver<QuadraturePrecision>::computePressureEquation() {
 	assembleG();
 	assembleV();
 
-
-
-	//assemblePressureSystemMatrixAndInverseDAndH_1();
-	assemblePressureSystemMatrixAndInverseDAndH_2();
+	assemblePressureSystem();
 
 	pressureSystemRhs.head(ne) = R1iD * G - V1;
 	pressureSystemRhs.tail(ne) = R2iD * G - V2;
-
-
-	/*assembleInverseD();
-	assembleH();
-
-
-	SparseMatrix const S1 = R1 * iD * H1 + M_j1_s1;
-	SparseMatrix const S2 = R1 * iD * H2 + M_j1_s2;
-	SparseMatrix const S3 = R2 * iD * H1 + M_j2_s1;
-	SparseMatrix const S4 = R2 * iD * H2 + M_j2_s2;
-
-	std::vector<Eigen::Triplet<double>> tri;
-
-	for (int i = 0; i < S1.outerSize(); i++)
-		for (typename Eigen::SparseMatrix<double>::InnerIterator it(S1, i); it; ++it)
-			tri.emplace_back(it.row(), it.col(), it.value());
-
-	for (int i = 0; i < S2.outerSize(); i++)
-		for (typename Eigen::SparseMatrix<double>::InnerIterator it(S2, i); it; ++it)
-			tri.emplace_back(it.row(), it.col() + ne, it.value());
-
-	for (int i = 0; i < S3.outerSize(); i++)
-		for (typename Eigen::SparseMatrix<double>::InnerIterator it(S3, i); it; ++it)
-			tri.emplace_back(it.row() + ne, it.col(), it.value());
-
-	for (int i = 0; i < S4.outerSize(); i++)
-		for (typename Eigen::SparseMatrix<double>::InnerIterator it(S4, i); it; ++it)
-			tri.emplace_back(it.row() + ne, it.col() + ne, it.value());
-
-
-	internalPressureSystem.setFromTriplets(tri.begin(), tri.end());
-
-	pressureSystemRhs.head(ne) = R1 * iD * G - V1;
-	pressureSystemRhs.tail(ne) = R2 * iD * G - V2;*/
-
 
 
 	Eigen::SparseLU<SparseMatrix> const solver(internalPressureSystem);
@@ -1555,39 +1524,39 @@ void solver<QuadraturePrecision>::computeVelocities() {
 
 				unsigned const j = LI(K, E, dof);
 
-				real val1 = 0.0;
-				real val2 = 0.0;
+				real Value1 = 0.0;
+				real Value2 = 0.0;
 
 				for (unsigned m = 0; m < 8; m++) {
 
 
-					real const alpha = α(k_index, m, j);
+					real const Alpha = α(k_index, m, j);
 
-					real PB = 0.0;
+					real BetaPi = 0.0;
 					real ECHITP = 0.0;
 
 					for (unsigned i = 0; i < 3; i++)
-						PB += β(m, i) * π(k_index, i);
+						BetaPi += β(m, i) * π(k_index, i);
 
-					val1 += alpha * PB;
+					Value1 += Alpha * BetaPi;
 
 
 					for (unsigned l = 0; l < 3; l++) {
 
-						real CHITP = 0.0;
+						real ChiTPi = 0.0;
 
 						for (unsigned s = 0; s < 2; s++)
-							CHITP += χ(k_index, m, l, s) * tπ(k_index, l, s);
+							ChiTPi += χ(k_index, m, l, s) * tπ(k_index, l, s);
 
-						ECHITP += CHITP;
+						ECHITP += ChiTPi;
 
 					}
 
-					val2 += alpha * ECHITP;
+					Value2 += Alpha * ECHITP;
 
 				}
 
-				υ.setCoeff(k_index, j) = (val1 - val2) / viscosities[k_index];
+				υ.setCoeff(k_index, j) = (Value1 - Value2) / viscosities[k_index];
 
 			}
 		}
@@ -1597,21 +1566,21 @@ void solver<QuadraturePrecision>::computeVelocities() {
 		for (unsigned dof = 6; dof < 8; dof++) {
 
 
-			real val1 = 0.0;
-			real val2 = 0.0;
+			real Value1 = 0.0;
+			real Value2 = 0.0;
 
 			for (unsigned m = 0; m < 8; m++) {
 
 
-				real const alpha = α(k_index, dof, m);
+				real const Alpha = α(k_index, dof, m);
 
-				real PB = 0.0;
+				real BetaPi = 0.0;
 				real ECHITP = 0.0;
 
 				for (unsigned i = 0; i < 3; i++)
-					PB += β(m, i) * π(k_index, i);
+					BetaPi += β(m, i) * π(k_index, i);
 
-				val1 += alpha * PB;
+				Value1 += Alpha * BetaPi;
 
 
 				for (unsigned l = 0; l < 3; l++) {
@@ -1625,11 +1594,11 @@ void solver<QuadraturePrecision>::computeVelocities() {
 
 				}
 
-				val2 += alpha * ECHITP;
+				Value2 += Alpha * ECHITP;
 
 			}
 
-			υ.setCoeff(k_index, dof) = (val1 - val2) / viscosities[k_index];
+			υ.setCoeff(k_index, dof) = (Value1 - Value2) / viscosities[k_index];
 
 		}
 		
@@ -1643,41 +1612,38 @@ void solver<QuadraturePrecision>::updateConcentrations_explicit() {
 	for (unsigned k = 0; k < nk; k++) {
 
 
-		unsigned const k_index = ElementIndeces[k];
+		unsigned const	k_index	= ElementIndeces[k];
+		real const		coeff	= 1.0 / (porosities[k_index] * AffineMappingMatrixDeterminant[k_index]);
 
-		real val0 = 0.0;
-		real val1 = 0.0;
-		real val2 = 0.0;
+		real Value0 = 0.0;
+		real Value1 = 0.0;
+		real Value2 = 0.0;
 
 		for (unsigned j = 0; j < 8; j++) {
 
 
-			real etaGamma0 = 0.0;
-			real etaGamma1 = 0.0;
-			real etaGamma2 = 0.0;
+			real EtaGamma0 = 0.0;
+			real EtaGamma1 = 0.0;
+			real EtaGamma2 = 0.0;
 
 			for (unsigned l = 0; l < 3; l++) {
 
-				etaGamma0 += η(0, l) * γ(k_index, l, j);
-				etaGamma1 += η(1, l) * γ(k_index, l, j);
-				etaGamma2 += η(2, l) * γ(k_index, l, j);
+				EtaGamma0 += η(0, l) * γ(k_index, l, j);
+				EtaGamma1 += η(1, l) * γ(k_index, l, j);
+				EtaGamma2 += η(2, l) * γ(k_index, l, j);
 
 			}
-
-			real const detJF = AffineMappingMatrixDeterminant[k_index];
-
-			// In the computation of Eta, there is coefficient detJF. When inverting, the coefficient is inverted
-			val0 += υ(k_index, j) * etaGamma0 / detJF;
-			val1 += υ(k_index, j) * etaGamma1 / detJF;
-			val2 += υ(k_index, j) * etaGamma2 / detJF;
+			
+			Value0 += υ(k_index, j) * EtaGamma0;
+			Value1 += υ(k_index, j) * EtaGamma1;
+			Value2 += υ(k_index, j) * EtaGamma2;
 
 		}
 
-		real const Porosity = porosities[k_index];
-
-		rkFc.setCoeff(k_index, 0) = -val0 / Porosity;
-		rkFc.setCoeff(k_index, 1) = -val1 / Porosity;
-		rkFc.setCoeff(k_index, 2) = -val2 / Porosity;
+		// In the computation of Eta, there is coefficient detJF. When inverting, the coefficient is inverted
+		rkFc.setCoeff(k_index, 0) = -Value0 * coeff;
+		rkFc.setCoeff(k_index, 1) = -Value1 * coeff;
+		rkFc.setCoeff(k_index, 2) = -Value2 * coeff;
 
 		ξ.setCoeff(k_index, 0) = ξ_n(k_index, 0) + dt * (θ * rkFc(k_index, 0) + (1.0 - θ) * rkFc_n(k_index, 0));
 		ξ.setCoeff(k_index, 1) = ξ_n(k_index, 1) + dt * (θ * rkFc(k_index, 1) + (1.0 - θ) * rkFc_n(k_index, 1));
@@ -1695,14 +1661,13 @@ real solver<QuadraturePrecision>::upwindConcentration(t_pointer const & K, unsig
 
 	real const time = (nt + 1) * dt;
 
-	unsigned const k_index = K->index;
+	unsigned const	k_index		= K->index;
+	e_pointer const E			= K->edges[El];
+	E_MARKER const	e_marker	= E->marker;
 
-	e_pointer const E = K->edges[El];
-	E_MARKER const e_marker = E->marker;
 
-
-	real VelocityDotNormal = 0.0;
-	real Concentration = 0.0;
+	real VelocityDotNormal	= 0.0;
+	real Concentration		= 0.0;
 
 	if (e_marker == E_MARKER::NEUMANN) {
 
@@ -1735,8 +1700,6 @@ real solver<QuadraturePrecision>::upwindConcentration(t_pointer const & K, unsig
 		for (unsigned m = 0; m < 3; m++)
 			Concentration += ξ_prev(k_index, m) * QuadraturePoints_PolynomialBasis(n, El, m);
 
-		//Concentration = ξ_prev(k_index, 0) * QuadraturePoints_PolynomialBasis(n, El, 0);
-
 	}
 	else {
 
@@ -1749,23 +1712,12 @@ real solver<QuadraturePrecision>::upwindConcentration(t_pointer const & K, unsig
 			return DIRICHLET_GAMMA_P_concentration(X, Y, time);
 
 		}
-
-
-		unsigned const kn_index = K->neighbors[El]->index;
-		unsigned const e_index_Kn_loc = K->neighbors[El]->get_edge_index(E);
-
-
-		//for (unsigned m = 0; m < 3; m++)
-		//	Concentration += ξ_prev(kn_index, m) * QuadraturePoints_PolynomialBasis(n, e_index_Kn_loc, m);
-
-		//Concentration = ξ_prev(kn_index, 0) * QuadraturePoints_PolynomialBasis(n, e_index_Kn_loc, 0);
-
-
-
+		
+		unsigned const kn_index			= K->neighbors[El]->index;
+		unsigned const e_index_Kn_loc	= K->neighbors[El]->get_edge_index(E);
 
 		for (unsigned m = 0; m < 3; m++)
 			Concentration += ξ_prev(kn_index, m) * QuadraturePoints_PolynomialBasisOpposite(n, e_index_Kn_loc, m);
-		//Concentration = ξ_prev(kn_index, 0) * QuadraturePoints_PolynomialBasis_reverse(n, e_index_Kn_loc, 0);
 		
 	}
 	
@@ -2287,8 +2239,34 @@ void solver<QuadraturePrecision>::assembleV() {
 		V1[e_index] = 0.0;
 		V2[e_index] = 0.0;
 
-		if (marker == E_MARKER::NEUMANN)
-			V1[e_index] = NEUMANN_GAMMA_Q_velocity(E, time);
+		if (marker == E_MARKER::NEUMANN) {
+
+
+			real ChiCoeff0 = 1.0;
+			real ChiCoeff1 = 1.0;
+
+			for (unsigned neighborElement = 0; neighborElement < 2; neighborElement++) {
+
+				t_pointer const K = E->neighbors[neighborElement];
+
+				if (!K)
+					continue;
+
+				unsigned const k_index = K->index;
+
+				unsigned const dof0 = LI(K, E, 0);
+				unsigned const dof1 = LI(K, E, 1);
+
+				ChiCoeff0 = χ(k_index, dof0, K->get_edge_index(E), 0);
+				ChiCoeff1 = χ(k_index, dof1, K->get_edge_index(E), 1);
+
+			}
+
+			V1[e_index] = ChiCoeff0 * NEUMANN_GAMMA_Q_velocity(E, time);
+			V2[e_index] = ChiCoeff1 * 0.0;
+
+		}
+			
 
 		else if (marker == E_MARKER::DIRICHLET) {
 
@@ -2458,505 +2436,8 @@ void solver<QuadraturePrecision>::assembleG() {
 
 
 
-
-
 template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::assemblePressureSystemMatrix3() {
-
-
-	real const coefficient = θ * dt;
-
-	Eigen::Matrix3d block;
-	Eigen::Matrix3d block1;
-	Eigen::Matrix3d block2;
-
-
-	// It is sufficient to zero only diagonal elements. Therefore, there is no need for += in the sequel
-	for (unsigned e = 0; e < ne; e++) {
-
-		internalPressureSystem.coeffRef(e, e) = M_j1_s1.coeff(e, e);
-		internalPressureSystem.coeffRef(e, e + ne) = M_j1_s2.coeff(e, e);
-		internalPressureSystem.coeffRef(e + ne, e) = M_j2_s1.coeff(e, e);
-		internalPressureSystem.coeffRef(e + ne, e + ne) = M_j2_s2.coeff(e, e);
-
-	}
-
-	for (unsigned k = 0; k < nk; k++) {
-
-
-
-		t_pointer const K = mesh->get_triangle(k);
-
-		unsigned const k_index = K->index;
-
-
-		/*****************************************************************************/
-		/*                                                                           */
-		/*    - Inverse of the matrix D										         */
-		/*                                                                           */
-		/*****************************************************************************/
-
-		for (unsigned r = 0; r < 3; r++)
-			for (unsigned s = 0; s < 3; s++)
-				block(r, s) = δij(r, s) - coefficient * σ(k_index, r, s);
-
-		Eigen::Matrix3d const inverse_block = block.inverse();
-
-
-		/*****************************************************************************/
-		/*                                                                           */
-		/*    - H1, H2														         */
-		/*                                                                           */
-		/*****************************************************************************/
-
-		for (unsigned m = 0; m < 3; m++) {
-			for (unsigned Ei = 0; Ei < 3; Ei++) {
-
-				block1(m, Ei) = λ(k_index, 0, m, Ei);
-				block2(m, Ei) = λ(k_index, 1, m, Ei);
-
-			}
-		}
-
-		block1 *= -coefficient;
-		block2 *= -coefficient;
-
-
-		/*****************************************************************************/
-		/*                                                                           */
-		/*    - H1, H2 blocks multiplied by the blocks Inverse of D			         */
-		/*                                                                           */
-		/*****************************************************************************/
-
-		Eigen::Matrix3d const iDH1block = inverse_block * block1;
-		Eigen::Matrix3d const iDH2block = inverse_block * block2;
-
-
-
-		/*****************************************************************************/
-		/*                                                                           */
-		/*    - Assemble of the resulting matrix R1 * D.inverse * H1		         */
-		/*                                                                           */
-		/*****************************************************************************/
-
-		for (unsigned ei = 0; ei < 3; ei++) {
-
-
-			e_pointer const Ei = K->edges[ei];
-			unsigned const e_index_i = K->edges[ei]->index;
-
-
-			// Diagonal elements are already zeroed
-			if (Ei->marker == E_MARKER::DIRICHLET)
-				continue;
-
-
-			for (unsigned ej = 0; ej < 3; ej++) {
-
-
-				unsigned const e_index_j = K->edges[ej]->index;
-
-
-				real sum11 = 0.0;
-				real sum12 = 0.0;
-				real sum21 = 0.0;
-				real sum22 = 0.0;
-
-				// Number of degrees of freedom of internal pressure
-				for (unsigned m = 0; m < 3; m++) {
-
-					sum11 += R1_block(k_index, ei, m) * iDH1block(m, ej);
-					sum12 += R1_block(k_index, ei, m) * iDH2block(m, ej);
-					sum21 += R2_block(k_index, ei, m) * iDH1block(m, ej);
-					sum22 += R2_block(k_index, ei, m) * iDH2block(m, ej);
-
-				}
-
-				// Because diagonal elements were zeroed at the beginning, the += operator is needed only here
-				if (e_index_i == e_index_j) {
-
-					internalPressureSystem.coeffRef(e_index_i, e_index_i) += sum11;
-					internalPressureSystem.coeffRef(e_index_i, e_index_i + ne) += sum12;
-					internalPressureSystem.coeffRef(e_index_i + ne, e_index_i) += sum21;
-					internalPressureSystem.coeffRef(e_index_i + ne, e_index_i + ne) += sum22;
-
-					continue;
-
-				}
-
-				internalPressureSystem.coeffRef(e_index_i, e_index_j) = sum11 + M_j1_s1.coeff(e_index_i, e_index_j);
-				internalPressureSystem.coeffRef(e_index_i, e_index_j + ne) = sum12 + M_j1_s2.coeff(e_index_i, e_index_j);
-				internalPressureSystem.coeffRef(e_index_i + ne, e_index_j) = sum21 + M_j2_s1.coeff(e_index_i, e_index_j);
-				internalPressureSystem.coeffRef(e_index_i + ne, e_index_j + ne) = sum22 + M_j2_s2.coeff(e_index_i, e_index_j);
-
-			}
-		}
-	}
-
-};
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::assemblePressureSystemMatrix4() {
-
-
-	real const coefficient = θ * dt;
-
-	Eigen::Matrix3d block;
-	Eigen::Matrix3d block1;
-	Eigen::Matrix3d block2;
-
-	std::vector<Eigen::Triplet<real>> tri;
-	//tri.reserve(estimation_of_entries);
-
-
-	// It is sufficient to zero only diagonal elements. Therefore, there is no need for += in the sequel
-	for (unsigned e = 0; e < ne; e++) {
-
-		real const M11 = M_j1_s1.coeff(e, e);
-		real const M12 = M_j1_s2.coeff(e, e);
-		real const M21 = M_j2_s1.coeff(e, e);
-		real const M22 = M_j2_s2.coeff(e, e);
-
-		Eigen::Triplet<real> const T1(e, e, M11);
-		Eigen::Triplet<real> const T2(e, e + ne, M12);
-		Eigen::Triplet<real> const T3(e + ne, e, M21);
-		Eigen::Triplet<real> const T4(e + ne, e + ne, M22);
-
-		tri.push_back(T1);
-		tri.push_back(T2);
-		tri.push_back(T3);
-		tri.push_back(T4);
-
-	}
-
-	for (unsigned k = 0; k < nk; k++) {
-
-
-
-		t_pointer const K = mesh->get_triangle(k);
-
-		unsigned const k_index = K->index;
-
-
-		/*****************************************************************************/
-		/*                                                                           */
-		/*    - Inverse of the matrix D										         */
-		/*                                                                           */
-		/*****************************************************************************/
-
-		for (unsigned r = 0; r < 3; r++)
-			for (unsigned s = 0; s < 3; s++)
-				block(r, s) = δij(r, s) - coefficient * σ(k_index, r, s);
-
-		Eigen::Matrix3d const inverse_block = block.inverse();
-
-
-		/*****************************************************************************/
-		/*                                                                           */
-		/*    - H1, H2														         */
-		/*                                                                           */
-		/*****************************************************************************/
-
-		for (unsigned m = 0; m < 3; m++) {
-			for (unsigned Ei = 0; Ei < 3; Ei++) {
-
-				block1(m, Ei) = λ(k_index, 0, m, Ei);
-				block2(m, Ei) = λ(k_index, 1, m, Ei);
-
-			}
-		}
-
-		block1 *= -coefficient;
-		block2 *= -coefficient;
-
-
-		/*****************************************************************************/
-		/*                                                                           */
-		/*    - H1, H2 blocks multiplied by the blocks Inverse of D			         */
-		/*                                                                           */
-		/*****************************************************************************/
-
-		Eigen::Matrix3d const iDH1block = inverse_block * block1;
-		Eigen::Matrix3d const iDH2block = inverse_block * block2;
-
-
-
-		/*****************************************************************************/
-		/*                                                                           */
-		/*    - Assemble of the resulting matrix R1 * D.inverse * H1		         */
-		/*                                                                           */
-		/*****************************************************************************/
-
-		for (unsigned ei = 0; ei < 3; ei++) {
-
-
-			e_pointer const Ei = K->edges[ei];
-			unsigned const e_index_i = K->edges[ei]->index;
-
-
-			// Diagonal elements are already zeroed/or there is Mij already
-			if (Ei->marker == E_MARKER::DIRICHLET)
-				continue;
-
-
-			for (unsigned ej = 0; ej < 3; ej++) {
-
-
-				unsigned const e_index_j = K->edges[ej]->index;
-
-
-				real sum11 = 0.0;
-				real sum12 = 0.0;
-				real sum21 = 0.0;
-				real sum22 = 0.0;
-
-				// Number of degrees of freedom of internal pressure
-				for (unsigned m = 0; m < 3; m++) {
-
-					sum11 += R1_block(k_index, ei, m) * iDH1block(m, ej);
-					sum12 += R1_block(k_index, ei, m) * iDH2block(m, ej);
-					sum21 += R2_block(k_index, ei, m) * iDH1block(m, ej);
-					sum22 += R2_block(k_index, ei, m) * iDH2block(m, ej);
-
-				}
-
-				// Because diagonal elements were zeroed at the beginning, the += operator is needed only here
-				if (e_index_i == e_index_j) {
-
-					Eigen::Triplet<real> const T1(e_index_i, e_index_i, sum11);
-					Eigen::Triplet<real> const T2(e_index_i, e_index_i + ne, sum12);
-					Eigen::Triplet<real> const T3(e_index_i + ne, e_index_i, sum21);
-					Eigen::Triplet<real> const T4(e_index_i + ne, e_index_i + ne, sum22);
-
-					tri.push_back(T1);
-					tri.push_back(T2);
-					tri.push_back(T3);
-					tri.push_back(T4);
-
-					continue;
-
-				}
-
-				real const M11 = sum11 + M_j1_s1.coeff(e_index_i, e_index_j);
-				real const M12 = sum12 + M_j1_s2.coeff(e_index_i, e_index_j);
-				real const M21 = sum21 + M_j2_s1.coeff(e_index_i, e_index_j);
-				real const M22 = sum22 + M_j2_s2.coeff(e_index_i, e_index_j);
-
-				Eigen::Triplet<real> const T1(e_index_i, e_index_j, M11);
-				Eigen::Triplet<real> const T2(e_index_i, e_index_j + ne, M12);
-				Eigen::Triplet<real> const T3(e_index_i + ne, e_index_j, M21);
-				Eigen::Triplet<real> const T4(e_index_i + ne, e_index_j + ne, M22);
-
-				tri.push_back(T1);
-				tri.push_back(T2);
-				tri.push_back(T3);
-				tri.push_back(T4);
-
-			}
-		}
-	}
-
-	internalPressureSystem.setFromTriplets(tri.begin(), tri.end());
-
-};
-
-
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::assemblePressureSystemMatrixAndInverseDAndH_1() {
-
-
-	real const coefficient = θ * dt;
-
-	Eigen::Matrix3d block;
-	Eigen::Matrix3d block1;
-	Eigen::Matrix3d block2;
-
-	assemble_σ();
-	assemble_λ();
-
-	//omp_set_num_threads(2);
-	//#pragma omp parallel 
-	//{
-	//	#pragma omp sections
-	//	{
-	//		#pragma omp section
-	//		{
-	//			assemble_σ();
-	//		}
-	//		#pragma omp section
-	//		{
-	//			assemble_λ();
-	//		}
-	//	}
-	//}
-
-
-	// It is sufficient to zero only diagonal elements. Therefore, there is no need for += in the sequel
-	for (unsigned e = 0; e < ne; e++) {
-
-		internalPressureSystem.coeffRef(e,		e)			= M_j1_s1.coeff(e, e);
-		internalPressureSystem.coeffRef(e,		e + ne)		= M_j1_s2.coeff(e, e);
-		internalPressureSystem.coeffRef(e + ne, e)			= M_j2_s1.coeff(e, e);
-		internalPressureSystem.coeffRef(e + ne, e + ne)		= M_j2_s2.coeff(e, e);
-
-	}
-
-	for (int k = 0; k < nk; k++) {
-
-
-
-		t_pointer const K = mesh->get_triangle(k);
-
-		unsigned const k_index = K->index;
-		unsigned const start_index = 3 * k_index;
-
-
-		/*****************************************************************************/
-		/*                                                                           */
-		/*    - Inverse of the matrix D										         */
-		/*                                                                           */
-		/*****************************************************************************/
-
-		for (unsigned r = 0; r < 3; r++)
-			for (unsigned s = 0; s < 3; s++)
-				block(r, s) = δij(r, s) - coefficient * σ(k_index, r, s);
-
-		Eigen::Matrix3d const inverse_block = block.inverse();
-
-		for (unsigned i = 0; i < 3; i++)
-			for (unsigned j = 0; j < 3; j++)
-				iD.coeffRef(start_index + i, start_index + j) = inverse_block(i, j);
-
-
-
-		/*****************************************************************************/
-		/*                                                                           */
-		/*    - H1, H2														         */
-		/*                                                                           */
-		/*****************************************************************************/
-
-		for (unsigned m = 0; m < 3; m++) {
-			for (unsigned Ei = 0; Ei < 3; Ei++) {
-
-				block1(m, Ei) = λ(k_index, 0, m, Ei);
-				block2(m, Ei) = λ(k_index, 1, m, Ei);
-
-			}
-		}
-
-		block1 *= -coefficient;
-		block2 *= -coefficient;
-
-
-
-		/*****************************************************************************/
-		/*                                                                           */
-		/*    - H1, H2 blocks multiplied by the blocks Inverse of D			         */
-		/*                                                                           */
-		/*****************************************************************************/
-
-		Eigen::Matrix3d const iDH1block = inverse_block * block1;
-		Eigen::Matrix3d const iDH2block = inverse_block * block2;
-
-
-
-		/*****************************************************************************/
-		/*                                                                           */
-		/*    - Assemble of the resulting matrix R1 * D.inverse * H1		         */
-		/*                                                                           */
-		/*****************************************************************************/
-
-		for (unsigned ei = 0; ei < 3; ei++) {
-
-
-			e_pointer const Ei = K->edges[ei];
-			unsigned const e_index_i = K->edges[ei]->index;
-
-
-
-			for (unsigned j = 0; j < 3; j++) {
-
-
-				/*****************************************************************************/
-				/*                                                                           */
-				/*    - Assemble Matrices H1, H2									         */
-				/*                                                                           */
-				/*****************************************************************************/
-
-				H1.coeffRef(start_index + j, e_index_i) = block1.coeff(j, ei);
-				H2.coeffRef(start_index + j, e_index_i) = block2.coeff(j, ei);
-
-
-				/*****************************************************************************/
-				/*                                                                           */
-				/*    - Assemble Matrices R1 * D.inverse, R2 * D.inverse			         */
-				/*                                                                           */
-				/*****************************************************************************/
-
-				real sumA = 0.0;
-				real sumB = 0.0;
-
-				for (unsigned m = 0; m < 3; m++) {
-
-					sumA += R1_block(k_index, ei, m) * inverse_block(m, j);
-					sumB += R2_block(k_index, ei, m) * inverse_block(m, j);
-
-				}
-
-				R1iD.coeffRef(e_index_i, start_index + j) = sumA;
-				R2iD.coeffRef(e_index_i, start_index + j) = sumB;
-
-			}
-
-
-			// Diagonal elements are already zeroed
-			if (Ei->marker == E_MARKER::DIRICHLET)
-				continue;
-
-
-			for (unsigned ej = 0; ej < 3; ej++) {
-
-
-				unsigned const e_index_j = K->edges[ej]->index;
-
-				real sum11 = 0.0;
-				real sum12 = 0.0;
-				real sum21 = 0.0;
-				real sum22 = 0.0;
-
-				// Number of degrees of freedom of internal pressure
-				for (unsigned m = 0; m < 3; m++) {
-
-					sum11 += R1_block(k_index, ei, m) * iDH1block(m, ej);
-					sum12 += R1_block(k_index, ei, m) * iDH2block(m, ej);
-					sum21 += R2_block(k_index, ei, m) * iDH1block(m, ej);
-					sum22 += R2_block(k_index, ei, m) * iDH2block(m, ej);
-
-				}
-
-				// Because diagonal elements were zeroed at the beginning, the += operator is needed only here
-				if (e_index_i == e_index_j) {
-
-					internalPressureSystem.coeffRef(e_index_i, e_index_i) += sum11;
-					internalPressureSystem.coeffRef(e_index_i, e_index_i + ne) += sum12;
-					internalPressureSystem.coeffRef(e_index_i + ne, e_index_i) += sum21;
-					internalPressureSystem.coeffRef(e_index_i + ne, e_index_i + ne) += sum22;
-
-					continue;
-
-				}
-
-				internalPressureSystem.coeffRef(e_index_i, e_index_j) = sum11 + M_j1_s1.coeff(e_index_i, e_index_j);
-				internalPressureSystem.coeffRef(e_index_i, e_index_j + ne) = sum12 + M_j1_s2.coeff(e_index_i, e_index_j);
-				internalPressureSystem.coeffRef(e_index_i + ne, e_index_j) = sum21 + M_j2_s1.coeff(e_index_i, e_index_j);
-				internalPressureSystem.coeffRef(e_index_i + ne, e_index_j + ne) = sum22 + M_j2_s2.coeff(e_index_i, e_index_j);
-
-			}
-		}
-	}
-
-};
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::assemblePressureSystemMatrixAndInverseDAndH_2() {
+void solver<QuadraturePrecision>::assemblePressureSystem() {
 
 
 	real const coefficient = θ * dt;
@@ -2972,21 +2453,21 @@ void solver<QuadraturePrecision>::assemblePressureSystemMatrixAndInverseDAndH_2(
 	assemble_σ();
 	assemble_λ();
 
-	//omp_set_num_threads(2);
-	//#pragma omp parallel 
-	//{
-	//	#pragma omp sections
-	//	{
-	//		#pragma omp section
-	//		{
-	//			assemble_σ();
-	//		}
-	//		#pragma omp section
-	//		{
-	//			assemble_λ();
-	//		}
-	//	}
-	//}
+	/*omp_set_num_threads(2);
+	#pragma omp parallel 
+	{
+		#pragma omp sections
+		{
+			#pragma omp section
+			{
+				assemble_σ();
+			}
+			#pragma omp section
+			{
+				assemble_λ();
+			}
+		}
+	}*/
 
 	// It is sufficient to zero only diagonal elements. Therefore, there is no need for += in the sequel
 	for (unsigned e = 0; e < ne; e++) {
@@ -2999,7 +2480,7 @@ void solver<QuadraturePrecision>::assemblePressureSystemMatrixAndInverseDAndH_2(
 		Eigen::Triplet<real> const T11(e,		e,		M11);
 		Eigen::Triplet<real> const T12(e,		e + ne, M12);
 		Eigen::Triplet<real> const T21(e + ne,	e,		M21);
-		Eigen::Triplet<real> const T22(e + ne,	e + ne,	M22);
+		Eigen::Triplet<real> const T22(e + ne,	e + ne, M22);
 
 		tri.push_back(T11);
 		tri.push_back(T12);
@@ -3008,13 +2489,10 @@ void solver<QuadraturePrecision>::assemblePressureSystemMatrixAndInverseDAndH_2(
 
 	}
 
-	//#pragma omp parallel for private(block,block1,block2) shared(tri,triR1,triR2)
+	//#pragma omp parallel for private(block,block1,block2) shared(tri, triR1iD, triR2iD)
 	for (unsigned k = 0; k < nk; k++) {
 
-
-
-		t_pointer const K		= mesh->get_triangle(k);
-		//t_pointer const K = Elements[k];
+		t_pointer const K = Elements[k];
 
 		unsigned const k_index		= K->index;
 		unsigned const start_index	= 3 * k_index;
@@ -3080,7 +2558,7 @@ void solver<QuadraturePrecision>::assemblePressureSystemMatrixAndInverseDAndH_2(
 
 
 			for (unsigned j = 0; j < 3; j++) {
-
+				
 
 				/*****************************************************************************/
 				/*                                                                           */
@@ -3121,8 +2599,8 @@ void solver<QuadraturePrecision>::assemblePressureSystemMatrixAndInverseDAndH_2(
 			if (Ei->marker == E_MARKER::DIRICHLET)
 				continue;
 
-//#pragma omp parallel for
-			for (int ej = 0; ej < 3; ej++) {
+			//#pragma omp parallel for
+			for (unsigned ej = 0; ej < 3; ej++) {
 
 
 				unsigned const e_index_j = K->edges[ej]->index;
@@ -3143,7 +2621,7 @@ void solver<QuadraturePrecision>::assemblePressureSystemMatrixAndInverseDAndH_2(
 
 				}
 
-				// Because diagonal elements were zeroed at the beginning, the += operator is needed only here
+				// Because diagonal elements were zeroed at the beginning, the += operator is needed only here (if there was any. Will be when migrate to linux and No Eigen will be used)
 				if (e_index_i == e_index_j) {
 
 					Eigen::Triplet<real> const T11(e_index_i,		e_index_i,		sum11);
@@ -3168,7 +2646,7 @@ void solver<QuadraturePrecision>::assemblePressureSystemMatrixAndInverseDAndH_2(
 				Eigen::Triplet<real> const T11(e_index_i,		e_index_j,		M11);
 				Eigen::Triplet<real> const T12(e_index_i,		e_index_j + ne, M12);
 				Eigen::Triplet<real> const T21(e_index_i + ne,	e_index_j,		M21);
-				Eigen::Triplet<real> const T22(e_index_i + ne,	e_index_j + ne,	M22);
+				Eigen::Triplet<real> const T22(e_index_i + ne,	e_index_j + ne, M22);
 
 				tri.push_back(T11);
 				tri.push_back(T12);
@@ -3185,9 +2663,201 @@ void solver<QuadraturePrecision>::assemblePressureSystemMatrixAndInverseDAndH_2(
 	R2iD.setFromTriplets(triR2iD.begin(), triR2iD.end());
 
 };
+template<unsigned QuadraturePrecision>
+void solver<QuadraturePrecision>::assemblePressureSystem_NoTriplet() {
+
+
+	real const coefficient = θ * dt;
+
+	Eigen::Matrix3d block;
+	Eigen::Matrix3d block1;
+	Eigen::Matrix3d block2;
+
+	assemble_σ();
+	assemble_λ();
+
+	//omp_set_num_threads(2);
+	//#pragma omp parallel 
+	//{
+	//	#pragma omp sections
+	//	{
+	//		#pragma omp section
+	//		{
+	//			assemble_σ();
+	//		}
+	//		#pragma omp section
+	//		{
+	//			assemble_λ();
+	//		}
+	//	}
+	//}
+
+
+	// It is sufficient to zero only diagonal elements. Therefore, there is no need for += in the sequel
+	for (unsigned e = 0; e < ne; e++) {
+
+		internalPressureSystem.coeffRef(e,			 e) = M_j1_s1.coeff(e, e);
+		internalPressureSystem.coeffRef(e,		e + ne) = M_j1_s2.coeff(e, e);
+		internalPressureSystem.coeffRef(e + ne,		 e) = M_j2_s1.coeff(e, e);
+		internalPressureSystem.coeffRef(e + ne, e + ne) = M_j2_s2.coeff(e, e);
+
+	}
+
+	for (unsigned k = 0; k < nk; k++) {
 
 
 
+		t_pointer const K = mesh->get_triangle(k);
+
+		unsigned const k_index		= K->index;
+		unsigned const start_index	= 3 * k_index;
+
+
+		/*****************************************************************************/
+		/*                                                                           */
+		/*    - Inverse of the matrix D										         */
+		/*                                                                           */
+		/*****************************************************************************/
+
+		for (unsigned r = 0; r < 3; r++)
+			for (unsigned s = 0; s < 3; s++)
+				block(r, s) = δij(r, s) - coefficient * σ(k_index, r, s);
+
+		Eigen::Matrix3d const inverse_block = block.inverse();
+
+		for (unsigned i = 0; i < 3; i++)
+			for (unsigned j = 0; j < 3; j++)
+				iD.coeffRef(start_index + i, start_index + j) = inverse_block(i, j);
+
+
+
+		/*****************************************************************************/
+		/*                                                                           */
+		/*    - H1, H2														         */
+		/*                                                                           */
+		/*****************************************************************************/
+
+		for (unsigned m = 0; m < 3; m++) {
+			for (unsigned Ei = 0; Ei < 3; Ei++) {
+
+				block1(m, Ei) = λ(k_index, 0, m, Ei);
+				block2(m, Ei) = λ(k_index, 1, m, Ei);
+
+			}
+		}
+
+		block1 *= -coefficient;
+		block2 *= -coefficient;
+
+
+
+		/*****************************************************************************/
+		/*                                                                           */
+		/*    - H1, H2 blocks multiplied by the blocks Inverse of D			         */
+		/*                                                                           */
+		/*****************************************************************************/
+
+		Eigen::Matrix3d const iDH1block = inverse_block * block1;
+		Eigen::Matrix3d const iDH2block = inverse_block * block2;
+
+
+
+		/*****************************************************************************/
+		/*                                                                           */
+		/*    - Assemble of the resulting matrix R1 * D.inverse * H1		         */
+		/*                                                                           */
+		/*****************************************************************************/
+
+		for (unsigned ei = 0; ei < 3; ei++) {
+
+
+			e_pointer const Ei			= K->edges[ei];
+			unsigned const	e_index_i	= K->edges[ei]->index;
+
+
+
+			for (unsigned j = 0; j < 3; j++) {
+
+
+				/*****************************************************************************/
+				/*                                                                           */
+				/*    - Assemble Matrices H1, H2									         */
+				/*                                                                           */
+				/*****************************************************************************/
+
+				H1.coeffRef(start_index + j, e_index_i) = block1.coeff(j, ei);
+				H2.coeffRef(start_index + j, e_index_i) = block2.coeff(j, ei);
+
+
+				/*****************************************************************************/
+				/*                                                                           */
+				/*    - Assemble Matrices R1 * D.inverse, R2 * D.inverse			         */
+				/*                                                                           */
+				/*****************************************************************************/
+
+				real sum1 = 0.0;
+				real sum2 = 0.0;
+
+				for (unsigned m = 0; m < 3; m++) {
+
+					sum1 += R1_block(k_index, ei, m) * inverse_block(m, j);
+					sum2 += R2_block(k_index, ei, m) * inverse_block(m, j);
+
+				}
+
+				R1iD.coeffRef(e_index_i, start_index + j) = sum1;
+				R2iD.coeffRef(e_index_i, start_index + j) = sum2;
+
+			}
+
+
+			// Diagonal elements are already set
+			if (Ei->marker == E_MARKER::DIRICHLET)
+				continue;
+
+
+			for (unsigned ej = 0; ej < 3; ej++) {
+
+
+				unsigned const e_index_j = K->edges[ej]->index;
+
+				real sum11 = 0.0;
+				real sum12 = 0.0;
+				real sum21 = 0.0;
+				real sum22 = 0.0;
+
+				// Number of degrees of freedom of internal pressure
+				for (unsigned m = 0; m < 3; m++) {
+
+					sum11 += R1_block(k_index, ei, m) * iDH1block(m, ej);
+					sum12 += R1_block(k_index, ei, m) * iDH2block(m, ej);
+					sum21 += R2_block(k_index, ei, m) * iDH1block(m, ej);
+					sum22 += R2_block(k_index, ei, m) * iDH2block(m, ej);
+
+				}
+
+				// Because diagonal elements were zeroed at the beginning, the += operator is needed only here
+				if (e_index_i == e_index_j) {
+
+					internalPressureSystem.coeffRef(e_index_i,		e_index_i	  ) += sum11;
+					internalPressureSystem.coeffRef(e_index_i,		e_index_i + ne) += sum12;
+					internalPressureSystem.coeffRef(e_index_i + ne, e_index_i	  ) += sum21;
+					internalPressureSystem.coeffRef(e_index_i + ne, e_index_i + ne) += sum22;
+
+					continue;
+
+				}
+
+				internalPressureSystem.coeffRef(e_index_i,		e_index_j	  ) = sum11 + M_j1_s1.coeff(e_index_i, e_index_j);
+				internalPressureSystem.coeffRef(e_index_i,		e_index_j + ne) = sum12 + M_j1_s2.coeff(e_index_i, e_index_j);
+				internalPressureSystem.coeffRef(e_index_i + ne, e_index_j	  ) = sum21 + M_j2_s1.coeff(e_index_i, e_index_j);
+				internalPressureSystem.coeffRef(e_index_i + ne, e_index_j + ne) = sum22 + M_j2_s2.coeff(e_index_i, e_index_j);
+
+			}
+		}
+	}
+
+};
 
 
 
@@ -3379,8 +3049,8 @@ void solver<QuadraturePrecision>::assemble_χ() {
 			for (unsigned n = 0; n < NumberOfQuadraturePointsEdge; n++) {
 
 
-				real const x = (real)QuadratureOnEdge.points[n] * c + d;
-				real const w = (real)QuadratureOnEdge.weights[n] * c;
+				real const x = (real) QuadratureOnEdge.points[n] * c + d;
+				real const w = (real) QuadratureOnEdge.weights[n] * c;
 
 
 				evaluate_edge_parametrization(x, e_index_local, Parametrization);
@@ -3618,8 +3288,8 @@ void solver<QuadraturePrecision>::assemble_δ() {
 		//	}
 		//}
 
-		for (unsigned El = 0; El < 3; El++)
-			for (unsigned m = 0; m < 3; m++)
+		for (unsigned m = 0; m < 3; m++)
+			for (unsigned El = 0; El < 3; El++)
 				for (unsigned j = 0; j < 8; j++)
 					δ.setCoeff(k_index, m, El, j) = abs(δ(k_index, m, El, j)) < INTEGRAL_PRECISION ? 0.0 : δ(k_index, m, El, j);
 
@@ -3632,46 +3302,30 @@ template<unsigned QuadraturePrecision>
 void solver<QuadraturePrecision>::assemble_σ() {
 
 
-
 	for (unsigned k = 0; k < nk; k++) {
 
-
 		unsigned const	k_index = ElementIndeces[k];
-		real const		coeff	= -betas_prev[k_index] / (viscosities[k_index] * porosities[k_index]);
+		real const		coeff	= -betas_prev[k_index] * PorosityViscosityDeterminant[k_index];
 
 
 		for (unsigned m = 0; m < 3; m++) {
-
 			for (unsigned l = 0; l < 3; l++) {
-
 
 				real Value = 0.0;
 
 				for (unsigned q = 0; q < 3; q++) {
 
-
 					real GammaAlphaBeta = 0.0;
 
-					for (unsigned j = 0; j < 8; j++) {
-
-
-						real AlphaBeta = 0.0;
-
-						for (unsigned i = 0; i < 8; i++)
-							AlphaBeta += α(k_index, j, i) * β(i, l);
-
-						//real const AlfaBeta = AlphaTimesBeta.setCoeff(k_index, j, l);
-
-						GammaAlphaBeta += γ(k_index, q, j) * AlphaBeta;
-
-					}
+					for (unsigned j = 0; j < 8; j++)
+						GammaAlphaBeta += γ(k_index, q, j) * AlphaTimesBeta(k_index, j, l);
 
 					Value += η(m, q) * GammaAlphaBeta;
 
 				}
 
 				// In the computation of Eta, there is coefficient detJF. When inverting, the coefficient is inverted
-				σ.setCoeff(k_index, m, l) = coeff * Value / AffineMappingMatrixDeterminant[k_index];
+				σ.setCoeff(k_index, m, l) = coeff * Value;
 
 			}
 		}
@@ -3684,45 +3338,29 @@ void solver<QuadraturePrecision>::assemble_λ() {
 
 	for (unsigned k = 0; k < nk; k++) {
 
-		unsigned const k_index = ElementIndeces[k];
-
-		real const coeff = betas_prev[k_index] / (viscosities[k_index] * porosities[k_index]);
+		unsigned const	k_index	= ElementIndeces[k];
+		real const		coeff	= betas_prev[k_index] * PorosityViscosityDeterminant[k_index];
 
 
 		for (unsigned s = 0; s < 2; s++) {
-
 			for (unsigned m = 0; m < 3; m++) {
-
 				for (unsigned El = 0; El < 3; El++) {
-
 
 					real Value = 0.0;
 
 					for (unsigned q = 0; q < 3; q++) {
 
-
 						real GammaAlphaChi = 0.0;
 
-						for (unsigned j = 0; j < 8; j++) {
-
-
-							real AlphaChi = 0.0;
-
-							for (unsigned i = 0; i < 8; i++)
-								AlphaChi += α(k_index, j, i) * χ(k_index, i, El, s);
-
-							//real const AlphaChi = AlphaTimesChi(k_index, j, El, s);
-
-							GammaAlphaChi += γ(k_index, q, j) * AlphaChi;
-
-						}
+						for (unsigned j = 0; j < 8; j++)
+							GammaAlphaChi += γ(k_index, q, j) * AlphaTimesChi(k_index, j, El, s);
 
 						Value += η(m, q) * GammaAlphaChi;
 
 					}
 
 					// In the computation of Eta, there is coefficient detJF. When inverting, the coefficient is inverted
-					λ.setCoeff(k_index, s, m, El) = coeff * Value / AffineMappingMatrixDeterminant[k_index];
+					λ.setCoeff(k_index, s, m, El) = coeff * Value;
 
 				}
 			}
@@ -3748,22 +3386,6 @@ void solver<QuadraturePrecision>::getSolution() {
 	computeBetas();
 
 
-	/**************************************************/
-	//std::ofstream txtFile;
-	//txtFile.open("C:\\Users\\pgali\\Desktop\\flow2d\\v.txt");
-	////txtFile.open("C:\\Users\\pgali\\Desktop\\flow2d\\velocity.txt");
-	////exportVelocityField(txtFile);
-	//for (unsigned k = 0; k < nk; k++) {
-
-	//	for (unsigned j = 0; j < 8; j++)
-	//		txtFile << υ(mesh->get_triangle(k)->index, j) << " ";
-
-	//	txtFile << std::endl;
-	//}
-	//txtFile.close();
-	/***********************************************/
-
-
 	// Set iteration level l := 0
 	π_n = π;
 	π_prev = π;
@@ -3774,7 +3396,6 @@ void solver<QuadraturePrecision>::getSolution() {
 	rkFc_n = rkFc;
 	rkFp_n = rkFp;
 
-	//hard_copy(betas_prev, betas, nk);
 	for (unsigned k = 0; k < nk; k++)
 		betas_prev[k] = betas[k];
 
@@ -3795,11 +3416,18 @@ void solver<QuadraturePrecision>::getSolution() {
 
 		//concentrationCorrection();
 
-		computeBetas();
+		//computeBetas();
 
 
-		if (stopCriterion())
+		if (stopCriterion()) {
+
+			//π_prev = π;
+			//ξ_prev = ξ;
+
 			break;
+
+		}
+			
 
 
 
@@ -3812,10 +3440,8 @@ void solver<QuadraturePrecision>::getSolution() {
 		//exportSolution(txtFile);
 		//txtFile.close();
 
-
-		//hard_copy(betas_prev, betas, nk);
-		for (unsigned k = 0; k < nk; k++)
-			betas_prev[k] = betas[k];
+		//for (unsigned k = 0; k < nk; k++)
+		//	betas_prev[k] = betas[k];
 
 
 		counter++;
@@ -3829,17 +3455,17 @@ void solver<QuadraturePrecision>::getSolution() {
 	//
 	//	for (unsigned j = 0; j < 8; j++)
 	//		txtFile << υ(mesh->get_triangle(k)->index, j) << " ";
-
+	//
 	//	txtFile << std::endl;
 	//}
 	//txtFile.close();
 
-	std::cout << counter << std::endl;
+	//std::cout << counter << std::endl;
 
 	assemble_λ();
 	assemble_σ();
 
-	// This is needed for the next time level
+	// This is needed for the next time level as the part of the Right-Hand Side of the pressure system - Crank-Nicolson
 	for (unsigned k = 0; k < nk; k++) {
 
 		//unsigned const k_index = mesh->get_triangle(k)->index;
@@ -3847,24 +3473,24 @@ void solver<QuadraturePrecision>::getSolution() {
 
 		for (unsigned m = 0; m < 3; m++) {
 
-			real val1 = 0.0;
-			real val2 = 0.0;
+			real Value1 = 0.0;
+			real Value2 = 0.0;
 
 			for (unsigned j = 0; j < 3; j++)
-				val1 += σ(k_index, m, j) * π(k_index, j);
+				Value1 += σ(k_index, m, j) * π(k_index, j);
 
 			for (unsigned El = 0; El < 3; El++)
 				for (unsigned s = 0; s < 2; s++)
-					val2 += λ(k_index, s, m, El) * tπ(k_index, El, s);
+					Value2 += λ(k_index, s, m, El) * tπ(k_index, El, s);
 
-			rkFp.setCoeff(k_index, m) = val1 + val2;
+			rkFp.setCoeff(k_index, m) = Value1 + Value2;
 
 		}
 	}
 
 
-	if (nt % 1000 == 0)
-		std::cout << nt << " - Iterations : " << counter << std::endl;
+	//if (nt % 1000 == 0)
+	//	std::cout << nt << " - Iterations : " << counter << std::endl;
 
 };
 template<unsigned QuadraturePrecision>
