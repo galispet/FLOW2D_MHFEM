@@ -33,13 +33,13 @@ const double b_y = 25.0;
 //const double a_y = 0.0;
 //const double b_y = 20.0;
 
-const int N_x = 100;
-const int N_y = 100;
+const int N_x = 2*2*2*2;
+const int N_y = 2*2*2*2;
 
 
 unsigned const nt0 = 2;
-unsigned const NT = 50;
-double const dt = 60;
+unsigned const NT = 200;
+double const dt = 100;
 
 
 std::string meshTxtFile = "C:\\Users\\pgali\\Desktop\\flow2d\\mesh.txt";
@@ -186,9 +186,9 @@ int main() {
 		solution.setTimeLevel(nt);
 
 
-		txtFile.open(directory_solution + std::to_string(nt) + ".txt");
-		solution.exportSolution(txtFile);
-		txtFile.close();
+		//txtFile.open(directory_solution + std::to_string(nt) + ".txt");
+		//solution.exportSolution(txtFile);
+		//txtFile.close();
 
 	}
 

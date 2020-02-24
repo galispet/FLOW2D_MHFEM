@@ -4078,7 +4078,7 @@ template<unsigned QuadraturePrecision>
 void solver<QuadraturePrecision>::compute_error(std::ofstream & txtFile) {
 
 
-	real const time = nt * dt;
+	real const time = (nt+1) * dt;
 
 	quadrature_triangle const QuadratureOnTriangle(9);
 	unsigned const NumberOfQuadraturePoints = QuadratureOnTriangle.NumberOfPoints;
