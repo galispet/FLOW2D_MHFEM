@@ -16,30 +16,30 @@
 
 
 //const double a_x = 0.0;
-//const double b_x = 60.0;
+//const double b_x = 25.0;
 //
 //const double a_y = 0.0;
-//const double b_y = 60.0;
+//const double b_y = 25.0;
 
-const double a_x = -25.0;
-const double b_x = 25.0;
-
-const double a_y = -25.0;
-const double b_y = 25.0;
-
-//const double a_x = 0.0;
-//const double b_x = 100.0;
+//const double a_x = -25.0;
+//const double b_x = 25.0;
 //
-//const double a_y = 0.0;
-//const double b_y = 20.0;
+//const double a_y = -25.0;
+//const double b_y = 25.0;
+
+const double a_x = 0.0;
+const double b_x = 100.0;
+
+const double a_y = 0.0;
+const double b_y = 100.0;
 
 const int N_x = 2*2*2*2;
 const int N_y = 2*2*2*2;
 
 
-unsigned const nt0 = 2;
-unsigned const NT = 200;
-double const dt = 100;
+unsigned const nt0 = 100;
+unsigned const NT = 500;
+double const dt = 300;
 
 
 std::string meshTxtFile = "C:\\Users\\pgali\\Desktop\\flow2d\\mesh.txt";
@@ -84,15 +84,15 @@ int main() {
 	v_pointer const vd = pslg.get_vertex(N_x*N_y - 1 - (N_y - 1));
 
 
-	//pslg.insert_constraint<E_MARKER::NEUMANN>(va, vb);
-	//pslg.insert_constraint<E_MARKER::DIRICHLET>(vb, vc);
-	//pslg.insert_constraint<E_MARKER::DIRICHLET>(vc, vd);
-	//pslg.insert_constraint<E_MARKER::NEUMANN>(vd, va);
-
-	pslg.insert_constraint<E_MARKER::DIRICHLET>(va, vb);
+	pslg.insert_constraint<E_MARKER::NEUMANN>(va, vb);
 	pslg.insert_constraint<E_MARKER::DIRICHLET>(vb, vc);
 	pslg.insert_constraint<E_MARKER::DIRICHLET>(vc, vd);
-	pslg.insert_constraint<E_MARKER::DIRICHLET>(vd, va);
+	pslg.insert_constraint<E_MARKER::NEUMANN>(vd, va);
+
+	//pslg.insert_constraint<E_MARKER::DIRICHLET>(va, vb);
+	//pslg.insert_constraint<E_MARKER::DIRICHLET>(vb, vc);
+	//pslg.insert_constraint<E_MARKER::DIRICHLET>(vc, vd);
+	//pslg.insert_constraint<E_MARKER::DIRICHLET>(vd, va);
 
 
 	//pslg.insert_constraint<E_MARKER::DIRICHLET>(va, vb);
@@ -186,9 +186,9 @@ int main() {
 		solution.setTimeLevel(nt);
 
 
-		//txtFile.open(directory_solution + std::to_string(nt) + ".txt");
-		//solution.exportSolution(txtFile);
-		//txtFile.close();
+		txtFile.open(directory_solution + std::to_string(nt) + ".txt");
+		solution.exportSolution(txtFile);
+		txtFile.close();
 
 	}
 

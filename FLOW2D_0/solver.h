@@ -166,15 +166,39 @@ private:
 	static unsigned const NumberOfQuadraturePointsTriangle = get_number_of_quadrature_points_triangle<QuadraturePrecision>();
 
 
-	// Precomputed values of basis function in quadrature points
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Precomputed values of basis function in quadrature points	         */
+	/*                                                                           */
+	/*    - Quadrature points on the edges of the element				         */
+	/*       : QuadraturePoints_RaviartThomasBasis								 */
+	/*       : QuadraturePoints_PolynomialBasis									 */
+	/*       : QuadraturePoints_PolynomialBasis									 */
+	/*       : QuadraturePoints_PolynomialBasisOpposite							 */
+	/*                * Used in Upwinding from the neighboring element		     */
+	/*                * n-th quad point is on the opposite sides of an edge      */
+	/*       : QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis  */
+	/*                                                                           */
+	/*    - Quadrature points on the element							         */
+	/*       : QuadraturePoints_PhysicalNormalDotPhysicalRaviartThomasBasis	     */
+	/*       : AlphaTimesChi													 */
+	/*       : AlphaTimesBeta													 */
+	/*                                                                           */
+	/*****************************************************************************/
 	CoeffMatrix3D<3, 8, 2>								QuadraturePoints_RaviartThomasBasis;
 	CoeffMatrix2D<3, 3>									QuadraturePoints_PolynomialBasis;
+	CoeffMatrix2D<3, 3>									QuadraturePoints_PolynomialBasisOpposite;
 	CoeffMatrix3D<8, 3, 3>								QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis;
 	CoeffMatrix3D<3, NumberOfQuadraturePointsEdge, 8>	QuadraturePoints_PhysicalNormalDotPhysicalRaviartThomasBasis;
 	CoeffMatrix3D<8, 3, 2>								AlphaTimesChi;
 	CoeffMatrix2D<8, 3>									AlphaTimesBeta;
 
-	// Quadrature points on the edges of the physical triangle
+	
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Quadrature points on the edges of the physical triangle		         */
+	/*                                                                           */
+	/*****************************************************************************/
 	CoeffMatrix2D<3, NumberOfQuadraturePointsEdge>	 QuadraturePoints_Edge_x;
 	CoeffMatrix2D<3, NumberOfQuadraturePointsEdge>	 QuadraturePoints_Edge_y;
 
@@ -189,7 +213,6 @@ private:
 	real * AffineMappingMatrixDeterminant = NULL;
 	unsigned * ElementIndeces = NULL;
 	t_pointer * Elements = NULL;
-	CoeffMatrix2D<3, 3>									QuadraturePoints_PolynomialBasis_reverse;
 
 
 
@@ -269,8 +292,8 @@ private:
 	void assemblePressureSystemMatrixAndInverseDAndH_2();
 
 
-	CoeffMatrix2D<3, 3> R1_matrix;
-	CoeffMatrix2D<3, 3> R2_matrix;
+	CoeffMatrix2D<3, 3> R1_block;
+	CoeffMatrix2D<3, 3> R2_block;
 
 
 	void assemble_α();
@@ -426,68 +449,39 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	φ.setZero();
 
 
-	//For All sparse matrix call matrix.data().squeeze()
-	//Maybe up to now, there is still much unused memory?????
-
-
 	/*****************************************************************************/
 	/*                                                                           */
-	/*    - Memory allocation for the pressure system					         */
+	/*    - Memory allocation for the linear system matrices			         */
 	/*                                                                           */
 	/*****************************************************************************/
-
 	internalPressureSystem	.resize(2 * ne, 2 * ne);
 	pressureSystemRhs		.resize(2 * ne);
+	traceSystemRhs			.resize(2 * ne);
 
-	//internalPressureSystem.reserve(Eigen::VectorXi::Constant(2 * ne, 10));
+	iD						.resize(3 * nk, 3 * nk);
+	H1						.resize(3 * nk, ne);
+	H2						.resize(3 * nk, ne);
 
+	R1						.resize(ne, 3 * nk);
+	R2						.resize(ne, 3 * nk);
+	M_j1_s1					.resize(ne, ne);
+	M_j1_s2					.resize(ne, ne);
+	M_j2_s1					.resize(ne, ne);
+	M_j2_s2					.resize(ne, ne);
 
-	// Inverse matrix of the matrix for Internal Pressures
-	iD.resize(3 * nk, 3 * nk);
+	R1_block				.setNumberOfElements(nk);
+	R2_block				.setNumberOfElements(nk);
 
-	H1.resize(3 * nk, ne);
-	H2.resize(3 * nk, ne);
+	R1iD					.resize(ne, 3 * nk);
+	R2iD					.resize(ne, 3 * nk);
 
+	G						.resize(3 * nk);
+	V1						.resize(ne);
+	V2						.resize(ne);
 
-	R1_matrix.setNumberOfElements(nk);
-	R2_matrix.setNumberOfElements(nk);
-
-	R1iD.resize(ne, 3 * nk);
-	R2iD.resize(ne, 3 * nk);
-
-
-	// Right-hand side of the Pressure equation
-	G.resize(3 * nk);
-
-	// Resulting Internal Pressures: 1. Mean Pressure, 2. Linear Pressure in x-direction, 3. Linear Pressure in y-direction
-	π_eigen.resize(3 * nk);
-
-
-	/*****************************************************************************/
-	/*                                                                           */
-	/*    - Memory allocation for the Trace Pressure system				         */
-	/*                                                                           */
-	/*****************************************************************************/
-
-	traceSystemRhs.resize(2 * ne);
-
-	// Matrices for Internal Pressures
-	R1.resize(ne, 3 * nk);
-	R2.resize(ne, 3 * nk);
-
-	// Matrices for Trace Pressures
-	M_j1_s1.resize(ne, ne);
-	M_j1_s2.resize(ne, ne);
-	M_j2_s1.resize(ne, ne);
-	M_j2_s2.resize(ne, ne);
-
-	// Right-hand side of the system
-	V1.resize(ne);
-	V2.resize(ne);
-
-	// Resulting Trace Pressures: Tp1 = mean pressure (dof 1), Tp2 = linear pressure (dof 2)
-	Tp1.resize(ne);
-	Tp2.resize(ne);
+	π_eigen					.resize(3 * nk);
+	Tp1						.resize(ne);
+	Tp2						.resize(ne);
 
 
 	/*****************************************************************************/
@@ -497,7 +491,7 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	/*                                                                           */
 	/*****************************************************************************/
 	edgeOrientation.setNumberOfElements(nk);
-	matrixJF = new Eigen::Matrix2d[nk];
+	
 
 	initializeValues();	
 
@@ -507,7 +501,6 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	/*    - Initilize integral coefficient matrices							     */
 	/*                                                                           */
 	/*****************************************************************************/
-
 	assemble_α();
 	assemble_β();
 	assemble_χ();
@@ -522,7 +515,6 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	/*		its LU decomposition												 */
 	/*                                                                           */
 	/*****************************************************************************/
-
 	assembleR();
 	assembleM();
 
@@ -533,11 +525,9 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	/* 		in quadrature points												 */
 	/*                                                                           */
 	/*****************************************************************************/
-
-	gauss_quadrature_1D const GaussQuadratureOnEdge(QuadraturePrecision);
-
 	QuadraturePoints_RaviartThomasBasis									.setNumberOfElements(NumberOfQuadraturePointsEdge);
 	QuadraturePoints_PolynomialBasis									.setNumberOfElements(NumberOfQuadraturePointsEdge);
+	QuadraturePoints_PolynomialBasisOpposite							.setNumberOfElements(NumberOfQuadraturePointsEdge);
 	QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis	.setNumberOfElements(NumberOfQuadraturePointsEdge);
 	QuadraturePoints_PhysicalNormalDotPhysicalRaviartThomasBasis		.setNumberOfElements(nk);
 	AlphaTimesChi														.setNumberOfElements(nk);
@@ -547,24 +537,10 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	QuadraturePoints_Edge_y												.setNumberOfElements(nk);
 
 
-	/*****************************************************************************/
-	/*                                                                           */
-	/*    - Some auxilary and test things					   			         */
-	/*                                                                           */
-	/*****************************************************************************/
-	AffineMappingMatrixDeterminant = new real[nk];
-	ElementIndeces = new unsigned[nk];
-	Elements = new t_pointer[nk];
-	QuadraturePoints_PolynomialBasis_reverse.setNumberOfElements(NumberOfQuadraturePointsEdge);
-	QuadraturePoints_PolynomialBasis_reverse.setZero();
-
-	for (unsigned k = 0; k < nk; k++)
-		Elements[k] = mesh->get_triangle(k);
-
-
-
+	
 	QuadraturePoints_RaviartThomasBasis									.setZero();
 	QuadraturePoints_PolynomialBasis									.setZero();
+	QuadraturePoints_PolynomialBasisOpposite							.setZero();
 	QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis	.setZero();
 	QuadraturePoints_PhysicalNormalDotPhysicalRaviartThomasBasis		.setZero();
 	AlphaTimesChi														.setZero();
@@ -574,17 +550,30 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	QuadraturePoints_Edge_y												.setZero();
 
 
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Some auxilary and test things					   			         */
+	/*                                                                           */
+	/*****************************************************************************/
+	matrixJF						= new Eigen::Matrix2d[nk];
+	AffineMappingMatrixDeterminant	= new real[nk];
+	Elements						= new t_pointer[nk];
+	ElementIndeces					= new unsigned[nk];
+
+
+
+
+	gauss_quadrature_1D const GaussQuadratureOnEdge(QuadraturePrecision);
 
 	Eigen::MatrixXd JF(2, 2);
 	Eigen::MatrixXd ReferenceNormals(2, 3);
 	Eigen::VectorXd Parametrization(2);
+	Eigen::VectorXd ParametrizationOpposite(2);
 	Eigen::MatrixXd BasisRaviartThomas(2, 8);
 	Eigen::VectorXd BasisPolynomial(3);
+	Eigen::VectorXd BasisPolynomialOpposite(3);
 
 	evaluate_edge_normal(ReferenceNormals);
-
-	Eigen::VectorXd Parametrization_reverse(2);
-	Eigen::VectorXd BasisPolynomial_reverse(3);
 
 	/*****************************************************************************/
 	/*                                                                           */
@@ -595,10 +584,11 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	for (unsigned k = 0; k < nk; k++) {
 
 
-		t_pointer const K = mesh->get_triangle(k);
-		unsigned const k_index = K->index;
+		t_pointer const K		= mesh->get_triangle(k);
+		unsigned const	k_index = K->index;
 
-		ElementIndeces[k] = k_index;
+		Elements[k]			= mesh->get_triangle(k);
+		ElementIndeces[k]	= k_index;
 
 
 		v_pointer const va = K->vertices[0];
@@ -631,9 +621,10 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 		JF(1, 0) = y1 - y0;
 		JF(1, 1) = y2 - y0;
 
-		Eigen::MatrixXd const itJF = (JF.inverse()).transpose();
+		matrixJF[k_index]			= JF;
+		Eigen::MatrixXd const itJF	= (JF.inverse()).transpose();
 
-		matrixJF[k_index] = JF;
+		
 
 
 		/*****************************************************************************/
@@ -648,12 +639,12 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 
 			for (unsigned l = 0; l < 3; l++) {
 
-				real AB = 0.0;
+				real AlphaBeta = 0.0;
 
 				for (unsigned i = 0; i < 8; i++)
-					AB += α(k_index, j, i) * β(i, l);
+					AlphaBeta += α(k_index, j, i) * β(i, l);
 
-				AlphaTimesBeta.setCoeff(k_index, j, l) = AB;
+				AlphaTimesBeta.setCoeff(k_index, j, l) = AlphaBeta;
 
 			}
 		}
@@ -662,18 +653,9 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 		for (unsigned El = 0; El < 3; El++) {
 
 
-			e_pointer const		E			= K->edges[El];
-			unsigned const		e_index		= E->index;
-			E_MARKER const		e_marker	= E->marker;
-
-			unsigned const dof0 = LI(K, E, 0);
-			unsigned const dof1 = LI(K, E, 1);
-
-			//real const ChiCoeff0 = χ(k_index, dof0, El, 0);
-			//real const ChiCoeff1 = χ(k_index, dof1, El, 1);
-
-			real const ChiCoeff0 = χ(k_index, dof0, K->get_edge_index(E), 0);
-			real const ChiCoeff1 = χ(k_index, dof1, K->get_edge_index(E), 1);
+			e_pointer const		E				= K->edges[El];
+			unsigned const		e_index			= E->index;
+			E_MARKER const		e_marker		= E->marker;
 
 
 			real const a = (real) 0.0;
@@ -701,8 +683,8 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 			for (unsigned n = 0; n < NumberOfQuadraturePointsEdge; n++) {
 
 
-				real const x = (real)GaussQuadratureOnEdge.points[n] * c + d;
-				real const w = (real)GaussQuadratureOnEdge.weights[n] * c;
+				real const x = (real) GaussQuadratureOnEdge.points[n] * c + d;
+				real const w = (real) GaussQuadratureOnEdge.weights[n] * c;
 
 
 				evaluate_edge_parametrization(x, El, Parametrization);
@@ -739,12 +721,12 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 			for (unsigned j = 0; j < 8; j++) {
 				for (unsigned s = 0; s < 2; s++) {
 
-					real ACHI = 0.0;
+					real AlphaChi = 0.0;
 
 					for (unsigned i = 0; i < 8; i++)
-						ACHI += α(k_index, j, i) * χ(k_index, i, El, s);
+						AlphaChi += α(k_index, j, i) * χ(k_index, i, El, s);
 
-					AlphaTimesChi.setCoeff(k_index, j, El, s) = ACHI;
+					AlphaTimesChi.setCoeff(k_index, j, El, s) = AlphaChi;
 
 				}
 			}
@@ -759,36 +741,44 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 
 			if (e_marker == E_MARKER::DIRICHLET) {
 
-				R1_matrix.setCoeff(k_index, El, 0) = 0.0;
-				R1_matrix.setCoeff(k_index, El, 1) = 0.0;
-				R1_matrix.setCoeff(k_index, El, 2) = 0.0;
+				R1_block.setCoeff(k_index, El, 0) = 0.0;
+				R1_block.setCoeff(k_index, El, 1) = 0.0;
+				R1_block.setCoeff(k_index, El, 2) = 0.0;
 
-				R2_matrix.setCoeff(k_index, El, 0) = 0.0;
-				R2_matrix.setCoeff(k_index, El, 1) = 0.0;
-				R2_matrix.setCoeff(k_index, El, 2) = 0.0;
+				R2_block.setCoeff(k_index, El, 0) = 0.0;
+				R2_block.setCoeff(k_index, El, 1) = 0.0;
+				R2_block.setCoeff(k_index, El, 2) = 0.0;
 
 				continue;
 
 			}
 
+
+			unsigned const dof0 = LI(K, E, 0);
+			unsigned const dof1 = LI(K, E, 1);
+
+			real const ChiCoeff0 = χ(k_index, dof0, El, 0);
+			real const ChiCoeff1 = χ(k_index, dof1, El, 1);
+
+
 			for (unsigned m = 0; m < 3; m++) {
 
 
-				real AB1 = 0.0;
-				real AB2 = 0.0;
+				real AlphaBeta1 = 0.0;
+				real AlphaBeta2 = 0.0;
 
 				for (unsigned i = 0; i < 8; i++) {
 
-					AB1 += α(k_index, dof0, i) * β(i, m);
-					AB2 += α(k_index, dof1, i) * β(i, m);
+					AlphaBeta1 += α(k_index, dof0, i) * β(i, m);
+					AlphaBeta2 += α(k_index, dof1, i) * β(i, m);
 
 				}
 
-				real const val1 = ChiCoeff0 * AB1 / viscosities[k_index];
-				real const val2 = ChiCoeff1 * AB2 / viscosities[k_index];
+				real const Value1 = ChiCoeff0 * AlphaBeta1 / viscosities[k_index];
+				real const Value2 = ChiCoeff1 * AlphaBeta2 / viscosities[k_index];
 
-				R1_matrix.setCoeff(k_index, El, m) = abs(val1) < INTEGRAL_PRECISION ? 0.0 : val1;
-				R2_matrix.setCoeff(k_index, El, m) = abs(val2) < INTEGRAL_PRECISION ? 0.0 : val2;
+				R1_block.setCoeff(k_index, El, m) = abs(Value1) < INTEGRAL_PRECISION ? 0.0 : Value1;
+				R2_block.setCoeff(k_index, El, m) = abs(Value2) < INTEGRAL_PRECISION ? 0.0 : Value2;
 
 			}
 		}
@@ -829,19 +819,18 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 			/*                                                                           */
 			/*****************************************************************************/
 
-			evaluate_edge_parametrization(x, El, Parametrization);
+			evaluate_edge_parametrization			(x, El, Parametrization);
+			evaluate_edge_parametrization_opposite	(x, El, ParametrizationOpposite);
 
 			real const s = Parametrization(0);
 			real const t = Parametrization(1);
+						
+			real const s_opposite = ParametrizationOpposite(0);
+			real const t_opposite = ParametrizationOpposite(1);
 
-			evaluate_edge_parametrization2(x, El, Parametrization_reverse);
-			real const s_reverse = Parametrization_reverse(0);
-			real const t_reverse = Parametrization_reverse(1);
-			evaluate_polynomial_basis(s_reverse, t_reverse, BasisPolynomial_reverse);
-
-			evaluate_raviartthomas_basis(s, t, BasisRaviartThomas);
-			evaluate_polynomial_basis(s, t, BasisPolynomial);
-
+			evaluate_raviartthomas_basis(s,			 t,			 BasisRaviartThomas);
+			evaluate_polynomial_basis	(s,			 t,			 BasisPolynomial);
+			evaluate_polynomial_basis	(s_opposite, t_opposite, BasisPolynomialOpposite);
 
 
 			/*****************************************************************************/
@@ -868,16 +857,14 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 				for (unsigned m = 0; m < 3; m++) {
 
 
-					real const Phim		= BasisPolynomial(m);
-					real const Value	= w * DotProduct * Phim;
-
-					real const Phim_reverse = BasisPolynomial_reverse(m);
-					QuadraturePoints_PolynomialBasis_reverse							.setCoeff(n, El, m) = Phim_reverse;
+					real const Phim				= BasisPolynomial(m);
+					real const Phim_opposite	= BasisPolynomialOpposite(m);
+					real const Value			= w * DotProduct * Phim;
 
 					QuadraturePoints_PolynomialBasis									.setCoeff(n, El, m)		= Phim;
+					QuadraturePoints_PolynomialBasisOpposite							.setCoeff(n, El, m)		= Phim_opposite;
 					QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis	.setCoeff(n, j, El, m)	= abs(Value) < INTEGRAL_PRECISION ? 0.0 : Value;
-
-
+					
 				}
 			}
 		}
@@ -888,20 +875,17 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 template<unsigned QuadraturePrecision>
 solver<QuadraturePrecision>::~solver() {
 
-	delete[] AffineMappingMatrixDeterminant;
-
-	delete[] ElementIndeces;
-
-	//delete[] QuadraturePoints_Edge0;
-	//delete[] QuadraturePoints_Edge12;
-	//delete[] QuadratureWeights_Edge0;
-	//delete[] QuadratureWeights_Edge12;
-
 	delete[] viscosities;
 	delete[] porosities;
 
 	delete[] betas;
 	delete[] betas_prev;
+
+
+	delete[] matrixJF;
+	delete[] AffineMappingMatrixDeterminant;
+	delete[] Elements;
+	delete[] ElementIndeces;
 
 };
 
@@ -1014,10 +998,8 @@ void solver<QuadraturePrecision>::initializeValues() {
 			v_pointer const v = K->get_vertex_cw(a);
 			v_pointer const p = K->get_vertex(e);
 
-			bool const isBoundaryEdge = E->marker == E_MARKER::NEUMANN || E->marker == E_MARKER::DIRICHLET;
-
-
-			if (v != p && !isBoundaryEdge)
+			// Boundary edges must be oriented ALSO !
+			if (v != p)
 				edgeOrientation.setCoeff(k_index, e) = -1.0;
 			else
 				edgeOrientation.setCoeff(k_index, e) = +1.0;
@@ -1383,36 +1365,6 @@ void solver<QuadraturePrecision>::computeTracePressures() {
 
 		}
 	}
-
-	/*std::ofstream txtFile;
-	
-	txtFile.open("C:\\Users\\pgali\\Desktop\\flow2d\\tp.txt");
-	
-	for (unsigned e = 0; e < ne; e++) {
-	
-	
-		e_pointer const E = mesh->get_edge(e);
-
-
-		real const tpval1 = Tp1[E->index];
-		real const tpval2 = Tp2[E->index];
-
-	
-		v_pointer const va = E->a;
-		v_pointer const vb = E->b;
-	
-		real const x0 = (real)va->x;
-		real const y0 = (real)va->y;
-	
-		real const x1 = (real)vb->x;
-		real const y1 = (real)vb->y;
-	
-		txtFile << x0 << " " << y0 << " " << std::setprecision(20) << tpval1 << std::endl;
-		txtFile << x1 << " " << y1 << " " << std::setprecision(20) << tpval1 << std::endl;
-		txtFile << std::endl;
-	}
-	
-	txtFile.close();*/
 
 };
 template<unsigned QuadraturePrecision>
@@ -1812,7 +1764,7 @@ real solver<QuadraturePrecision>::upwindConcentration(t_pointer const & K, unsig
 
 
 		for (unsigned m = 0; m < 3; m++)
-			Concentration += ξ_prev(kn_index, m) * QuadraturePoints_PolynomialBasis_reverse(n, e_index_Kn_loc, m);
+			Concentration += ξ_prev(kn_index, m) * QuadraturePoints_PolynomialBasisOpposite(n, e_index_Kn_loc, m);
 		//Concentration = ξ_prev(kn_index, 0) * QuadraturePoints_PolynomialBasis_reverse(n, e_index_Kn_loc, 0);
 		
 	}
@@ -2340,7 +2292,6 @@ void solver<QuadraturePrecision>::assembleV() {
 
 		else if (marker == E_MARKER::DIRICHLET) {
 
-
 			real const x0 = (real) E->a->x;
 			real const y0 = (real) E->a->y;
 
@@ -2359,8 +2310,10 @@ void solver<QuadraturePrecision>::assembleV() {
 
 			Eigen::Vector2d const B(B0, B1);
 			Eigen::Matrix2d M;
+
 			M << +1.0, -1.0,
 				 +1.0, +1.0;
+
 			Eigen::Vector2d const Solution = M.colPivHouseholderQr().solve(B);
 
 			V1[e_index] = Solution(0);
@@ -2612,10 +2565,10 @@ void solver<QuadraturePrecision>::assemblePressureSystemMatrix3() {
 				// Number of degrees of freedom of internal pressure
 				for (unsigned m = 0; m < 3; m++) {
 
-					sum11 += R1_matrix(k_index, ei, m) * iDH1block(m, ej);
-					sum12 += R1_matrix(k_index, ei, m) * iDH2block(m, ej);
-					sum21 += R2_matrix(k_index, ei, m) * iDH1block(m, ej);
-					sum22 += R2_matrix(k_index, ei, m) * iDH2block(m, ej);
+					sum11 += R1_block(k_index, ei, m) * iDH1block(m, ej);
+					sum12 += R1_block(k_index, ei, m) * iDH2block(m, ej);
+					sum21 += R2_block(k_index, ei, m) * iDH1block(m, ej);
+					sum22 += R2_block(k_index, ei, m) * iDH2block(m, ej);
 
 				}
 
@@ -2759,10 +2712,10 @@ void solver<QuadraturePrecision>::assemblePressureSystemMatrix4() {
 				// Number of degrees of freedom of internal pressure
 				for (unsigned m = 0; m < 3; m++) {
 
-					sum11 += R1_matrix(k_index, ei, m) * iDH1block(m, ej);
-					sum12 += R1_matrix(k_index, ei, m) * iDH2block(m, ej);
-					sum21 += R2_matrix(k_index, ei, m) * iDH1block(m, ej);
-					sum22 += R2_matrix(k_index, ei, m) * iDH2block(m, ej);
+					sum11 += R1_block(k_index, ei, m) * iDH1block(m, ej);
+					sum12 += R1_block(k_index, ei, m) * iDH2block(m, ej);
+					sum21 += R2_block(k_index, ei, m) * iDH1block(m, ej);
+					sum22 += R2_block(k_index, ei, m) * iDH2block(m, ej);
 
 				}
 
@@ -2944,8 +2897,8 @@ void solver<QuadraturePrecision>::assemblePressureSystemMatrixAndInverseDAndH_1(
 
 				for (unsigned m = 0; m < 3; m++) {
 
-					sumA += R1_matrix(k_index, ei, m) * inverse_block(m, j);
-					sumB += R2_matrix(k_index, ei, m) * inverse_block(m, j);
+					sumA += R1_block(k_index, ei, m) * inverse_block(m, j);
+					sumB += R2_block(k_index, ei, m) * inverse_block(m, j);
 
 				}
 
@@ -2973,10 +2926,10 @@ void solver<QuadraturePrecision>::assemblePressureSystemMatrixAndInverseDAndH_1(
 				// Number of degrees of freedom of internal pressure
 				for (unsigned m = 0; m < 3; m++) {
 
-					sum11 += R1_matrix(k_index, ei, m) * iDH1block(m, ej);
-					sum12 += R1_matrix(k_index, ei, m) * iDH2block(m, ej);
-					sum21 += R2_matrix(k_index, ei, m) * iDH1block(m, ej);
-					sum22 += R2_matrix(k_index, ei, m) * iDH2block(m, ej);
+					sum11 += R1_block(k_index, ei, m) * iDH1block(m, ej);
+					sum12 += R1_block(k_index, ei, m) * iDH2block(m, ej);
+					sum21 += R2_block(k_index, ei, m) * iDH1block(m, ej);
+					sum22 += R2_block(k_index, ei, m) * iDH2block(m, ej);
 
 				}
 
@@ -3150,8 +3103,8 @@ void solver<QuadraturePrecision>::assemblePressureSystemMatrixAndInverseDAndH_2(
 
 				for (unsigned m = 0; m < 3; m++) {
 
-					sum1 += R1_matrix(k_index, ei, m) * inverse_block(m, j);
-					sum2 += R2_matrix(k_index, ei, m) * inverse_block(m, j);
+					sum1 += R1_block(k_index, ei, m) * inverse_block(m, j);
+					sum2 += R2_block(k_index, ei, m) * inverse_block(m, j);
 
 				}
 
@@ -3183,10 +3136,10 @@ void solver<QuadraturePrecision>::assemblePressureSystemMatrixAndInverseDAndH_2(
 				// Number of degrees of freedom of internal pressure
 				for (unsigned m = 0; m < 3; m++) {
 
-					sum11 += R1_matrix(k_index, ei, m) * iDH1block(m, ej);
-					sum12 += R1_matrix(k_index, ei, m) * iDH2block(m, ej);
-					sum21 += R2_matrix(k_index, ei, m) * iDH1block(m, ej);
-					sum22 += R2_matrix(k_index, ei, m) * iDH2block(m, ej);
+					sum11 += R1_block(k_index, ei, m) * iDH1block(m, ej);
+					sum12 += R1_block(k_index, ei, m) * iDH2block(m, ej);
+					sum21 += R2_block(k_index, ei, m) * iDH1block(m, ej);
+					sum22 += R2_block(k_index, ei, m) * iDH2block(m, ej);
 
 				}
 
@@ -4078,7 +4031,7 @@ template<unsigned QuadraturePrecision>
 void solver<QuadraturePrecision>::compute_error(std::ofstream & txtFile) {
 
 
-	real const time = (nt+1) * dt;
+	real const time = nt * dt;
 
 	quadrature_triangle const QuadratureOnTriangle(9);
 	unsigned const NumberOfQuadraturePoints = QuadratureOnTriangle.NumberOfPoints;

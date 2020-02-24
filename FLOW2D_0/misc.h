@@ -894,7 +894,28 @@ inline void evaluate_edge_parametrization(real const ksi, unsigned const El, Eig
 	}
 
 };
-inline void evaluate_edge_parametrization2(real const ksi, unsigned const El, Eigen::VectorXd & out) {
+inline void evaluate_edge_parametrization_derivative(real const ksi, unsigned const El, Eigen::VectorXd & out) {
+
+
+	switch (El) {
+
+	case 0:
+		out.coeffRef(0) = -1.0 / sqrt(2.0);
+		out.coeffRef(1) = 1.0 / sqrt(2.0);
+		return;
+	case 1:
+		out.coeffRef(0) = 0.0;
+		out.coeffRef(1) = -1.0;
+		return;
+	case 2:
+		out.coeffRef(0) = 1.0;
+		out.coeffRef(1) = 0.0;
+		return;
+
+	}
+
+};
+inline void evaluate_edge_parametrization_opposite(real const ksi, unsigned const El, Eigen::VectorXd & out) {
 
 
 	switch (El) {
@@ -915,21 +936,21 @@ inline void evaluate_edge_parametrization2(real const ksi, unsigned const El, Ei
 	}
 
 };
-inline void evaluate_edge_parametrization_derivative(real const ksi, unsigned const El, Eigen::VectorXd & out) {
+inline void evaluate_edge_parametrization_opposite_derivative(real const ksi, unsigned const El, Eigen::VectorXd & out) {
 
 
 	switch (El) {
 
 	case 0:
-		out.coeffRef(0) = -1.0 / sqrt(2.0);
-		out.coeffRef(1) = 1.0 / sqrt(2.0);
+		out.coeffRef(0) = 1.0 / sqrt(2.0);
+		out.coeffRef(1) = -1.0 / sqrt(2.0);
 		return;
 	case 1:
 		out.coeffRef(0) = 0.0;
-		out.coeffRef(1) = -1.0;
+		out.coeffRef(1) = 1.0;
 		return;
 	case 2:
-		out.coeffRef(0) = 1.0;
+		out.coeffRef(0) = -1.0;
 		out.coeffRef(1) = 0.0;
 		return;
 
