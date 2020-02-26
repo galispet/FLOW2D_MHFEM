@@ -33,7 +33,7 @@ const double b_x = 40.0;
 const double a_y = 0.0;
 const double b_y = 40.0;
 
-unsigned const refinement = 4;
+unsigned const refinement = 2*2*2*2*2;
 
 const int N_x = 2 * 2 * refinement;
 const int N_y = N_x;
@@ -94,52 +94,8 @@ int main() {
 	//pslg.insert_constraint<E_MARKER::DIRICHLET>(vb, vc);
 	//pslg.insert_constraint<E_MARKER::DIRICHLET>(vc, vd);
 	//pslg.insert_constraint<E_MARKER::DIRICHLET>(vd, va);
-
-
-	//pslg.insert_constraint<E_MARKER::DIRICHLET>(va, vb);
-	//pslg.insert_constraint<E_MARKER::NEUMANN>(vb, vc);
-	//pslg.insert_constraint<E_MARKER::DIRICHLET>(vc, vd);
-	//pslg.insert_constraint<E_MARKER::NEUMANN>(vd, va);
 	
-	//Vertex  vaa(11.0, 5.5);
-	//Vertex  vbb(11.0, 11.0);
-	//Vertex  vcc(5.5, 11.0);
-	//Vertex  vdd(5.5, 5.5);
 
-	//pslg.insert_vertex<V_MARKER::FREE>(vaa);
-	//pslg.insert_vertex<V_MARKER::FREE>(vbb);
-	//pslg.insert_vertex<V_MARKER::FREE>(vcc);
-	//pslg.insert_vertex<V_MARKER::FREE>(vdd);
-
-	//v_pointer const _vaa = pslg.get_vertex(vertices.size()-4);
-	//v_pointer const _vbb = pslg.get_vertex(vertices.size()-3);
-	//v_pointer const _vcc = pslg.get_vertex(vertices.size()-2);
-	//v_pointer const _vdd = pslg.get_vertex(vertices.size()-1);
-
-	//pslg.insert_constraint<E_MARKER::DIRICHLET>(_vaa, _vbb);
-	//pslg.insert_constraint<E_MARKER::DIRICHLET>(_vbb, _vcc);
-	//pslg.insert_constraint<E_MARKER::DIRICHLET>(_vcc, _vdd);
-	//pslg.insert_constraint<E_MARKER::DIRICHLET>(_vdd, _vaa);
-
-	//pslg.insert_vertex<V_MARKER::FREE>(Vertex(0.0, 0.0));
-	//pslg.insert_vertex<V_MARKER::FREE>(Vertex(50.0, 0.0));
-	//pslg.insert_vertex<V_MARKER::FREE>(Vertex(100.0, 0.0));
-	//pslg.insert_vertex<V_MARKER::FREE>(Vertex(0.0, 50.0));
-	//pslg.insert_vertex<V_MARKER::FREE>(Vertex(50.0, 50.0));
-
-	//v_pointer const va = pslg.get_vertex(0);
-	//v_pointer const vb = pslg.get_vertex(1);
-	//v_pointer const vc = pslg.get_vertex(2);
-	//v_pointer const vd = pslg.get_vertex(3);
-	//v_pointer const ve = pslg.get_vertex(4);
-
-	//pslg.insert_constraint<E_MARKER::NEUMANN>(va, vb);
-	//pslg.insert_constraint<E_MARKER::NEUMANN>(vb, vc);
-	//pslg.insert_constraint<E_MARKER::NEUMANN>(vc, ve);
-	//pslg.insert_constraint<E_MARKER::NEUMANN>(ve, vd);
-	//pslg.insert_constraint<E_MARKER::NEUMANN>(vd, va);
-	//pslg.insert_constraint<E_MARKER::NEUMANN>(vd, vb);
-	//pslg.insert_constraint<E_MARKER::NEUMANN>(vb, ve);
 
 	//seeds.push_back(Vertex(8.0, 8.0));
 
