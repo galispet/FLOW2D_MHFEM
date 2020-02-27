@@ -13,6 +13,9 @@
 #include <vector>
 #include <iomanip>
 
+void generate_vertices();
+void exportMesh(std::ofstream & txtFile, Mesh const & m);
+
 
 
 //const double a_x = 0.0;
@@ -33,49 +36,54 @@ const double b_x = 40.0;
 const double a_y = 0.0;
 const double b_y = 40.0;
 
-unsigned const refinement = 2*2*2*2*2;
+unsigned const refinement = 2*2;
 
-const int N_x = 2 * 2 * refinement;
+const int N_x = 4 * refinement;
 const int N_y = N_x;
 
-unsigned const nt0 = 10 * refinement;
+unsigned const nt0 = 25 * refinement;
 unsigned const NT = 150 * refinement;
 double const dt = 300.0 / refinement;
 
 
-std::string meshTxtFile = "C:\\Users\\pgali\\Desktop\\flow2d\\mesh.txt";
-
-std::string directory_solution = "C:\\Users\\pgali\\Desktop\\flow2d\\output_c_";
-std::string directory_error = "C:\\Users\\pgali\\Desktop\\error_";
-
-std::ofstream txtFile;
-std::ofstream txtFile_error;
-
-std::vector<Vertex> vertices;
 
 
-PlanarStraightLineGraph pslg;
-std::vector<Vertex> seeds;
-GEOMETRIC_KERNEL const GK = GEOMETRIC_KERNEL::INEXACT_PREDICATES_INEXACT_CONSTRUCT;
 
 
-void generate_vertices();
-void exportMesh(std::ofstream & txtFile, Mesh const & m);
+std::string directory_mesh			= "C:\\Users\\pgali\\Desktop\\eoc\\mesh.txt";
+std::string directory_velocities	= "C:\\Users\\pgali\\Desktop\\eoc\\velocities_";
 
+std::string directory_solution		= "C:\\Users\\pgali\\Desktop\\eoc\\output_";
+std::string directory_error			= "C:\\Users\\pgali\\Desktop\\eoc\\error_";
+
+std::ofstream OFSTxtFile;
+
+
+std::vector<Vertex>		vertices;
 
 int main() {
 
 
+	PlanarStraightLineGraph pslg;
+	std::vector<Vertex>		seeds;
+	GEOMETRIC_KERNEL const	GK = GEOMETRIC_KERNEL::INEXACT_PREDICATES_INEXACT_CONSTRUCT;
 
 
-	// *************************** Generating mesh ***************************
-	// ***********************************************************************
-
-	// TODO
-	// Mesh - sort by the wish of the user ->template parameter sorting (1.inner, 2. neumann, 3. dirichlet and permutations ....) 
-
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Generate vertices for the mesh triangulation						 */
+	/*                                                                           */
+	/*****************************************************************************/
 	generate_vertices();
 
+
+
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Insert vertices in to Planar Straight Line Graph and define			 */
+	/*      constraints (boundary edges)										 */
+	/*                                                                           */
+	/*****************************************************************************/
 	for (size_t i = 0; i < vertices.size(); i++)
 		pslg.insert_vertex<V_MARKER::FREE>(vertices[i]);
 
@@ -97,68 +105,114 @@ int main() {
 	
 
 
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Construct triangulation from the input PSLG and defined holes		 */
+	/*			: Problem with Mesh (less probably triangulation)				 */
+	/*            when inserting seed                                            */
+	/*                                                                           */
+	/*****************************************************************************/
 	//seeds.push_back(Vertex(8.0, 8.0));
+	Triangulation<GK>	triangulation(pslg, seeds);
+	Mesh				mesh(triangulation);
 
-	// Problem with Mesh when inserting seed
-	Triangulation<GK> triangulation(pslg, seeds);
 
-	// Problem with Mesh when inserting seed
-	Mesh mesh(triangulation);
 
 	
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Print Triangulation / Mesh information								 */
+	/*                                                                           */
+	/*****************************************************************************/
 	cout << "*************** Triangulation ***************" << endl;
 	cout << "No. Vertices  : " << triangulation.get_number_of_vertices() << endl;
 	cout << "No. Edges     : " << triangulation.get_number_of_edges() << endl;
 	cout << "No. Triangles : " << triangulation.get_number_of_triangles() << endl;
 	cout << "*********************************************" << endl << endl;
-	// ***********************************************************************
-	// ***********************************************************************
 
 
 
-	txtFile.open(meshTxtFile);
-	exportMesh(txtFile, mesh);
-	txtFile.close();
 
+
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Create text file of the mesh: coordinates							 */
+	/*                                                                           */
+	/*****************************************************************************/
+	OFSTxtFile.open(directory_mesh);
+	exportMesh(OFSTxtFile, mesh);
+	OFSTxtFile.close();
+
+
+
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Create instance of the solver										 */
+	/*                                                                           */
+	/*****************************************************************************/
 	solver<quadrature_order> solution(mesh, nt0, dt);
 
 
 
 
-
-	txtFile.open(directory_solution + std::to_string(nt0) + ".txt");
-	//txtFile.open("C:\\Users\\pgali\\Desktop\\output_pressure.txt");
-	//txtFile.open("C:\\Users\\pgali\\Desktop\\flow2d\\output_c.txt");
-	solution.exportSolution(txtFile);
-	txtFile.close();
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Create text file of the initial condition							 */
+	/*                                                                           */
+	/*****************************************************************************/
+	OFSTxtFile.open(directory_solution + std::to_string(nt0) + ".txt");
+	solution.exportSolution(OFSTxtFile);
+	OFSTxtFile.close();
 
 	
+
 	clock_t begin = clock();
 
 	for (unsigned nt = nt0 + 1; nt < NT + 1; nt++) {
 
+		
 
+		/*****************************************************************************/
+		/*                                                                           */
+		/*    - Compute solution on the (n+1)-th time level							 */
+		/*    - Set the solver to the new (n+1)-th time level						 */
+		/*                                                                           */
+		/*****************************************************************************/
 		solution.getSolution();
-
 		solution.setTimeLevel(nt);
 
 
-		txtFile.open(directory_solution + std::to_string(nt) + ".txt");
-		solution.exportSolution(txtFile);
-		txtFile.close();
+		/*****************************************************************************/
+		/*                                                                           */
+		/*    - Create text file of the solution on the (n+1)-th time level			 */
+		/*                                                                           */
+		/*****************************************************************************/
+		OFSTxtFile.open(directory_solution + std::to_string(nt) + ".txt");
+		solution.exportSolution(OFSTxtFile);
+		OFSTxtFile.close();
+
+
+		/*****************************************************************************/
+		/*                                                                           */
+		/*    - Create text file of the velocities on the (n+1)-th time level		 */
+		/*                                                                           */
+		/*****************************************************************************/
+		//OFSTxtFile.open(directory_velocities + std::to_string(nt) + ".txt");
+		//solution.exportSolution(OFSTxtFile);
+		//OFSTxtFile.close();
+
 
 	}
 
 	clock_t end = clock();
 
-	//txtFile.open(directory_solution + std::to_string(NT) + ".txt");
-	//solution.exportSolution(txtFile);
-	//txtFile.close();
 
 
-	//txtFile_error.open(directory_error + std::to_string(N_x*N_y) + ".txt");
-	solution.compute_error(txtFile_error);
-	//txtFile_error.close();
+
+
+	OFSTxtFile.open(directory_error + std::to_string(N_x) + ".txt");
+	solution.compute_error(OFSTxtFile);
+	OFSTxtFile.close();
 
 
 
@@ -166,6 +220,7 @@ int main() {
 
 	std::cout << std::endl;
 	std::cout << "CPU clocks : " << end - begin << std::endl << std::endl;
+
 	system("pause");
 
 	return 0;
@@ -190,7 +245,6 @@ void generate_vertices() {
 	}
 
 };
-
 
 void exportMesh(std::ofstream & txtFile, Mesh const & m) {
 

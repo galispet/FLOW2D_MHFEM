@@ -51,10 +51,10 @@ inline double δij(unsigned const i, unsigned const j) {
 //};
 
 
-inline void hard_copy(double *& copy_to, double *& copy_from, unsigned const n) {
+inline void HardCopy(double * & copyTo, double * & copyFrom, unsigned const & n) {
 
 	for (unsigned i = 0; i < n; i++)
-		copy_to[i] = copy_from[i];
+		copyTo[i] = copyFrom[i];
 
 };
 

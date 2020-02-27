@@ -162,8 +162,8 @@ private:
 
 
 
-	static unsigned const NumberOfQuadraturePointsEdge = get_number_of_quadrature_points_edge<QuadraturePrecision>();
-	static unsigned const NumberOfQuadraturePointsTriangle = get_number_of_quadrature_points_triangle<QuadraturePrecision>();
+	static unsigned const NumberOfQuadraturePointsEdge		= get_number_of_quadrature_points_edge<QuadraturePrecision>();
+	static unsigned const NumberOfQuadraturePointsTriangle	= get_number_of_quadrature_points_triangle<QuadraturePrecision>();
 
 
 	/*****************************************************************************/
@@ -316,11 +316,7 @@ private:
 
 
 	void exportVelocityField(std::ofstream & txtFile);
-
-
-	real velocity_in_normal_direction(t_pointer const K, e_pointer const E, real const x);
-	real continuity_of_normal_component(t_pointer const K, e_pointer const E, real const x);
-
+	void exportVelocities(std::ofstream & txtFile);
 
 
 };
@@ -1208,6 +1204,7 @@ bool solver<QuadraturePrecision>::stopCriterion() {
 
 };
 */
+
 template<unsigned QuadraturePrecision>
 bool solver<QuadraturePrecision>::stopCriterion() {
 
@@ -1488,34 +1485,6 @@ void solver<QuadraturePrecision>::computePressureEquation() {
 		}
 	}
 
-	/*
-	assemble_λ();
-	assemble_σ();
-
-	// This is needed for the next time level
-	for (unsigned k = 0; k < nk; k++) {
-
-		//unsigned const k_index = mesh->get_triangle(k)->index;
-		unsigned const k_index = ElementIndeces[k];
-
-		for (unsigned m = 0; m < 3; m++) {
-
-			real val1 = 0.0;
-			real val2 = 0.0;
-
-			for (unsigned j = 0; j < 3; j++)
-				val1 += σ(k_index, m, j) * π(k_index, j);
-
-			for (unsigned El = 0; El < 3; El++)
-				for (unsigned s = 0; s < 2; s++)
-					val2 += λ(k_index, s, m, El) * tπ(k_index, El, s);
-
-			rkFp.setCoeff(k_index, m) = val1 + val2;
-
-		}
-	}
-*/
-
 };
 
 
@@ -1541,6 +1510,7 @@ void solver<QuadraturePrecision>::computeVelocities() {
 
 			e_pointer const E = K->edges[El];
 
+
 			if (E->marker == E_MARKER::NEUMANN) {
 
 				υ.setCoeff(k_index, LI(K, E, 0)) = NEUMANN_GAMMA_Q_velocity(E, time);
@@ -1549,8 +1519,12 @@ void solver<QuadraturePrecision>::computeVelocities() {
 				continue;
 
 			}
-
-			// Loop over the two degrees of freedom on each edge
+					
+			/*****************************************************************************/
+			/*                                                                           */
+			/*    - Loop over the two degrees of freedom on each edge					 */
+			/*                                                                           */
+			/*****************************************************************************/
 			for (unsigned dof = 0; dof < 2; dof++) {
 
 
@@ -1586,8 +1560,12 @@ void solver<QuadraturePrecision>::computeVelocities() {
 			}
 		}
 
-
-		// compute Bubble velocities inside element
+		
+		/*****************************************************************************/
+		/*                                                                           */
+		/*    - Compute Bubble velocities inside element							 */
+		/*                                                                           */
+		/*****************************************************************************/
 		for (unsigned dof = 6; dof < 8; dof++) {
 
 
@@ -1915,6 +1893,7 @@ void solver<QuadraturePrecision>::assembleR() {
 			if (!K)
 				continue;
 
+
 			unsigned const k_index = K->index;
 
 			unsigned const dof0 = LI(K, E, 0);
@@ -2109,7 +2088,6 @@ void solver<QuadraturePrecision>::assembleM() {
 
 				M_j1_s1.coeffRef(e_index, e_local_index_global) += Value11;
 				M_j1_s2.coeffRef(e_index, e_local_index_global) += Value12;
-
 				M_j2_s1.coeffRef(e_index, e_local_index_global) += Value21;
 				M_j2_s2.coeffRef(e_index, e_local_index_global) += Value22;
 
@@ -2250,15 +2228,16 @@ void solver<QuadraturePrecision>::assembleV() {
 	for (unsigned e = 0; e < ne; e++) {
 
 
-		e_pointer const E = mesh->get_edge(e);
-		unsigned const e_index = E->index;
-		E_MARKER const marker = E->marker;
+		e_pointer const E			= mesh->get_edge(e);
+		unsigned const	e_index		= E->index;
+		E_MARKER const	e_marker	= E->marker;
 
 
 		V1[e_index] = 0.0;
 		V2[e_index] = 0.0;
 
-		if (marker == E_MARKER::NEUMANN) {
+
+		if (e_marker == E_MARKER::NEUMANN) {
 
 
 			real ChiCoeff0 = 1.0;
@@ -2279,6 +2258,8 @@ void solver<QuadraturePrecision>::assembleV() {
 				ChiCoeff0 = χ(k_index, dof0, K->get_edge_index(E), 0);
 				ChiCoeff1 = χ(k_index, dof1, K->get_edge_index(E), 1);
 
+				break;
+
 			}
 
 			V1[e_index] = ChiCoeff0 * NEUMANN_GAMMA_Q_velocity(E, time);
@@ -2286,8 +2267,7 @@ void solver<QuadraturePrecision>::assembleV() {
 
 		}
 			
-
-		else if (marker == E_MARKER::DIRICHLET) {
+		else if (e_marker == E_MARKER::DIRICHLET) {
 
 			real const x0 = (real) E->a->x;
 			real const y0 = (real) E->a->y;
@@ -2301,7 +2281,6 @@ void solver<QuadraturePrecision>::assembleV() {
 			/*    - Interpolant of the Barenblatt solution for the Dirichlet Edge	     */
 			/*                                                                           */
 			/*****************************************************************************/
-
 			real const B0 = barenblatt(x0, y0, time);
 			real const B1 = barenblatt(x1, y1, time);
 
@@ -3235,46 +3214,15 @@ void solver<QuadraturePrecision>::assemble_τ() {
 
 };
 template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::assemble_γ() {
-
-
-	for (unsigned k = 0; k < nk; k++) {
-
-
-		unsigned const k_index = ElementIndeces[k];
-
-		for (unsigned m = 0; m < 3; m++) {
-
-			for (unsigned j = 0; j < 8; j++) {
-
-
-				real Value1 = 0.0;
-				real Value2 = 0.0;
-
-				for (unsigned El = 0; El < 3; El++)
-					Value1 += δ(k_index, m, El, j);
-
-				for (unsigned l = 0; l < 3; l++)
-					Value2 += τ(m, j, l) * ξ_prev(k_index, l);
-
-				γ.setCoeff(k_index, m, j) = Value1 - Value2;
-
-			}
-		}
-	}
-
-};
-template<unsigned QuadraturePrecision>
 void solver<QuadraturePrecision>::assemble_δ() {
 
-
-
+	
 	δ.setZero();
 
 	for (unsigned k = 0; k < nk; k++) {
-		
+
 		//t_pointer const K		= mesh->get_triangle(k);
-		t_pointer const K		= Elements[k];
+		t_pointer const K = Elements[k];
 		unsigned const	k_index = K->index;
 
 
@@ -3306,14 +3254,45 @@ void solver<QuadraturePrecision>::assemble_δ() {
 		//	}
 		//}
 
-		for (unsigned m = 0; m < 3; m++)
-			for (unsigned El = 0; El < 3; El++)
-				for (unsigned j = 0; j < 8; j++)
-					δ.setCoeff(k_index, m, El, j) = abs(δ(k_index, m, El, j)) < INTEGRAL_PRECISION ? 0.0 : δ(k_index, m, El, j);
+		//for (unsigned m = 0; m < 3; m++)
+		//	for (unsigned El = 0; El < 3; El++)
+		//		for (unsigned j = 0; j < 8; j++)
+		//			δ.setCoeff(k_index, m, El, j) = abs(δ(k_index, m, El, j)) < INTEGRAL_PRECISION ? 0.0 : δ(k_index, m, El, j);
 
 	}
 
 };
+template<unsigned QuadraturePrecision>
+void solver<QuadraturePrecision>::assemble_γ() {
+
+
+	for (unsigned k = 0; k < nk; k++) {
+
+
+		unsigned const k_index = ElementIndeces[k];
+
+		for (unsigned m = 0; m < 3; m++) {
+
+			for (unsigned j = 0; j < 8; j++) {
+
+
+				real Value1 = 0.0;
+				real Value2 = 0.0;
+
+				for (unsigned El = 0; El < 3; El++)
+					Value1 += δ(k_index, m, El, j);
+
+				for (unsigned l = 0; l < 3; l++)
+					Value2 += τ(m, j, l) * ξ_prev(k_index, l);
+
+				γ.setCoeff(k_index, m, j) = Value1 - Value2;
+
+			}
+		}
+	}
+
+};
+
 
 
 template<unsigned QuadraturePrecision>
@@ -3398,24 +3377,50 @@ template<unsigned QuadraturePrecision>
 void solver<QuadraturePrecision>::getSolution() {
 
 	
-	// Compute initial values for iterations
+
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Compute initial trace pressures from known inner pressures and	     */
+	/*      velocity field and coefficients betas							     */
+	/*                                                                           */
+	/*****************************************************************************/
 	computeTracePressures();
 	computeVelocities();
 	computeBetas();
 
 
-	// Set iteration level l := 0
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Set unknowns for inner iterations. Set iteration number: l = 0	     */
+	/*			: π_n	     - pressures on the n-th time level				 	 */
+	/*			: π_prev     - pressures on the (n+1),(l-1)-th time level		 */
+	/*			: ξ_n	     - concentrations on the n-th time level		 	 */
+	/*			: ξ_prev     - concentrations on the (n+1),(l-1)-th time level	 */
+	/*			: betas      - betas on the n-th time level		 				 */
+	/*			: betas_prev - betas on the (n+1),(l-1)-th time level			 */
+	/*                                                                           */
+	/*****************************************************************************/
 	π_n = π;
 	π_prev = π;
 
 	ξ_n = ξ;
 	ξ_prev = ξ;
 
+	HardCopy(betas_prev, betas, nk);
+
+
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Right-hand sides of the equation y'(t) = F(x,t,y(t))			     */
+	/*      arrising from Runge-Kutta schemes									 */
+	/*			: rkFc_n - RHS for concentrations on the n-th time level	     */
+	/*			: rkFc   - RHS for concentrations on (n+1),(l-1)-th time level	 */
+	/*			: rkFp_n - RHS for pressures on the n-th time level				 */
+	/*			: rkFp   - RHS for pressures on (n+1),(l-1)-th time level		 */
+	/*                                                                           */
+	/*****************************************************************************/
 	rkFc_n = rkFc;
 	rkFp_n = rkFp;
-
-	for (unsigned k = 0; k < nk; k++)
-		betas_prev[k] = betas[k];
 
 
 
@@ -3433,33 +3438,22 @@ void solver<QuadraturePrecision>::getSolution() {
 		updateConcentrations_explicit();
 
 		//concentrationCorrection();
-
 		//computeBetas();
 
 
-		if (stopCriterion()) {
-
-			//π_prev = π;
-			//ξ_prev = ξ;
-
+		if (stopCriterion())
 			break;
-
-		}
 			
 
-
-
-		// Set new iteration level	l := l+1
+		/*****************************************************************************/
+		/*                                                                           */
+		/*    - Set next iteration number: l = l + 1								 */
+		/*                                                                           */
+		/*****************************************************************************/
 		π_prev = π;
 		ξ_prev = ξ;
 
-		//std::ofstream txtFile;
-		//txtFile.open("C:\\Users\\pgali\\Desktop\\output_pressure.txt");
-		//exportSolution(txtFile);
-		//txtFile.close();
-
-		//for (unsigned k = 0; k < nk; k++)
-		//	betas_prev[k] = betas[k];
+		//HardCopy(betas_prev, betas, nk);
 
 
 		counter++;
@@ -3467,18 +3461,14 @@ void solver<QuadraturePrecision>::getSolution() {
 	}
 
 
-	//std::ofstream txtFile;
-	//txtFile.open("C:\\Users\\pgali\\Desktop\\flow2d\\v.txt");
-	//for (unsigned k = 0; k < nk; k++) {
-	//
-	//	for (unsigned j = 0; j < 8; j++)
-	//		txtFile << υ(mesh->get_triangle(k)->index, j) << " ";
-	//
-	//	txtFile << std::endl;
-	//}
-	//txtFile.close();
-
-	//std::cout << counter << std::endl;
+	
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Set next iteration number: l = l + 1								 */
+	/*                                                                           */
+	/*****************************************************************************/
+	//π_prev = π;
+	//ξ_prev = ξ;
 
 	assemble_λ();
 	assemble_σ();
@@ -3506,9 +3496,11 @@ void solver<QuadraturePrecision>::getSolution() {
 		}
 	}
 
+	
+	//std::cout << counter << std::endl;
 
-	if (nt % 200 == 0)
-		std::cout << nt << " - Iterations : " << counter << std::endl;
+	//if (nt % 200 == 0)
+	//	std::cout << nt << " - Iterations : " << counter << std::endl;
 
 };
 template<unsigned QuadraturePrecision>
@@ -3669,7 +3661,18 @@ void solver<QuadraturePrecision>::exportVelocityField(std::ofstream & txtFile) {
 
 
 };
+template<unsigned QuadraturePrecision>
+void solver<QuadraturePrecision>::exportVelocities(std::ofstream & txtFile) {
 
+	for (unsigned k = 0; k < nk; k++) {
+	
+		for (unsigned j = 0; j < 8; j++)
+			txtFile << υ(mesh->get_triangle(k)->index, j) << " ";
+	
+		txtFile << std::endl;
+	}
+
+};
 
 template<unsigned QuadraturePrecision>
 void solver<QuadraturePrecision>::compute_error(std::ofstream & txtFile) {
@@ -3677,21 +3680,21 @@ void solver<QuadraturePrecision>::compute_error(std::ofstream & txtFile) {
 
 	real const time = nt * dt;
 
-	quadrature_triangle const QuadratureOnTriangle(9);
-	unsigned const NumberOfQuadraturePoints = QuadratureOnTriangle.NumberOfPoints;
+	quadrature_triangle const	QuadratureOnTriangle(9);
+	unsigned const				NumberOfQuadraturePoints = QuadratureOnTriangle.NumberOfPoints;
 
 	Eigen::VectorXd BasisPolynomial(3);
 	Eigen::MatrixXd JF(2, 2);
 
-	real errorL1 = 0.0;
-	real errorL2 = 0.0;
-	real errorMAX = 0.0;
+	real ErrorL1 = 0.0;
+	real ErrorL2 = 0.0;
+	real ErrorMax = 0.0;
 
 	for (unsigned k = 0; k < nk; k++) {
 
 
-		t_pointer const	K = mesh->get_triangle(k);
-		unsigned const k_index = K->index;
+		t_pointer const	K		= mesh->get_triangle(k);
+		unsigned const	k_index = K->index;
 
 		v_pointer const va = K->vertices[0];
 		v_pointer const vb = K->vertices[1];
@@ -3714,7 +3717,21 @@ void solver<QuadraturePrecision>::compute_error(std::ofstream & txtFile) {
 		JF.coeffRef(1, 1) = y2 - y0;
 
 
-		real Integral = 0.0;
+		real const B0 = barenblatt(x0, y0, time);
+		real const B1 = barenblatt(x1, y1, time);
+		real const B2 = barenblatt(x2, y2, time);
+
+		Eigen::Vector3d const B(B0, B1, B2);
+		Eigen::Matrix3d M;
+		M << 1.0, -1.0, -1.0,
+			1.0, +1.0, -1.0,
+			1.0, -1.0, +1.0;
+		Eigen::Vector3d const Solution = M.colPivHouseholderQr().solve(B);
+
+
+		real L1NormOnElement = 0.0;
+		real L2NormOnElement = 0.0;
+		real MaxNormOnElement = 0.0;
 
 		for (unsigned n = 0; n < NumberOfQuadraturePoints; n++) {
 
@@ -3733,47 +3750,35 @@ void solver<QuadraturePrecision>::compute_error(std::ofstream & txtFile) {
 			for (unsigned j = 0; j < 3; j++)
 				PressureK += π(k_index, j) * BasisPolynomial(j);
 
-			Integral += w * sqr(PressureK - barenblatt(X, Y, time));
+			real const Difference = abs(PressureK - barenblatt(X, Y, time));
+
+
+			L1NormOnElement		+= w * Difference;
+			L2NormOnElement		+= w * sqr(Difference);
+			MaxNormOnElement	= Difference > MaxNormOnElement ? Difference : MaxNormOnElement;
+
+
+			//real BarenblattK = 0.0;
+			//for (unsigned j = 0; j < 3; j++)
+			//	BarenblattK += Solution(j) * BasisPolynomial(j);
+			//
+			//Integral += w * sqr(PressureK - BarenblattK);
 
 		}
 
-
-		errorL2 += detJF * Integral;
-
-		/*
-		for (unsigned j = 0; j < error_quadRule; j++) {
-
-
-			y = quad.points[j];
-			w = quad.weigths[j];
-
-			pressure = π(K, 0, 0)*phi1(y, a, b) + π(K, 0, 1)*phi2(y, a, b);
-			analytic = barenblatt(y, t);
-
-			val = abs(pressure - analytic);
-
-			s1 += w * val;
-			s2 += w * sqr(val);
-
-			if (val > errorMAX)
-				errorMAX = val;
-
-		}
-
-		errorL1 += s1;
-		errorL2 += s2;
-		*/
+		ErrorL1		+= detJF * L1NormOnElement;
+		ErrorL2		+= detJF * L2NormOnElement;
+		ErrorMax	= MaxNormOnElement;
 
 	}
 
-	//txtFile << "#L1 L2 MAX" << std::endl;
-	//txtFile << std::setprecision(20) << errorL1 << std::endl;
-	//txtFile << std::setprecision(20) << sqrt(errorL2) << std::endl;
-	//txtFile << std::setprecision(20) << errorMAX << std::endl;
+	txtFile << "#L1 L2 MAX" << std::endl;
 
-	//std::cout << "Error L1 : " << errorL1 << std::endl;
-	std::cout << "Error L2 : " << sqrt(errorL2) << std::endl;
-	//std::cout << "Error Max : " << errorMAX << std::endl;
+	txtFile << std::setprecision(20) << ErrorL1		  << std::endl;
+	txtFile << std::setprecision(20) << sqrt(ErrorL2) << std::endl;
+	txtFile << std::setprecision(20) << ErrorMax	  << std::endl;
 
-
+	std::cout << "Error L1	: " << ErrorL1 << std::endl;
+	std::cout << "Error L2	: " << sqrt(ErrorL2) << std::endl;
+	std::cout << "Error Max	: " << ErrorMax << std::endl;
 };

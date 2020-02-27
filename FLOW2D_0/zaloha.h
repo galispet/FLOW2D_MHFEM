@@ -48,6 +48,11 @@
 // Dirichlet boundary conditions - time at which I sample boundary values is ahead -> try: time = nt*dt ( now i have (nt+1)*dt ) ??
 
 
+	// TODO
+	// Mesh - sort by the wish of the user ->template parameter sorting (1.inner, 2. neumann, 3. dirichlet and permutations ....) 
+
+
+
 
 /*
 void solver::assemble_χ() {
