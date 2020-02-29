@@ -187,9 +187,9 @@ int main() {
 		/*    - Create text file of the solution on the (n+1)-th time level			 */
 		/*                                                                           */
 		/*****************************************************************************/
-		OFSTxtFile.open(directory_solution + std::to_string(nt) + ".txt");
-		solution.exportSolution(OFSTxtFile);
-		OFSTxtFile.close();
+		//OFSTxtFile.open(directory_solution + std::to_string(nt) + ".txt");
+		//solution.exportSolution(OFSTxtFile);
+		//OFSTxtFile.close();
 
 
 		/*****************************************************************************/

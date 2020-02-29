@@ -380,7 +380,7 @@ inline void iK(real const x, real const y, Matrix<real> & K) {
 
 };
 
-inline double eos(real const c) {
+inline double EquationOfState(real const c) {
 
 	return c;
 
