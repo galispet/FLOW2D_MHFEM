@@ -174,6 +174,7 @@ int main() {
 
 		/*****************************************************************************/
 		/*                                                                           */
+		/*    - Solver is on the n-th time level									 */
 		/*    - Compute solution on the (n+1)-th time level							 */
 		/*    - Set the solver to the new (n+1)-th time level						 */
 		/*                                                                           */

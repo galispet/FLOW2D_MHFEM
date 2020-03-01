@@ -269,6 +269,9 @@ private:
 
 	Eigen::SparseLU<SparseMatrix>   sparseLUsolver_PressureSystem;
 
+	//Eigen::COLAMDOrdering<int>										SparseOrdering;
+	//Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic, int>	PermutationMatrix;
+
 	DenseVector pressureSystemRhs;
 	DenseVector traceSystemRhs;
 
@@ -3007,6 +3010,8 @@ void solver<QuadraturePrecision>::getSparsityPatternOfThePressureSystem() {
 	iDH2					.setFromTriplets(triiDH2.begin(), triiDH2.end());
 	internalPressureSystem	.setFromTriplets(tri.begin(), tri.end());
 
+	//SparseOrdering(internalPressureSystem, PermutationMatrix);
+
 	sparseLUsolver_PressureSystem.analyzePattern(internalPressureSystem);
 
 	R1iD					.setZero();
@@ -3016,6 +3021,8 @@ void solver<QuadraturePrecision>::getSparsityPatternOfThePressureSystem() {
 	internalPressureSystem	.setZero();
 
 };
+
+
 
 template<unsigned QuadraturePrecision>
 void solver<QuadraturePrecision>::assemble_α() {
@@ -3696,9 +3703,8 @@ void solver<QuadraturePrecision>::exportSolution(std::ofstream & txtFile) {
 	for (unsigned k = 0; k < nk; k++) {
 
 
-		t_pointer const	K = mesh->get_triangle(k);
-
-		unsigned const k_index = K->index;
+		t_pointer const	K		= Elements[k];
+		unsigned const	k_index = ElementIndeces[k];
 
 		v_pointer const a = K->vertices[0];
 		v_pointer const b = K->vertices[1];
@@ -3716,7 +3722,7 @@ void solver<QuadraturePrecision>::exportSolution(std::ofstream & txtFile) {
 		double const x[3] = { x0, x1, x2 };
 		double const y[3] = { y0, y1, y2 };
 
-
+		/*
 		Eigen::MatrixXd iJF(2, 2);
 
 		iJF(0, 0) = x1 - x0;
@@ -3750,6 +3756,10 @@ void solver<QuadraturePrecision>::exportSolution(std::ofstream & txtFile) {
 
 		double const S[3] = { S0, S1, S2 };
 		double const T[3] = { T0, T1, T2 };
+		*/
+
+		double const S[3] = { 0.0, 1.0, 0.0 };
+		double const T[3] = { 0.0, 0.0, 1.0 };
 
 		//double const S[4] = { S0, S1, S2, S0 };
 		//double const T[4] = { T0, T1, T2, T0 };
@@ -3883,16 +3893,16 @@ void solver<QuadraturePrecision>::compute_error(std::ofstream & txtFile) {
 		v_pointer const vb = K->vertices[1];
 		v_pointer const vc = K->vertices[2];
 
-		real const x0 = (real)va->x;
-		real const y0 = (real)va->y;
+		real const x0 = (real) va->x;
+		real const y0 = (real) va->y;
 
-		real const x1 = (real)vb->x;
-		real const y1 = (real)vb->y;
+		real const x1 = (real) vb->x;
+		real const y1 = (real) vb->y;
 
-		real const x2 = (real)vc->x;
-		real const y2 = (real)vc->y;
+		real const x2 = (real) vc->x;
+		real const y2 = (real) vc->y;
 
-		real const detJF = (real)abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
+		real const detJF = (real) abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
 
 		JF.coeffRef(0, 0) = x1 - x0;
 		JF.coeffRef(0, 1) = x2 - x0;
