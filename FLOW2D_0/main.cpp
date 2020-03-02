@@ -36,14 +36,14 @@ const double b_x = 40.0;
 const double a_y = 0.0;
 const double b_y = 40.0;
 
-unsigned const refinement = 2*2;
+unsigned const refinement = 2*2*2*2*2;
 
 const int N_x = 4 * refinement;
 const int N_y = N_x;
 
-unsigned const nt0 = 25 * refinement;
-unsigned const NT = 150 * refinement;
-double const dt = 300.0 / refinement;
+unsigned const nt0 = 125 * (refinement * refinement);
+unsigned const NT = 150 * (refinement * refinement);
+double const dt = 300.0 / (refinement * refinement);
 
 
 

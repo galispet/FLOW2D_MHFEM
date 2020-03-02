@@ -918,7 +918,7 @@ public:
 			this->points_x = new double[NumberOfPoints];
 			this->points_y = new double[NumberOfPoints];
 
-			std::cout << "Order of accuracy 10 is not implemented. Using order 9." << std::endl;
+			//std::cout << "Order of accuracy 10 is not implemented. Using order 9." << std::endl;
 
 			points_x[0] = 0.33333333333333331;			points_y[0] = 0.33333333333333331;
 			points_x[1] = 2.06349616025259287E-002;		points_y[1] = 0.48968251919873701;
@@ -1038,7 +1038,7 @@ public:
 			this->points_x = new double[NumberOfPoints];
 			this->points_y = new double[NumberOfPoints];
 
-			std::cout << "Order of accuracy 12 is not implemented. Using order 11." << std::endl;
+			//std::cout << "Order of accuracy 12 is not implemented. Using order 11." << std::endl;
 
 			points_x[0] = 0.33333333333333333;		points_y[0] = 0.333333333333333333;
 			points_x[1] = 0.9480217181434233;		points_y[1] = 0.02598914092828833;

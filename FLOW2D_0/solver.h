@@ -55,8 +55,12 @@ constexpr unsigned const get_number_of_quadrature_points_edge() {
 		return 8;
 	case 9:
 		return 9;
+	case 10:
+		return 10;	// order 10 not implemented -> using order 9
 	case 11:
 		return 11;
+	case 12:
+		return 12;	// order 12 not implemented -> using order 11
 	case 13:
 		return 13;
 
@@ -87,8 +91,12 @@ constexpr unsigned const get_number_of_quadrature_points_triangle() {
 		return 19;
 	case 9:
 		return 19;
+	case 10:
+		return 19;	// order 10 not implemented -> using order 9
 	case 11:
 		return 28;
+	case 12:
+		return 28;	// order 12 not implemented -> using order 11
 	case 13:
 		return 37;
 
@@ -331,7 +339,7 @@ private:
 
 	void exportVelocityField(std::ofstream & txtFile);
 	void exportVelocities(std::ofstream & txtFile);
-
+	void exportTracePressures(std::ofstream & txtFile);
 
 };
 
@@ -1228,7 +1236,7 @@ template<unsigned QuadraturePrecision>
 bool solver<QuadraturePrecision>::stopCriterion() {
 
 
-	quadrature_triangle const QuadratureOnTriangle(quadrature_order);
+	quadrature_triangle const QuadratureOnTriangle(QuadraturePrecision);
 	unsigned const			  NumberOfQuadraturePoints = QuadratureOnTriangle.NumberOfPoints;
 
 	Eigen::VectorXd BasisPolynomial(3);
@@ -2699,25 +2707,6 @@ void solver<QuadraturePrecision>::assemblePressureSystem_NoTriplet() {
 	Eigen::Matrix3d block1;
 	Eigen::Matrix3d block2;
 
-	//assemble_σ();
-	//assemble_λ();
-
-	/*omp_set_num_threads(2);
-	#pragma omp parallel 
-	{
-		#pragma omp sections
-		{
-			#pragma omp section
-			{
-				assemble_σ();
-			}
-			#pragma omp section
-			{
-				assemble_λ();
-			}
-		}
-	}*/
-
 
 	// It is sufficient to zero only diagonal elements. Therefore, there is no need for += in the sequel
 	for (unsigned e = 0; e < ne; e++) {
@@ -3683,8 +3672,8 @@ void solver<QuadraturePrecision>::getSolution() {
 	
 	//std::cout << counter << std::endl;
 
-	//if (nt % 200 == 0)
-	//	std::cout << nt << " - Iterations : " << counter << std::endl;
+	//if (nt % 1000 == 0)
+		std::cout << nt << " - Iterations : " << counter << std::endl;
 
 };
 
@@ -3868,12 +3857,48 @@ void solver<QuadraturePrecision>::exportVelocities(std::ofstream & txtFile) {
 };
 
 template<unsigned QuadraturePrecision>
+void solver<QuadraturePrecision>::exportTracePressures(std::ofstream & txtFile) {
+
+		
+		//txtFile.open("C:\\Users\\pgali\\Desktop\\flow2d\\tp.txt");
+		//
+		//for (unsigned e = 0; e < ne; e++) {
+		//
+		//
+		//	e_pointer const E = mesh->get_edge(e);
+		//
+		//	v_pointer const va = E->a;
+		//	v_pointer const vb = E->b;
+		//
+		//	real const x0 = (real)va->x;
+		//	real const y0 = (real)va->y;
+		//
+		//	real const x1 = (real)vb->x;
+		//	real const y1 = (real)vb->y;
+		//
+		//	txtFile << x0 << " " << y0 << " " << std::setprecision(20) << tp[e] << std::endl;
+		//	txtFile << x1 << " " << y1 << " " << std::setprecision(20) << tp[e] << std::endl;
+		//	txtFile << std::endl;
+		//}
+		//
+		//txtFile.close();
+
+};
+
+template<unsigned QuadraturePrecision>
 void solver<QuadraturePrecision>::compute_error(std::ofstream & txtFile) {
 
 
-	real const time = nt * dt;
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - When leaving time for-cycle, time is still on the NT-th level		 */
+	/*      but the solution is already on (NT+1)-th level						 */
+	/*                                                                           */
+	/*****************************************************************************/
+	real const time = (nt + 1) * dt;
 
-	quadrature_triangle const	QuadratureOnTriangle(9);
+
+	quadrature_triangle const	QuadratureOnTriangle(quadrature_order);
 	unsigned const				NumberOfQuadraturePoints = QuadratureOnTriangle.NumberOfPoints;
 
 	Eigen::VectorXd BasisPolynomial(3);
@@ -3886,8 +3911,8 @@ void solver<QuadraturePrecision>::compute_error(std::ofstream & txtFile) {
 	for (unsigned k = 0; k < nk; k++) {
 
 
-		t_pointer const	K		= mesh->get_triangle(k);
-		unsigned const	k_index = K->index;
+		t_pointer const	K		= Elements[k];
+		unsigned const	k_index = ElementIndeces[k];
 
 		v_pointer const va = K->vertices[0];
 		v_pointer const vb = K->vertices[1];
@@ -3917,14 +3942,14 @@ void solver<QuadraturePrecision>::compute_error(std::ofstream & txtFile) {
 		Eigen::Vector3d const B(B0, B1, B2);
 		Eigen::Matrix3d M;
 		M << 1.0, -1.0, -1.0,
-			1.0, +1.0, -1.0,
-			1.0, -1.0, +1.0;
-		Eigen::Vector3d const Solution = M.colPivHouseholderQr().solve(B);
+			 1.0, +1.0, -1.0,
+			 1.0, -1.0, +1.0;
+		Eigen::Vector3d const Solution = M.inverse() * B;
 
 
-		real L1NormOnElement = 0.0;
-		real L2NormOnElement = 0.0;
-		real MaxNormOnElement = 0.0;
+		real L1NormOnElement	= 0.0;
+		real L2NormOnElement	= 0.0;
+		real MaxNormOnElement	= 0.0;
 
 		for (unsigned n = 0; n < NumberOfQuadraturePoints; n++) {
 

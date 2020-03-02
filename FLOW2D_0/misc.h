@@ -20,10 +20,7 @@ unsigned const MAX_IT = 500;
 //unsigned const quadratureRule = 17;
 //unsigned const error_quadRule = 17;
 
-unsigned const quadrature_order = 6;
-
-
-//bool const RT_ORDER = 0;
+unsigned const quadrature_order = 7;
 
 double const θ = 0.5;		// 1.0 = Backward Euler | 0.5 = Crank-Nicolson
 
