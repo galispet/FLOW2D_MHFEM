@@ -32,6 +32,7 @@ typedef Triangle *	t_pointer;
 
 
 
+
 inline double sqr(double x) {
 
 	return x * x;
@@ -42,10 +43,11 @@ inline double δij(unsigned const i, unsigned const j) {
 	return i == j ? 1.0 : 0.0;
 
 };
+inline double kroneckerDelta(unsigned const i, unsigned const j) {
 
-//double funnn(double x, double y) {
-//	return pow(x + y,-0.5);
-//};
+	return i == j ? 1.0 : 0.0;
+
+};
 
 
 inline void HardCopy(double * & copyTo, double * & copyFrom, unsigned const & n) {

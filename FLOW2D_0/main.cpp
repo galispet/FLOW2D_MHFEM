@@ -48,6 +48,9 @@ double const dt = 300.0 / (refinement * refinement);
 
 
 
+// const reference to an object T (T const & ) -> const is redunant, reerence is always cosnt (it will never be reference to anz=ythig else)
+
+
 
 
 std::string directory_mesh			= "C:\\Users\\pgali\\Desktop\\eoc\\mesh.txt";

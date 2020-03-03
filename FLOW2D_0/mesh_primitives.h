@@ -6,8 +6,6 @@
 
 #include "enumerators.h"
 
-#include <vector>
-#include "shapes.h"
 #include "geometric.h"
 
 #include <cassert>
@@ -17,16 +15,33 @@
 
 
 
+/*
+template<typename real>
+class MESHVertex;
+template<typename real>
+class MESHEdge;
+template<typename real>
+class MESHTriangle;
+
+template<typename real>
+using vm_pointer = MESHVertex<real> *;
+template<typename real>
+using em_pointer = MESHEdge<real> *;
+template<typename real>
+using tm_pointer = MESHTriangle<real> *;
+*/
 
 
 class MESHVertex;
 class MESHEdge;
 class MESHTriangle;
 
-
 typedef MESHVertex *	vm_pointer;
 typedef MESHEdge *		em_pointer;
 typedef MESHTriangle *	tm_pointer;
+
+typedef double real;
+
 
 
 class MESHVertex {
@@ -68,8 +83,8 @@ public:
 	/*    - Class members														 */
 	/*                                                                           */
 	/*****************************************************************************/
-	double x;
-	double y;
+	real const x;
+	real const y;
 
 	unsigned index;
 
@@ -79,7 +94,7 @@ public:
 	/*    - Class constructor/destructor										 */
 	/*                                                                           */
 	/*****************************************************************************/
-	MESHVertex(double const & const X, double const & const Y);
+	MESHVertex(real const X, real const Y);
 	~MESHVertex();
 
 
@@ -134,7 +149,7 @@ public:
 	/*    - Class constructor/destructor										 */
 	/*                                                                           */
 	/*****************************************************************************/
-	MESHEdge(vm_pointer & const va, vm_pointer & const vb);
+	MESHEdge(vm_pointer const & va, vm_pointer const & vb);
 	~MESHEdge();
 
 
@@ -184,7 +199,6 @@ public:
 	tm_pointer neighbors[3] = { NULL,NULL,NULL };
 
 	unsigned index;
-	T_MARKER marker;
 
 
 	/*****************************************************************************/
@@ -220,7 +234,7 @@ public:
 /*									VERTEX									 */
 /*																			 */
 /*****************************************************************************/
-MESHVertex::MESHVertex(double const & const X, double const & const Y) : x(X), y(Y), index(0)  {
+MESHVertex::MESHVertex(double const X, double const Y) : x(X), y(Y), index(0)  {
 
 };
 MESHVertex::~MESHVertex() {
@@ -233,7 +247,7 @@ MESHVertex::~MESHVertex() {
 /*									EDGE									 */
 /*																			 */
 /*****************************************************************************/
-MESHEdge::MESHEdge(vm_pointer & const va, vm_pointer & const vb) : a(va), b(vb) {
+MESHEdge::MESHEdge(vm_pointer const & va, vm_pointer const & vb) : a(va), b(vb) {
 
 };
 MESHEdge::~MESHEdge() {
@@ -246,7 +260,7 @@ MESHEdge::~MESHEdge() {
 
 };
 
-double const & MESHEdge::length() const {
+real const & MESHEdge::length() const {
 
 	double const x0 = a->x;
 	double const y0 = a->y;
@@ -264,7 +278,9 @@ double const & MESHEdge::length() const {
 /*									TRIANGLE								 */
 /*																			 */
 /*****************************************************************************/
-MESHTriangle::MESHTriangle(vm_pointer const & va, vm_pointer const & vb, vm_pointer const & vc) : vertices{ va,vb,vc }, index(0), marker(T_MARKER::NONE) {};
+MESHTriangle::MESHTriangle(vm_pointer const & va, vm_pointer const & vb, vm_pointer const & vc) : vertices{ va,vb,vc } {
+
+};
 MESHTriangle::~MESHTriangle() {
 
 	vertices[0] = NULL;
@@ -327,7 +343,7 @@ unsigned const & MESHTriangle::get_edge_index(em_pointer const & e) const {
 
 };
 
-double const & MESHTriangle::area() const {
+real const & MESHTriangle::area() const {
 
 	vm_pointer const va = vertices[0];
 	vm_pointer const vb = vertices[1];
