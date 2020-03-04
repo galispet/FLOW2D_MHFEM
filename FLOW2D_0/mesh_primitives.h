@@ -6,8 +6,6 @@
 
 #include "enumerators.h"
 
-#include "geometric.h"
-
 #include <cassert>
 #include <algorithm>
 #include <iostream>
@@ -40,15 +38,13 @@ typedef MESHVertex *	vm_pointer;
 typedef MESHEdge *		em_pointer;
 typedef MESHTriangle *	tm_pointer;
 
-typedef double real;
-
 
 
 class MESHVertex {
 
 
-	/*
-	friend class Triangle;
+	
+	/*friend class Triangle;
 
 	friend class Edge;
 
@@ -56,23 +52,27 @@ class MESHVertex {
 
 	friend class Mesh;
 
-	friend class PlanarStraightLineGraph;
+	*/
+friend class PlanarStraightLineGraph;
 
 	template<GEOMETRIC_KERNEL GK>
 	friend class Triangulation;
 
 	template <GEOMETRIC_KERNEL GK>
 	friend class Predicates;
+	friend class Mesh2;
 
+	friend class MESHTriangle;
+	friend class MESHEdge;
 
 	//			Friend functions		 
-	friend bool t_compare_x(Triangle * const t1, Triangle * const t2);
-	friend bool t_compare_y(Triangle * const t1, Triangle * const t2);
-	friend bool v_compare_x(Vertex * const v1, Vertex * const v2);
-	friend bool v_compare_y(Vertex * const v1, Vertex * const v2);
-	friend bool e_compare_x(Edge * const e1, Edge * const e2);
-	friend bool e_compare_y(Edge * const e1, Edge * const e2);
-	*/
+	friend bool t_compare_x(tm_pointer const t1, tm_pointer const t2);
+	friend bool t_compare_y(tm_pointer const t1, tm_pointer const t2);
+	friend bool v_compare_x(vm_pointer const v1, vm_pointer const v2);
+	friend bool v_compare_y(vm_pointer const v1, vm_pointer const v2);
+	friend bool e_compare_x(em_pointer const e1, em_pointer const e2);
+	friend bool e_compare_y(em_pointer const e1, em_pointer const e2);
+	
 
 
 public:
@@ -83,8 +83,8 @@ public:
 	/*    - Class members														 */
 	/*                                                                           */
 	/*****************************************************************************/
-	real const x;
-	real const y;
+	double const x;
+	double const y;
 
 	unsigned index;
 
@@ -94,7 +94,7 @@ public:
 	/*    - Class constructor/destructor										 */
 	/*                                                                           */
 	/*****************************************************************************/
-	MESHVertex(real const X, real const Y);
+	MESHVertex(double const X, double const Y);
 	~MESHVertex();
 
 
@@ -112,21 +112,35 @@ class MESHEdge {
 
 	friend class Mesh;
 
-	template<GEOMETRIC_KERNEL GK>
-	friend class Triangulation;
-
-	template <GEOMETRIC_KERNEL GK>
-	friend class Predicates;
 
 
 	//				Friend functions	
 	friend bool e_compare_x(Edge * const e1, Edge * const e2);
 	friend bool e_compare_y(Edge * const e1, Edge * const e2);
-	friend bool marker_compare_neumann(Edge * const e1, Edge * const e2);
-	friend bool marker_compare_dirichlet(Edge * const e1, Edge * const e2);
+
 
 	*/
 
+	template<GEOMETRIC_KERNEL GK>
+	friend class Triangulation;
+
+	template <GEOMETRIC_KERNEL GK>
+	friend class Predicates;
+	friend class Mesh2;
+
+	friend class MESHVertex;
+	friend class MESHTriangle;
+	friend class MESHEdge;
+
+	friend bool t_compare_x(tm_pointer const t1, tm_pointer const t2);
+	friend bool t_compare_y(tm_pointer const t1, tm_pointer const t2);
+	friend bool v_compare_x(vm_pointer const v1, vm_pointer const v2);
+	friend bool v_compare_y(vm_pointer const v1, vm_pointer const v2);
+	friend bool e_compare_x(em_pointer const e1, em_pointer const e2);
+	friend bool e_compare_y(em_pointer const e1, em_pointer const e2);
+
+	friend bool marker_compare_neumann(em_pointer const e1, em_pointer const e2);
+	friend bool marker_compare_dirichlet(em_pointer const e1, em_pointer const e2);
 public:
 	
 
@@ -158,7 +172,7 @@ public:
 	/*    - Class methods														 */
 	/*                                                                           */
 	/*****************************************************************************/
-	double const & length() const;
+	double const length() const;
 
 };
 
@@ -172,11 +186,7 @@ class MESHTriangle {
 
 	friend class Mesh;
 
-	template <GEOMETRIC_KERNEL GK>
-	friend class Triangulation;
 
-	template <GEOMETRIC_KERNEL GK>
-	friend class Predicates;
 
 	//				Friend functions		 
 
@@ -184,6 +194,23 @@ class MESHTriangle {
 	friend bool t_compare_y(Triangle * const t1, Triangle * const t2);
 
 	*/
+	template <GEOMETRIC_KERNEL GK>
+	friend class Triangulation;
+
+	template <GEOMETRIC_KERNEL GK>
+	friend class Predicates;
+	friend class Mesh2;
+
+	friend class MESHVertex;
+	friend class MESHTriangle;
+	friend class MESHEdge;
+
+	friend bool t_compare_x(tm_pointer const t1, tm_pointer const t2);
+	friend bool t_compare_y(tm_pointer const t1, tm_pointer const t2);
+	friend bool v_compare_x(vm_pointer const v1, vm_pointer const v2);
+	friend bool v_compare_y(vm_pointer const v1, vm_pointer const v2);
+	friend bool e_compare_x(em_pointer const e1, em_pointer const e2);
+	friend bool e_compare_y(em_pointer const e1, em_pointer const e2);
 
 
 public:
@@ -216,13 +243,14 @@ public:
 	/*    - Class methods														 */
 	/*                                                                           */
 	/*****************************************************************************/
+	vm_pointer const & get_vertex(unsigned const i) const;
 	vm_pointer const & get_vertex(em_pointer const & e) const;
 	vm_pointer const & get_vertex_cw(vm_pointer const & v)  const;
 	vm_pointer const & get_vertex_ccw(vm_pointer const & v) const;
 
-	unsigned const & get_edge_index(em_pointer const & e) const;
+	unsigned const get_edge_index(em_pointer const & e) const;
 
-	double const & area() const;
+	double const area() const;
 
 
 };
@@ -260,7 +288,7 @@ MESHEdge::~MESHEdge() {
 
 };
 
-real const & MESHEdge::length() const {
+double const MESHEdge::length() const {
 
 	double const x0 = a->x;
 	double const y0 = a->y;
@@ -297,6 +325,11 @@ MESHTriangle::~MESHTriangle() {
 
 };
 
+vm_pointer const & MESHTriangle::get_vertex(unsigned const i) const {
+
+	return vertices[i];
+
+};
 vm_pointer const & MESHTriangle::get_vertex(em_pointer const & e) const {
 
 	if		(e == edges[0]) return vertices[0];
@@ -305,7 +338,7 @@ vm_pointer const & MESHTriangle::get_vertex(em_pointer const & e) const {
 
 	assert(0 && "Triangle::get_vertex(Edge)");
 
-	return NULL;
+	return vertices[0];
 
 };
 vm_pointer const & MESHTriangle::get_vertex_cw(vm_pointer const & v) const {
@@ -316,7 +349,7 @@ vm_pointer const & MESHTriangle::get_vertex_cw(vm_pointer const & v) const {
 
 	assert(0 && "Triangle::vertex_cw(Vertex)");
 
-	return NULL;
+	return vertices[0];
 
 };
 vm_pointer const & MESHTriangle::get_vertex_ccw(vm_pointer const & v) const {
@@ -327,11 +360,11 @@ vm_pointer const & MESHTriangle::get_vertex_ccw(vm_pointer const & v) const {
 
 	assert(0 && "Triangle::vertex_ccw(Vertex)");
 
-	return NULL;
+	return vertices[0];
 
 };
 
-unsigned const & MESHTriangle::get_edge_index(em_pointer const & e) const {
+unsigned const MESHTriangle::get_edge_index(em_pointer const & e) const {
 
 	if		(e == edges[0]) return 0;
 	else if (e == edges[1]) return 1;
@@ -343,7 +376,7 @@ unsigned const & MESHTriangle::get_edge_index(em_pointer const & e) const {
 
 };
 
-real const & MESHTriangle::area() const {
+double const MESHTriangle::area() const {
 
 	vm_pointer const va = vertices[0];
 	vm_pointer const vb = vertices[1];

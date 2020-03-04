@@ -1,11 +1,14 @@
 
 
 #include "mesh.h"
+
+#include "mesh2.h"
 #include "triangulation.h"
 #include "PSLG.h"
 #include "misc.h"
 
 #include "solver.h"
+#include "solver2.h"
 
 #include <iostream>
 #include <fstream>
@@ -36,12 +39,12 @@ const double b_x = 40.0;
 const double a_y = 0.0;
 const double b_y = 40.0;
 
-unsigned const refinement = 2*2*2*2*2;
+unsigned const refinement = 2*2;
 
 const int N_x = 4 * refinement;
 const int N_y = N_x;
 
-unsigned const nt0 = 125 * (refinement * refinement);
+unsigned const nt0 = 25 * (refinement * refinement);
 unsigned const NT = 150 * (refinement * refinement);
 double const dt = 300.0 / (refinement * refinement);
 
@@ -117,7 +120,8 @@ int main() {
 	/*****************************************************************************/
 	//seeds.push_back(Vertex(8.0, 8.0));
 	Triangulation<GK>	triangulation(pslg, seeds);
-	Mesh				mesh(triangulation);
+	//Mesh				mesh(triangulation);
+	Mesh2				mesh(triangulation);
 
 
 
@@ -142,9 +146,9 @@ int main() {
 	/*    - Create text file of the mesh: coordinates							 */
 	/*                                                                           */
 	/*****************************************************************************/
-	OFSTxtFile.open(directory_mesh);
-	exportMesh(OFSTxtFile, mesh);
-	OFSTxtFile.close();
+	//OFSTxtFile.open(directory_mesh);
+	//exportMesh(OFSTxtFile, mesh);
+	//OFSTxtFile.close();
 
 
 
@@ -153,7 +157,8 @@ int main() {
 	/*    - Create instance of the solver										 */
 	/*                                                                           */
 	/*****************************************************************************/
-	solver<quadrature_order> solution(mesh, nt0, dt);
+	//solver<quadrature_order> solution(mesh, nt0, dt);
+	solver2<double, 7,scheme::CRANK_NICOLSON> solution(mesh, nt0, dt);
 
 
 
@@ -163,9 +168,9 @@ int main() {
 	/*    - Create text file of the initial condition							 */
 	/*                                                                           */
 	/*****************************************************************************/
-	OFSTxtFile.open(directory_solution + std::to_string(nt0) + ".txt");
-	solution.exportSolution(OFSTxtFile);
-	OFSTxtFile.close();
+	//OFSTxtFile.open(directory_solution + std::to_string(nt0) + ".txt");
+	//solution.exportSolution(OFSTxtFile);
+	//OFSTxtFile.close();
 
 	
 
@@ -191,9 +196,8 @@ int main() {
 		/*    - Create text file of the solution on the (n+1)-th time level			 */
 		/*                                                                           */
 		/*****************************************************************************/
-		//OFSTxtFile.open(directory_solution + std::to_string(nt) + ".txt");
-		//solution.exportSolution(OFSTxtFile);
-		//OFSTxtFile.close();
+		//std::string fileName = "C:\\Users\\pgali\\Desktop\\eoc\\output_" + std::to_string(nt) + ".txt";
+		//solution.exportPressures(fileName);
 
 
 		/*****************************************************************************/
@@ -214,9 +218,9 @@ int main() {
 
 
 
-	OFSTxtFile.open(directory_error + std::to_string(N_x) + ".txt");
-	solution.compute_error(OFSTxtFile);
-	OFSTxtFile.close();
+	//OFSTxtFile.open(directory_error + std::to_string(N_x) + ".txt");
+	//solution.compute_error(OFSTxtFile);
+	//OFSTxtFile.close();
 
 
 

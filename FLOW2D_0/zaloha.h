@@ -8,44 +8,17 @@
 /*                                                                           */
 /*****************************************************************************/
 
-// Locally make container of pointers for triangles and edges. No calling mesh needed?
-
-// Upwind : Insert JF/iJFT, transformed normal as argument -: it will be computed only once per element. Not every time in the quadrature
-//		  : Insert computed bases. There is no need for computing it twice !!
-
-// Global coefficient arrays : make const pointer to each element block -> faster lookup ?
-//							 : transform vectors <1,3,1> into <1,1,3> - because third index is the fastest changing index -> faster lookup? 
-
-// Quadrature points : Initilize quad points and weight only once (make it global) ?
-
-// Remove matrix R1, R2 : Have to implement R1 * iD and Assembly_RHS_trace_pressure_system -> R1 * pi - v1 .... 
-
-
-// I'm computing inverse of D and H1,H2 twice right now ... try to compute it only once
-
 // Exchange Egien matrices and vector for Mine !!!! Big speed up
 
 // quadrature_points_x/y calculate only for dirihlet edges/neuman somehow -> MUCH less memory needed
 
-// Make only 1 Chi. Its structure its KNOWN and it is constant !!!!
-// Make only 1 Beta: integral is the same for all elements !!!
-// Make only 1 tau: -//-
-// Make only 1 Eta: integral is the same up to the multiplicative coeffient |detJF| !!!!! just multiply the integral with detJF
-
-// Precompute some values for the lamda computation
+// allocate memory in the beginning of the assemble function (typically those Eigen::triplet make only once, not in the loop as const)->will it be faster?
 
 /*****************************************************************************/
 /*                                                                           */
 /*    - To fix											 			         */
 /*                                                                           */
 /*****************************************************************************/
-
-// !!!!!!!!!!!!! : When computing boundary values (barenblatt) I do not transform s, t into x,y !!!!!!!!!! Must transform it
-
-
-// Convergence test is not as it shoud be. Now it computes difference between mean values. Not L2 norm of the linear combination of the pressure/concentration
-
-// Dirichlet boundary conditions - time at which I sample boundary values is ahead -> try: time = nt*dt ( now i have (nt+1)*dt ) ??
 
 
 	// TODO
