@@ -1,8 +1,6 @@
 #pragma once
 
 
-#pragma once
-
 
 #include "enumerators.h"
 
@@ -39,40 +37,12 @@ typedef MESHEdge *		em_pointer;
 typedef MESHTriangle *	tm_pointer;
 
 
-
+/*****************************************************************************/
+/*																			 */
+/*									VERTEX									 */
+/*																			 */
+/*****************************************************************************/
 class MESHVertex {
-
-
-	
-	/*friend class Triangle;
-
-	friend class Edge;
-
-
-
-	friend class Mesh;
-
-	*/
-friend class PlanarStraightLineGraph;
-
-	template<GEOMETRIC_KERNEL GK>
-	friend class Triangulation;
-
-	template <GEOMETRIC_KERNEL GK>
-	friend class Predicates;
-	friend class Mesh2;
-
-	friend class MESHTriangle;
-	friend class MESHEdge;
-
-	//			Friend functions		 
-	friend bool t_compare_x(tm_pointer const t1, tm_pointer const t2);
-	friend bool t_compare_y(tm_pointer const t1, tm_pointer const t2);
-	friend bool v_compare_x(vm_pointer const v1, vm_pointer const v2);
-	friend bool v_compare_y(vm_pointer const v1, vm_pointer const v2);
-	friend bool e_compare_x(em_pointer const e1, em_pointer const e2);
-	friend bool e_compare_y(em_pointer const e1, em_pointer const e2);
-	
 
 
 public:
@@ -100,47 +70,24 @@ public:
 
 };
 
+
+MESHVertex::MESHVertex(double const X, double const Y) : x(X), y(Y), index(0)  {
+
+};
+MESHVertex::~MESHVertex() {
+
+};
+
+
+
+/*****************************************************************************/
+/*																			 */
+/*									EDGE									 */
+/*																			 */
+/*****************************************************************************/
 class MESHEdge {
 
 
-	/*
-	friend class Vertex;
-
-	friend class Triangle;
-
-
-
-	friend class Mesh;
-
-
-
-	//				Friend functions	
-	friend bool e_compare_x(Edge * const e1, Edge * const e2);
-	friend bool e_compare_y(Edge * const e1, Edge * const e2);
-
-
-	*/
-
-	template<GEOMETRIC_KERNEL GK>
-	friend class Triangulation;
-
-	template <GEOMETRIC_KERNEL GK>
-	friend class Predicates;
-	friend class Mesh2;
-
-	friend class MESHVertex;
-	friend class MESHTriangle;
-	friend class MESHEdge;
-
-	friend bool t_compare_x(tm_pointer const t1, tm_pointer const t2);
-	friend bool t_compare_y(tm_pointer const t1, tm_pointer const t2);
-	friend bool v_compare_x(vm_pointer const v1, vm_pointer const v2);
-	friend bool v_compare_y(vm_pointer const v1, vm_pointer const v2);
-	friend bool e_compare_x(em_pointer const e1, em_pointer const e2);
-	friend bool e_compare_y(em_pointer const e1, em_pointer const e2);
-
-	friend bool marker_compare_neumann(em_pointer const e1, em_pointer const e2);
-	friend bool marker_compare_dirichlet(em_pointer const e1, em_pointer const e2);
 public:
 	
 
@@ -176,41 +123,40 @@ public:
 
 };
 
+
+MESHEdge::MESHEdge(vm_pointer const & va, vm_pointer const & vb) : a(va), b(vb) {
+
+};
+MESHEdge::~MESHEdge() {
+
+	a = NULL;
+	b = NULL;
+
+	neighbors[0] = NULL;
+	neighbors[1] = NULL;
+
+};
+
+double const MESHEdge::length() const {
+
+	double const x0 = a->x;
+	double const y0 = a->y;
+
+	double const x1 = b->x;
+	double const y1 = b->y;
+
+	return sqrt(sqr(x1 - x0) + sqr(y1 - y0));
+
+};
+
+
+
+/*****************************************************************************/
+/*																			 */
+/*									TRIANGLE								 */
+/*																			 */
+/*****************************************************************************/
 class MESHTriangle {
-
-
-	/*
-	friend class Vertex;
-
-	friend class Edge;
-
-	friend class Mesh;
-
-
-
-	//				Friend functions		 
-
-	friend bool t_compare_x(Triangle * const t1, Triangle * const t2);
-	friend bool t_compare_y(Triangle * const t1, Triangle * const t2);
-
-	*/
-	template <GEOMETRIC_KERNEL GK>
-	friend class Triangulation;
-
-	template <GEOMETRIC_KERNEL GK>
-	friend class Predicates;
-	friend class Mesh2;
-
-	friend class MESHVertex;
-	friend class MESHTriangle;
-	friend class MESHEdge;
-
-	friend bool t_compare_x(tm_pointer const t1, tm_pointer const t2);
-	friend bool t_compare_y(tm_pointer const t1, tm_pointer const t2);
-	friend bool v_compare_x(vm_pointer const v1, vm_pointer const v2);
-	friend bool v_compare_y(vm_pointer const v1, vm_pointer const v2);
-	friend bool e_compare_x(em_pointer const e1, em_pointer const e2);
-	friend bool e_compare_y(em_pointer const e1, em_pointer const e2);
 
 
 public:
@@ -256,56 +202,6 @@ public:
 };
 
 
-
-/*****************************************************************************/
-/*																			 */
-/*									VERTEX									 */
-/*																			 */
-/*****************************************************************************/
-MESHVertex::MESHVertex(double const X, double const Y) : x(X), y(Y), index(0)  {
-
-};
-MESHVertex::~MESHVertex() {
-
-};
-
-
-/*****************************************************************************/
-/*																			 */
-/*									EDGE									 */
-/*																			 */
-/*****************************************************************************/
-MESHEdge::MESHEdge(vm_pointer const & va, vm_pointer const & vb) : a(va), b(vb) {
-
-};
-MESHEdge::~MESHEdge() {
-
-	a = NULL;
-	b = NULL;
-
-	neighbors[0] = NULL;
-	neighbors[1] = NULL;
-
-};
-
-double const MESHEdge::length() const {
-
-	double const x0 = a->x;
-	double const y0 = a->y;
-
-	double const x1 = b->x;
-	double const y1 = b->y;
-
-	return sqrt(sqr(x1 - x0) + sqr(y1 - y0));
-
-};
-
-
-/*****************************************************************************/
-/*																			 */
-/*									TRIANGLE								 */
-/*																			 */
-/*****************************************************************************/
 MESHTriangle::MESHTriangle(vm_pointer const & va, vm_pointer const & vb, vm_pointer const & vc) : vertices{ va,vb,vc } {
 
 };

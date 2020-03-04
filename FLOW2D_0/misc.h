@@ -33,11 +33,11 @@ typedef Triangle *	t_pointer;
 
 
 
-inline double sqr(double x) {
-
-	return x * x;
-
-};
+//inline double sqr(double x) {
+//
+//	return x * x;
+//
+//};
 inline double δij(unsigned const i, unsigned const j) {
 
 	return i == j ? 1.0 : 0.0;

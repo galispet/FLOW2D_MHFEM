@@ -44,9 +44,13 @@ unsigned const refinement = 2*2;
 const int N_x = 4 * refinement;
 const int N_y = N_x;
 
-unsigned const nt0 = 25 * (refinement * refinement);
-unsigned const NT = 150 * (refinement * refinement);
-double const dt = 300.0 / (refinement * refinement);
+//unsigned const nt0 = 25 * (refinement * refinement);
+//unsigned const NT = 150 * (refinement * refinement);
+//double const dt = 300.0 / (refinement * refinement);
+
+unsigned const nt0 = 25 * (refinement);
+unsigned const NT = 150 * (refinement);
+double const dt = 300.0 / (refinement);
 
 
 
@@ -120,25 +124,33 @@ int main() {
 	/*****************************************************************************/
 	//seeds.push_back(Vertex(8.0, 8.0));
 	Triangulation<GK>	triangulation(pslg, seeds);
-	//Mesh				mesh(triangulation);
-	Mesh2				mesh(triangulation);
 
 
-
-	
 	/*****************************************************************************/
 	/*                                                                           */
-	/*    - Print Triangulation / Mesh information								 */
+	/*    - Print Triangulation	information										 */
 	/*                                                                           */
 	/*****************************************************************************/
-	cout << "*************** Triangulation ***************" << endl;
+	std::cout << "/*****************/" << std::endl;
+	std::cout << "/*               */" << std::endl;
+	std::cout << "/* Triangulation */" << std::endl;
+	std::cout << "/*               */" << std::endl;
+	std::cout << "/*****************/" << std::endl;
+	std::cout << std::endl;
 	cout << "No. Vertices  : " << triangulation.get_number_of_vertices() << endl;
 	cout << "No. Edges     : " << triangulation.get_number_of_edges() << endl;
 	cout << "No. Triangles : " << triangulation.get_number_of_triangles() << endl;
-	cout << "*********************************************" << endl << endl;
+	cout << endl;
 
 
 
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Construct computation mesh from the triangulation					 */
+	/*                                                                           */
+	/*****************************************************************************/
+	Mesh				mesh(triangulation);
+	//Mesh2				mesh(triangulation);
 
 
 	/*****************************************************************************/
@@ -157,8 +169,8 @@ int main() {
 	/*    - Create instance of the solver										 */
 	/*                                                                           */
 	/*****************************************************************************/
-	//solver<quadrature_order> solution(mesh, nt0, dt);
-	solver2<double, 7,scheme::CRANK_NICOLSON> solution(mesh, nt0, dt);
+	solver<quadrature_order> solution(mesh, nt0, dt);
+	//solver2<double, 7,scheme::CRANK_NICOLSON> solution(mesh, nt0, dt);
 
 
 
@@ -173,6 +185,14 @@ int main() {
 	//OFSTxtFile.close();
 
 	
+	std::cout << std::endl;
+	std::cout << "/*****************/" << std::endl;
+	std::cout << "/*               */" << std::endl;
+	std::cout << "/*  Computing... */" << std::endl;
+	std::cout << "/*               */" << std::endl;
+	std::cout << "/*****************/" << std::endl;
+	std::cout << std::endl;
+
 
 	clock_t begin = clock();
 

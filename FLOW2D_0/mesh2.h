@@ -16,14 +16,6 @@
 #include <cmath>
 
 
-typedef Vertex *		v_pointer;
-typedef Edge *			e_pointer;
-typedef Triangle *		t_pointer;
-//
-//typedef MESHVertex *	vm_pointer;
-//typedef MESHEdge *		em_pointer;
-//typedef MESHTriangle *	tm_pointer;
-
 
 
 bool tm_compare_x(tm_pointer const t1, tm_pointer const t2);
@@ -180,42 +172,37 @@ Mesh2::Mesh2(Triangulation<GK> & triangulation) {
 	/*****************************************************************************/
 	for (unsigned e = 0; e < NumberOf_Edges; e++) {
 
-		vm_pointer va = edges[e]->a;
-		vm_pointer vb = edges[e]->b;
+		vm_pointer const va = edges[e]->a;
+		vm_pointer const vb = edges[e]->b;
 
 		unsigned const vi = va->index;
 		unsigned const vj = vb->index;
 
 		if (vj < vi)
-			std::swap(va, vb);
+			std::swap(edges[e]->a, edges[e]->b);
 
 	}
 
 
 
 	std::cout << std::endl;
-	std::cout << "/*****************************************************************************/" << std::endl;
-	std::cout << "/*																		   */" << std::endl;
-	std::cout << "/*									 MESH								   */" << std::endl;
-	std::cout << "/*																		   */" << std::endl;
-	std::cout << "/*****************************************************************************/" << std::endl;
+	std::cout << "/*****************/" << std::endl;
+	std::cout << "/*               */" << std::endl;
+	std::cout << "/*      MESH     */" << std::endl;
+	std::cout << "/*               */" << std::endl;
+	std::cout << "/*****************/" << std::endl;
 	std::cout << std::endl;
-	std::cout << "\nNumber of vertices : ";
+	std::cout << "No. vertices	: ";
 	std::cout << vertices.size() << endl;
-	std::cout << "\nNumber of edges : ";
+	std::cout << "No. edges	: ";
 	std::cout << edges.size() << endl;
-	std::cout << "\nNumber of triangles : ";
-	std::cout << triangles.size() << endl;
-	std::cout << "Number of Dirichlet edges : ";
+	std::cout << "No. triangles	: ";
+	std::cout << triangles.size() << endl << endl;
+	std::cout << "No. Dirichlet edges	: ";
 	std::cout << std::count_if(edges.begin(), edges.end(), [](auto e) {return e->marker == E_MARKER::DIRICHLET; }) << std::endl;
-	std::cout << "Number of Neumann edges : ";
+	std::cout << "No. Neumann edges	: ";
 	std::cout << std::count_if(edges.begin(), edges.end(), [](auto e) {return e->marker == E_MARKER::NEUMANN; }) << std::endl;
 	std::cout << std::endl;
-	std::cout << "/*****************************************************************************/" << std::endl;
-	std::cout << "/*																		   */" << std::endl;
-	std::cout << "/*									     								   */" << std::endl;
-	std::cout << "/*																		   */" << std::endl;
-	std::cout << "/*****************************************************************************/" << std::endl;
 
 
 };
@@ -434,7 +421,7 @@ void Mesh2::export_edges(std::ofstream & stream) const {
 	/*    - Gnuplot														         */
 	/*                                                                           */
 	/*****************************************************************************/
-	for (size_t i = 0; i < edges.size(); i++) {
+	/*for (size_t i = 0; i < edges.size(); i++) {
 
 		double const v0_x = edges[i]->a->x;
 		double const v0_y = edges[i]->a->y;
@@ -445,7 +432,7 @@ void Mesh2::export_edges(std::ofstream & stream) const {
 		stream << v0_x << "  " << v0_y << std::endl;
 		stream << v1_x << "  " << v1_y << std::endl << std::endl;
 
-	}
+	}*/
 
 	/*****************************************************************************/
 	/*                                                                           */

@@ -3672,7 +3672,7 @@ void solver<QuadraturePrecision>::getSolution() {
 	//std::cout << counter << std::endl;
 
 	//if (nt % 1000 == 0)
-		std::cout << nt << " - Iterations : " << counter << std::endl;
+		//std::cout << nt << " - Iterations : " << counter << std::endl;
 
 };
 
