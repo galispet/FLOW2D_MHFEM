@@ -1,10 +1,6 @@
 ﻿#pragma once
 
 
-
-#pragma once
-
-
 /*****************************************************************************/
 /*                                                                           */
 /*    - If compiled with NDEBUG flag, Eigen will turn off					 */
@@ -16,29 +12,28 @@
 #define NDEBUG 
 
 
-#include "coefficient_matrix.h"
-#include "mesh2.h"
-#include "matrix.h"
-
 #include "miscellaneous.h"
+#include "coefficient_matrix.h"
+#include "matrix.h"
+#include "mesh2.h"
 
 
-#include <omp.h>
 #include <Eigen/Sparse>
-
-
+#include <omp.h>
 
 
 enum scheme { CRANK_NICOLSON, EULER_BACKWARD };
 
 
-template <typename Real = double, unsigned QuadraturePrecision = 6, scheme TimeScheme = CRANK_NICOLSON>
+
+template <unsigned QuadraturePrecision = 6, scheme TimeScheme = CRANK_NICOLSON>
 class solver2 {
 
 
 	typedef Eigen::SparseMatrix<Real>				SparseMatrix;
 	typedef Eigen::Matrix<Real, Eigen::Dynamic, 1>	DenseVector;
  
+
 	/*****************************************************************************/
 	/*                                                                           */
 	/*    - Numerical model parameters									         */
@@ -69,15 +64,15 @@ public:
 	void setTimeLevel(int const _nt) { this->nt = _nt; };
 
 
-	void exportPressures(std::string & fileName);
-	void exportConcentrations(std::string & fileName);
+	void exportPressures(std::string const & fileName);
+	void exportConcentrations(std::string const & fileName);
 
-	void exportTracePressures(std::string & fileName);
+	void exportTracePressures(std::string const & fileName);
 
-	void exportVelocityField(std::string & fileName);
-	void exportVelocities(std::string & fileName);
+	void exportVelocityField(std::string const & fileName);
+	void exportVelocities(std::string const & fileName);
 
-	void computeError(std::string & fileName);
+	void computeError(std::string const & fileName);
 
 
 	solver2(Mesh2 & mesh, unsigned const nt0, Real const dt0);
@@ -194,6 +189,7 @@ private:
 	/*       : AlphaTimesBeta													 */
 	/*                                                                           */
 	/*****************************************************************************/
+	CoeffMatrix1D<3>									QuadraturePointsAndWeightsOnReferenceTriangle;
 	CoeffMatrix3D<3, 8, 2>								QuadraturePoints_RaviartThomasBasis;
 	CoeffMatrix2D<3, 3>									QuadraturePoints_PolynomialBasis;
 	CoeffMatrix2D<3, 3>									QuadraturePoints_PolynomialBasisOpposite;
@@ -201,6 +197,8 @@ private:
 	CoeffMatrix3D<3, NumberOfQuadraturePointsEdge, 8>	QuadraturePoints_PhysicalNormalDotPhysicalRaviartThomasBasis;
 	CoeffMatrix3D<8, 3, 2>								AlphaTimesChi;
 	CoeffMatrix2D<8, 3>									AlphaTimesBeta;
+
+	QuadraturePointsAndWeightsOnReferenceTriangle		.setNumberOfElements(NumberOfQuadraturePointsTriangle);
 
 
 	/*****************************************************************************/
@@ -340,8 +338,8 @@ private:
 
 	/*****************************************************************************/
 	/*                                                                           */
-	/*    - Evaluation of Raviart-Thomas and P1 basis function, normal vectors,  */
-	/*      edges parametrization, Edge basis P1(E)							     */
+	/*    - Evaluation of Raviart-Thomas, P1 basis function, Edge basis P1(E),	 */
+	/*      edges parametrization, normal vectors							     */
 	/*                                                                           */
 	/*****************************************************************************/
 	inline void evaluate_raviartthomas_basis(Real const s, Real const t, Eigen::Matrix<Real, 2, 8> & out);
@@ -359,9 +357,9 @@ private:
 	inline void evaluate_edge_parametrization_opposite_derivative(Real const ksi, unsigned const El, Eigen::Matrix<Real, 2, 1> & out);
 
 
+	inline Real phi0(Real const s, Real const t);
 	inline Real phi1(Real const s, Real const t);
 	inline Real phi2(Real const s, Real const t);
-	inline Real phi3(Real const s, Real const t);
 
 
 	/*****************************************************************************/
@@ -373,6 +371,8 @@ private:
 	Real F1(tm_pointer const K, Real const time);
 	Real F2(tm_pointer const K, Real const time);
 
+	void evaluate_source_integrals(tm_pointer const K, Real const time, Eigen::Matrix<Real, 3, 1> & out);
+	
 
 
 	/*****************************************************************************/
@@ -693,8 +693,8 @@ solver2<Real, QuadraturePrecision, TimeScheme>::solver2(Mesh2 & mesh, unsigned c
 	PorosityViscosityDeterminant	= new Real[nk];
 
 
-
-	gauss_quadrature_1D const GaussQuadratureOnEdge(QuadraturePrecision);
+	quadrature_triangle const GaussQuadratureOnTriangle<Real>(QuadraturePrecision);
+	gauss_quadrature_1D const GaussQuadratureOnEdge<Real>(QuadraturePrecision);
 
 	Eigen::Matrix<Real, 2, 2> JF;
 	Eigen::Matrix<Real, 2, 3> ReferenceNormals;
@@ -706,6 +706,23 @@ solver2<Real, QuadraturePrecision, TimeScheme>::solver2(Mesh2 & mesh, unsigned c
 	Eigen::Matrix<Real, 3, 1> BasisPolynomialOpposite;
 
 	evaluate_edge_normal(ReferenceNormals);
+
+
+
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Precomputation of the quadrature points on the reference triangle	 */
+	/*                                                                           */
+	/*****************************************************************************/
+	for (unsigned i = 0; i < NumberOfQuadraturePointsTriangle; i++) {
+
+		Real const s = GaussQuadratureOnTriangle		.points_x[i];
+		Real const t = GaussQuadratureOnTriangle		.points_y[i];
+		Real const w = 0.5 * GaussQuadratureOnTriangle	.weights[i];
+
+		QuadraturePointsAndWeightsOnReferenceTriangle. += w * source(x, y, time)*phi1(x, y);
+
+	}
 
 
 	/*****************************************************************************/
@@ -3783,6 +3800,11 @@ void solver2<Real, QuadraturePrecision, TimeScheme>::getSolution() {
 
 
 
+/*****************************************************************************/
+/*                                                                           */
+/*    - Export computed quantites into .txt file							 */
+/*                                                                           */
+/*****************************************************************************/
 template<typename Real, unsigned QuadraturePrecision, scheme TimeScheme>
 void solver2<Real, QuadraturePrecision, TimeScheme>::exportPressures(std::string & fileName) {
 
@@ -4121,73 +4143,73 @@ void solver2< Real, QuadraturePrecision, TimeScheme >::computeError(std::string 
 /*      edges parametrization, Edge basis P1(E)							     */
 /*                                                                           */
 /*****************************************************************************/
-template<typename Real, unsigned QuadraturePrecision, scheme TimeScheme>
-inline void solver2< Real, QuadraturePrecision, TimeScheme >::evaluate_raviartthomas_basis(Real const s, Real const t, Eigen::Matrix<Real, 2, 8> & out) {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+inline void solver2<QuadraturePrecision, TimeScheme>::evaluate_raviartthomas_basis(Real const s, Real const t, Eigen::Matrix<Real, 2, 8> & out) {
 
 
-	out.coeffRef(0, 0) = (-3.0*s + 4.0*s*t + 4.0*s * s);
-	out.coeffRef(1, 0) = (-3.0*t + 4.0*s*t + 4.0*t * t);
+	out.coeffRef(0, 0) = -3.0*s + 4.0*s*t + 4.0*s * s;
+	out.coeffRef(1, 0) = -3.0*t + 4.0*s*t + 4.0*t * t;
 
-	out.coeffRef(0, 1) = (-1.0 + 5.0*s - 4.0*s * s);
-	out.coeffRef(1, 1) = (t - 4.0*s * t);
+	out.coeffRef(0, 1) = -1.0 + 5.0*s - 4.0*s * s;
+	out.coeffRef(1, 1) = t - 4.0*s * t;
 
-	out.coeffRef(0, 2) = (s - 4.0*s * t);
-	out.coeffRef(1, 2) = (-1.0 + 5.0*t - 4.0*t * t);
+	out.coeffRef(0, 2) = s - 4.0*s * t;
+	out.coeffRef(1, 2) = -1.0 + 5.0*t - 4.0*t * t;
 
-	out.coeffRef(0, 3) = (s + 4.0*t * s - 4.0*s * s);
-	out.coeffRef(1, 3) = (-t - 4.0*s * t + 4.0*t * t);
+	out.coeffRef(0, 3) = s + 4.0*t * s - 4.0*s * s;
+	out.coeffRef(1, 3) = -t - 4.0*s * t + 4.0*t * t;
 
-	out.coeffRef(0, 4) = (-3.0 + 7.0*s + 6.0*t - 8.0*t * s - 4.0*s * s);
-	out.coeffRef(1, 4) = (5.0*t - 4.0*s * t - 8.0*t * t);
+	out.coeffRef(0, 4) = -3.0 + 7.0*s + 6.0*t - 8.0*t * s - 4.0*s * s;
+	out.coeffRef(1, 4) = 5.0*t - 4.0*s * t - 8.0*t * t;
 
-	out.coeffRef(0, 5) = (-5.0*s + 4.0*t * s + 8.0*s * s);
-	out.coeffRef(1, 5) = (3.0 - 6.0*s - 7.0*t + 8.0*s * t + 4.0*t * t);
+	out.coeffRef(0, 5) = -5.0*s + 4.0*t * s + 8.0*s * s;
+	out.coeffRef(1, 5) = 3.0 - 6.0*s - 7.0*t + 8.0*s * t + 4.0*t * t;
 
-	out.coeffRef(0, 6) = (16.0*s - 8.0*s * t - 16.0*s * s);
-	out.coeffRef(1, 6) = (8.0*t - 16.0*s * t - 8.0*t * t);
+	out.coeffRef(0, 6) = 16.0*s - 8.0*s * t - 16.0*s * s;
+	out.coeffRef(1, 6) = 8.0*t - 16.0*s * t - 8.0*t * t;
 
-	out.coeffRef(0, 7) = (8.0*s - 16.0*s * t - 8.0*s * s);
-	out.coeffRef(1, 7) = (16.0*t - 8.0*s * t - 16.0*t * t);
-
-};
-template<typename Real, unsigned QuadraturePrecision, scheme TimeScheme>
-inline void solver2< Real, QuadraturePrecision, TimeScheme >::evaluate_raviartthomas_basis_divergence(Real const s, Real const t, Eigen::Matrix<Real, 8, 1> & out) {
-
-	out.coeffRef(0) = (-3.0 + 4.0*t + 8.0*s - 3.0 + 4.0*s + 8.0*t);
-	out.coeffRef(1) = (5.0 - 8.0*s + 1.0 - 4.0*s);
-	out.coeffRef(2) = (1.0 - 4.0*t + 5.0 - 8.0*t);
-	out.coeffRef(3) = (1.0 + 4.0 * t - 8.0*s - 1.0 - 4.0*s + 8.0*t);
-	out.coeffRef(4) = (7.0 - 8.0*t - 8.0*s + 5.0 - 4.0*s - 16.0*t);
-	out.coeffRef(5) = (-5.0 + 16.0*s + 4.0*t - 7.0 + 8.0*s + 8.0*t);
-	out.coeffRef(6) = (16.0 - 8.0*t - 32.0*s + 8.0 - 16.0*s - 16.0*t);
-	out.coeffRef(7) = (8.0 - 16.0*s - 16.0*t + 16.0 - 8.0*s - 32.0*t);
+	out.coeffRef(0, 7) = 8.0*s - 16.0*s * t - 8.0*s * s;
+	out.coeffRef(1, 7) = 16.0*t - 8.0*s * t - 16.0*t * t;
 
 };
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+inline void solver2<QuadraturePrecision, TimeScheme>::evaluate_raviartthomas_basis_divergence(Real const s, Real const t, Eigen::Matrix<Real, 8, 1> & out) {
 
-template<typename Real, unsigned QuadraturePrecision, scheme TimeScheme>
-inline void solver2< Real, QuadraturePrecision, TimeScheme >::evaluate_polynomial_basis(Real const s, Real const t, Eigen::Matrix<Real, 3, 1> & out) {
-
-	out.coeffRef(0) = (+1.0);
-	out.coeffRef(1) = (-1.0 + 2.0*s);
-	out.coeffRef(2) = (-1.0 + 2.0*t);
-
-};
-template<typename Real, unsigned QuadraturePrecision, scheme TimeScheme>
-inline void solver2< Real, QuadraturePrecision, TimeScheme >::evaluate_polynomial_basis_gradient(Real const s, Real const t, Eigen::Matrix<Real, 2, 3> & out) {
-
-	out.coeffRef(0, 0) = (0.0);
-	out.coeffRef(1, 0) = (0.0);
-
-	out.coeffRef(0, 1) = (2.0);
-	out.coeffRef(1, 1) = (0.0);
-
-	out.coeffRef(0, 2) = (0.0);
-	out.coeffRef(1, 2) = (2.0);
+	out.coeffRef(0) = -3.0 + 4.0*t + 8.0*s - 3.0 + 4.0*s + 8.0*t;
+	out.coeffRef(1) = 5.0 - 8.0*s + 1.0 - 4.0*s;
+	out.coeffRef(2) = 1.0 - 4.0*t + 5.0 - 8.0*t;
+	out.coeffRef(3) = 1.0 + 4.0 * t - 8.0*s - 1.0 - 4.0*s + 8.0*t;
+	out.coeffRef(4) = 7.0 - 8.0*t - 8.0*s + 5.0 - 4.0*s - 16.0*t;
+	out.coeffRef(5) = -5.0 + 16.0*s + 4.0*t - 7.0 + 8.0*s + 8.0*t;
+	out.coeffRef(6) = 16.0 - 8.0*t - 32.0*s + 8.0 - 16.0*s - 16.0*t;
+	out.coeffRef(7) = 8.0 - 16.0*s - 16.0*t + 16.0 - 8.0*s - 32.0*t;
 
 };
 
-template<typename Real, unsigned QuadraturePrecision, scheme TimeScheme>
-inline void solver2< Real, QuadraturePrecision, TimeScheme >::evaluate_edge_polynomial_basis(Real const ksi, unsigned const El, Eigen::Matrix<Real, 2, 1> & out, Real const & orientation) {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+inline void solver2<QuadraturePrecision, TimeScheme>::evaluate_polynomial_basis(Real const s, Real const t, Eigen::Matrix<Real, 3, 1> & out) {
+
+	out.coeffRef(0) = +1.0;
+	out.coeffRef(1) = -1.0 + 2.0*s;
+	out.coeffRef(2) = -1.0 + 2.0*t;
+
+};
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+inline void solver2<QuadraturePrecision, TimeScheme>::evaluate_polynomial_basis_gradient(Real const s, Real const t, Eigen::Matrix<Real, 2, 3> & out) {
+
+	out.coeffRef(0, 0) = 0.0;
+	out.coeffRef(1, 0) = 0.0;
+
+	out.coeffRef(0, 1) = 2.0;
+	out.coeffRef(1, 1) = 0.0;
+
+	out.coeffRef(0, 2) = 0.0;
+	out.coeffRef(1, 2) = 2.0;
+
+};
+
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+inline void solver2<QuadraturePrecision, TimeScheme>::evaluate_edge_polynomial_basis(Real const ksi, unsigned const El, Eigen::Matrix<Real, 2, 1> & out, Real const & orientation) {
 
 
 	switch (El) {
@@ -4198,67 +4220,78 @@ inline void solver2< Real, QuadraturePrecision, TimeScheme >::evaluate_edge_poly
 		return;
 	case 1:
 		out.coeffRef(0) = 1.0;
-		out.coeffRef(1) = orientation * 2.0*(ksi - 0.5);
+		out.coeffRef(1) = orientation * 2.0 * (ksi - 0.5);
 		return;
 	case 2:
 		out.coeffRef(0) = 1.0;
-		out.coeffRef(1) = orientation * 2.0*(ksi - 0.5);
+		out.coeffRef(1) = orientation * 2.0 * (ksi - 0.5);
 		return;
 
 	}
 
 };
 
-template<typename Real, unsigned QuadraturePrecision, scheme TimeScheme>
-inline void solver2< Real, QuadraturePrecision, TimeScheme >::evaluate_edge_normal(Eigen::Matrix<Real, 2, 3> & out) {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+inline void solver2<QuadraturePrecision, TimeScheme>::evaluate_edge_normal(Eigen::Matrix<Real, 2, 3> & out) {
 
 	out.coeffRef(0, 0) = 1.0 / sqrt(2.0);
 	out.coeffRef(1, 0) = 1.0 / sqrt(2.0);
 
 	out.coeffRef(0, 1) = -1.0;
-	out.coeffRef(1, 1) = 0.0;
+	out.coeffRef(1, 1) =  0.0;
 
-	out.coeffRef(0, 2) = 0.0;
+	out.coeffRef(0, 2) =  0.0;
 	out.coeffRef(1, 2) = -1.0;
 
 };
-template<typename Real, unsigned QuadraturePrecision, scheme TimeScheme>
-inline void solver2< Real, QuadraturePrecision, TimeScheme >::evaluate_edge_parametrization(Real const ksi, unsigned const El, Eigen::Matrix<Real, 2, 1> & out) {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+inline void solver2<QuadraturePrecision, TimeScheme>::evaluate_edge_parametrization(Real const ksi, unsigned const El, Eigen::Matrix<Real, 2, 1> & out) {
 
 
 	switch (El) {
 
 	case 0:
-		out.coeffRef(0) = (1.0 - ksi / sqrt(2.0));
-		out.coeffRef(1) = (ksi / sqrt(2.0));
+
+		out.coeffRef(0) = 1.0 - ksi / sqrt(2.0);
+		out.coeffRef(1) = ksi / sqrt(2.0);
 		return;
+
 	case 1:
+
 		out.coeffRef(0) = 0.0;
-		out.coeffRef(1) = (1.0 - ksi);
+		out.coeffRef(1) = 1.0 - ksi;
 		return;
+
 	case 2:
+
 		out.coeffRef(0) = ksi;
 		out.coeffRef(1) = 0.0;
 		return;
 
+
 	}
 
 };
-template<typename Real, unsigned QuadraturePrecision, scheme TimeScheme>
-inline void solver2< Real, QuadraturePrecision, TimeScheme >::evaluate_edge_parametrization_derivative(Real const ksi, unsigned const El, Eigen::Matrix<Real, 2, 1> & out) {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+inline void solver2<QuadraturePrecision, TimeScheme>::evaluate_edge_parametrization_derivative(Real const ksi, unsigned const El, Eigen::Matrix<Real, 2, 1> & out) {
 
 
 	switch (El) {
 
 	case 0:
+
 		out.coeffRef(0) = -1.0 / sqrt(2.0);
-		out.coeffRef(1) = 1.0 / sqrt(2.0);
+		out.coeffRef(1) =  1.0 / sqrt(2.0);
 		return;
+
 	case 1:
-		out.coeffRef(0) = 0.0;
+
+		out.coeffRef(0) =  0.0;
 		out.coeffRef(1) = -1.0;
 		return;
+
 	case 2:
+
 		out.coeffRef(0) = 1.0;
 		out.coeffRef(1) = 0.0;
 		return;
@@ -4266,21 +4299,26 @@ inline void solver2< Real, QuadraturePrecision, TimeScheme >::evaluate_edge_para
 	}
 
 };
-template<typename Real, unsigned QuadraturePrecision, scheme TimeScheme>
-inline void solver2< Real, QuadraturePrecision, TimeScheme >::evaluate_edge_parametrization_opposite(Real const ksi, unsigned const El, Eigen::Matrix<Real, 2, 1> & out) {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+inline void solver2<QuadraturePrecision, TimeScheme>::evaluate_edge_parametrization_opposite(Real const ksi, unsigned const El, Eigen::Matrix<Real, 2, 1> & out) {
 
 
 	switch (El) {
 
 	case 0:
+
 		out.coeffRef(0) = ksi / sqrt(2.0);
 		out.coeffRef(1) = 1.0 - ksi / sqrt(2.0);
 		return;
+
 	case 1:
+
 		out.coeffRef(0) = 0.0;
 		out.coeffRef(1) = ksi;
 		return;
+
 	case 2:
+
 		out.coeffRef(0) = 1.0 - ksi;
 		out.coeffRef(1) = 0.0;
 		return;
@@ -4288,23 +4326,28 @@ inline void solver2< Real, QuadraturePrecision, TimeScheme >::evaluate_edge_para
 	}
 
 };
-template<typename Real, unsigned QuadraturePrecision, scheme TimeScheme>
-inline void solver2< Real, QuadraturePrecision, TimeScheme >::evaluate_edge_parametrization_opposite_derivative(Real const ksi, unsigned const El, Eigen::Matrix<Real, 2, 1> & out) {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+inline void solver2<QuadraturePrecision, TimeScheme>::evaluate_edge_parametrization_opposite_derivative(Real const ksi, unsigned const El, Eigen::Matrix<Real, 2, 1> & out) {
 
 
 	switch (El) {
 
 	case 0:
-		out.coeffRef(0) = 1.0 / sqrt(2.0);
+
+		out.coeffRef(0) =  1.0 / sqrt(2.0);
 		out.coeffRef(1) = -1.0 / sqrt(2.0);
 		return;
+
 	case 1:
+
 		out.coeffRef(0) = 0.0;
 		out.coeffRef(1) = 1.0;
 		return;
+
 	case 2:
+
 		out.coeffRef(0) = -1.0;
-		out.coeffRef(1) = 0.0;
+		out.coeffRef(1) =  0.0;
 		return;
 
 	}
@@ -4313,20 +4356,20 @@ inline void solver2< Real, QuadraturePrecision, TimeScheme >::evaluate_edge_para
 
 
 
-template<typename Real, unsigned QuadraturePrecision, scheme TimeScheme>
-inline Real solver2< Real, QuadraturePrecision, TimeScheme >::phi1(Real const s, Real const t) {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+inline Real solver2<QuadraturePrecision, TimeScheme>::phi0(Real const s, Real const t) {
 
 	return 1.0;
 
 };
-template<typename Real, unsigned QuadraturePrecision, scheme TimeScheme>
-inline Real solver2< Real, QuadraturePrecision, TimeScheme >::phi2(Real const s, Real const t) {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+inline Real solver2<QuadraturePrecision, TimeScheme>::phi1(Real const s, Real const t) {
 
 	return -1.0 + 2.0*s;
 
 };
-template<typename Real, unsigned QuadraturePrecision, scheme TimeScheme>
-inline Real solver2< Real, QuadraturePrecision, TimeScheme >::phi3(Real const s, Real const t) {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+inline Real solver2<QuadraturePrecision, TimeScheme>::phi2(Real const s, Real const t) {
 
 	return -1.0 + 2.0*t;
 
@@ -4339,8 +4382,8 @@ inline Real solver2< Real, QuadraturePrecision, TimeScheme >::phi3(Real const s,
 /*    - Integral of Source * Polynomial basis function						 */
 /*                                                                           */
 /*****************************************************************************/
-template<typename Real, unsigned QuadraturePrecision, scheme TimeScheme>
-Real solver2< Real, QuadraturePrecision, TimeScheme >::F0(tm_pointer K, Real const time) {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+Real solver2<QuadraturePrecision, TimeScheme>::F0(tm_pointer K, Real const time) {
 
 
 	vm_pointer const a = K->vertices[0];
@@ -4356,38 +4399,35 @@ Real solver2< Real, QuadraturePrecision, TimeScheme >::F0(tm_pointer K, Real con
 	Real const x2 = c->x;
 	Real const y2 = c->y;
 
+	Real const detJF = abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
 
-	// Quadrature weights and points on [-1,1]
-	quadrature_triangle quad(quadrature_order);
-
-	unsigned const num_quad_points = quad.NumberOfPoints;
+	//quadrature_triangle<Real> quad(quadrature_order);
+	//unsigned const num_quad_points = quad.NumberOfPoints;
 
 	Real integral = 0.0;
 
-	for (unsigned i = 0; i < num_quad_points; i++) {
+	for (unsigned i = 0; i < NumberOfQuadraturePointsTriangle; i++) {
 
+		Real const s = QuadraturePointsAndWeightsOnReferenceTriangle(i, 0);
+		Real const t = QuadraturePointsAndWeightsOnReferenceTriangle(i, 1);
+		Real const w = QuadraturePointsAndWeightsOnReferenceTriangle(i, 2);
 
-		Real const w = quad.weights[i];
-		Real const s = quad.points_x[i];
-		Real const t = quad.points_y[i];
+		//Real const s = quad.points_x[i];
+		//Real const t = quad.points_y[i];
+		//Real const w = 0.5 * quad.weights[i];
 
-		// Product weight
-		Real const weight = 0.5 * w;
-
-		// Gauss points on given triangle. This is the transformation : [-1,1] x [-1,1] square --> reference triangle ([0,0],[1,0],[0,1]) --> given triangle ([x0y,0],[x1,y1],[x2,y2]) 
 		Real const x = x0 + (x1 - x0)*s + (x2 - x0)*t;
 		Real const y = y0 + (y1 - y0)*s + (y2 - y0)*t;
 
-		// Gauss quadrature
-		integral += w * source(x, y, time)*phi1(x, y);
+		integral += w * source(x, y, time) * phi0(s, t);
 
 	}
 
-	return integral;
+	return 0.5 * detJF * integral;
 
 };
-template<typename Real, unsigned QuadraturePrecision, scheme TimeScheme>
-Real solver2< Real, QuadraturePrecision, TimeScheme >::F1(tm_pointer K, Real const time) {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+Real solver2<QuadraturePrecision, TimeScheme>::F1(tm_pointer K, Real const time) {
 
 
 	vm_pointer const a = K->vertices[0];
@@ -4403,38 +4443,35 @@ Real solver2< Real, QuadraturePrecision, TimeScheme >::F1(tm_pointer K, Real con
 	Real const x2 = c->x;
 	Real const y2 = c->y;
 
+	Real const detJF = abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
 
-	// Quadrature weights and points on [-1,1]
-	quadrature_triangle quad(quadrature_order);
-
-	unsigned const num_quad_points = quad.NumberOfPoints;
+	//quadrature_triangle<Real> quad(quadrature_order);
+	//unsigned const num_quad_points = quad.NumberOfPoints;
 
 	Real integral = 0.0;
 
-	for (unsigned i = 0; i < num_quad_points; i++) {
+	for (unsigned i = 0; i < NumberOfQuadraturePointsTriangle; i++) {
 
+		Real const s = QuadraturePointsAndWeightsOnReferenceTriangle(i, 0);
+		Real const t = QuadraturePointsAndWeightsOnReferenceTriangle(i, 1);
+		Real const w = QuadraturePointsAndWeightsOnReferenceTriangle(i, 2);
 
-		Real const w = quad.weights[i];
-		Real const s = quad.points_x[i];
-		Real const t = quad.points_y[i];
+		//Real const s = quad.points_x[i];
+		//Real const t = quad.points_y[i];
+		//Real const w = 0.5 * quad.weights[i];
 
-		// Product weight
-		Real const weight = 0.5 * w;
-
-		// Gauss points on given triangle. This is the transformation : [-1,1] x [-1,1] square --> reference triangle ([0,0],[1,0],[0,1]) --> given triangle ([x0y,0],[x1,y1],[x2,y2]) 
 		Real const x = x0 + (x1 - x0)*s + (x2 - x0)*t;
 		Real const y = y0 + (y1 - y0)*s + (y2 - y0)*t;
 
-		// Gauss quadrature
-		integral += w * source(x, y, time)*phi2(x, y);
+		integral += w * source(x, y, time) * phi1(s, t);
 
 	}
 
-	return integral;
+	return 0.5 * detJF * integral;
 
 };
-template<typename Real, unsigned QuadraturePrecision, scheme TimeScheme>
-Real solver2< Real, QuadraturePrecision, TimeScheme >::F2(tm_pointer K, Real const time) {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+Real solver2<QuadraturePrecision, TimeScheme>::F2(tm_pointer K, Real const time) {
 
 
 	vm_pointer const a = K->vertices[0];
@@ -4450,39 +4487,36 @@ Real solver2< Real, QuadraturePrecision, TimeScheme >::F2(tm_pointer K, Real con
 	Real const x2 = c->x;
 	Real const y2 = c->y;
 
+	Real const detJF = abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
 
-	// Quadrature weights and points on [-1,1]
-	quadrature_triangle quad(quadrature_order);
-
-	unsigned const num_quad_points = quad.NumberOfPoints;
+	//quadrature_triangle<Real> quad(quadrature_order);
+	//unsigned const num_quad_points = quad.NumberOfPoints;
 
 	Real integral = 0.0;
 
-	for (unsigned i = 0; i < num_quad_points; i++) {
+	for (unsigned i = 0; i < NumberOfQuadraturePointsTriangle; i++) {
 
+		Real const s = QuadraturePointsAndWeightsOnReferenceTriangle(i, 0);
+		Real const t = QuadraturePointsAndWeightsOnReferenceTriangle(i, 1);
+		Real const w = QuadraturePointsAndWeightsOnReferenceTriangle(i, 2);
 
-		Real const w = quad.weights[i];
-		Real const s = quad.points_x[i];
-		Real const t = quad.points_y[i];
+		//Real const s = quad.points_x[i];
+		//Real const t = quad.points_y[i];
+		//Real const w = 0.5 * quad.weights[i];
 
-		// Product weight
-		Real const weight = 0.5 * w;
-
-		// Gauss points on given triangle. This is the transformation : [-1,1] x [-1,1] square --> reference triangle ([0,0],[1,0],[0,1]) --> given triangle ([x0y,0],[x1,y1],[x2,y2]) 
 		Real const x = x0 + (x1 - x0)*s + (x2 - x0)*t;
 		Real const y = y0 + (y1 - y0)*s + (y2 - y0)*t;
 
-		// Gauss quadrature
-		integral += w * source(x, y, time)*phi3(x, y);
+		integral += w * source(x, y, time) * phi2(s, t);
 
 	}
 
-	return integral;
+	return 0.5 * detJF * integral;
 
 };
 
 
 
-
+void evaluate_source_integrals(tm_pointer const K, Real const time, Eigen::Matrix<Real, 3, 1> & out);
 
 

@@ -37,6 +37,9 @@ typedef MESHEdge *		em_pointer;
 typedef MESHTriangle *	tm_pointer;
 
 
+typedef double Real;
+
+
 /*****************************************************************************/
 /*																			 */
 /*									VERTEX									 */
@@ -53,8 +56,8 @@ public:
 	/*    - Class members														 */
 	/*                                                                           */
 	/*****************************************************************************/
-	double const x;
-	double const y;
+	Real const x;
+	Real const y;
 
 	unsigned index;
 
@@ -64,14 +67,14 @@ public:
 	/*    - Class constructor/destructor										 */
 	/*                                                                           */
 	/*****************************************************************************/
-	MESHVertex(double const X, double const Y);
+	MESHVertex(Real const X, Real const Y);
 	~MESHVertex();
 
 
 };
 
 
-MESHVertex::MESHVertex(double const X, double const Y) : x(X), y(Y), index(0)  {
+MESHVertex::MESHVertex(Real const X, Real const Y) : x(X), y(Y), index(0)  {
 
 };
 MESHVertex::~MESHVertex() {
@@ -119,7 +122,7 @@ public:
 	/*    - Class methods														 */
 	/*                                                                           */
 	/*****************************************************************************/
-	double const length() const;
+	Real const length() const;
 
 };
 
@@ -137,7 +140,7 @@ MESHEdge::~MESHEdge() {
 
 };
 
-double const MESHEdge::length() const {
+Real const MESHEdge::length() const {
 
 	double const x0 = a->x;
 	double const y0 = a->y;
@@ -196,7 +199,7 @@ public:
 
 	unsigned const get_edge_index(em_pointer const & e) const;
 
-	double const area() const;
+	Real const area() const;
 
 
 };
@@ -272,7 +275,7 @@ unsigned const MESHTriangle::get_edge_index(em_pointer const & e) const {
 
 };
 
-double const MESHTriangle::area() const {
+Real const MESHTriangle::area() const {
 
 	vm_pointer const va = vertices[0];
 	vm_pointer const vb = vertices[1];

@@ -1,28 +1,18 @@
 #pragma once
 
-
 #include <iostream>
 
-
-//template<unsigned PrecisionOrder>
+template<typename T>
 class gauss_quadrature_1D {
 
 public:
 
-	double * const weights;
-	double * const points;
+	T * const weights;
+	T * const points;
 
 	unsigned const NumberOfPoints;
 
-	gauss_quadrature_1D(unsigned const PrecisionOrder) 
-		: NumberOfPoints(PrecisionOrder), 
-		  weights (new double[PrecisionOrder]), 
-		  points(new double[PrecisionOrder]) 
-	{
-
-
-		//this->weights	= new double[PrecisionOrder];
-		//this->points	= new double[PrecisionOrder];
+	gauss_quadrature_1D(unsigned const PrecisionOrder) : NumberOfPoints(PrecisionOrder), weights (new T[PrecisionOrder]), points(new T[PrecisionOrder]) {
 
 
 		switch (PrecisionOrder) {
@@ -625,14 +615,14 @@ public:
 
 };
 
-//template<unsigned PrecisionOrder>
+template<typename T>
 class quadrature_triangle {
 
 public:
 
-	double * weights;
-	double * points_x;
-	double * points_y;
+	T * points_x;
+	T * points_y;
+	T * weights;
 
 	unsigned NumberOfPoints;
 
@@ -645,9 +635,9 @@ public:
 
 			NumberOfPoints = 3;
 
-			this->weights = new double[NumberOfPoints];
-			this->points_x = new double[NumberOfPoints];
-			this->points_y = new double[NumberOfPoints];
+			this->points_x	= new T[NumberOfPoints];
+			this->points_y	= new T[NumberOfPoints];
+			this->weights	= new T[NumberOfPoints];
 
 			points_x[0] = 0.50000000000000000000;	points_y[0] = 0.00000000000000000000;
 			points_x[1] = 0.50000000000000000000;	points_y[1] = 0.50000000000000000000;
@@ -663,9 +653,9 @@ public:
 
 			NumberOfPoints = 6;
 
-			this->weights = new double[NumberOfPoints];
-			this->points_x = new double[NumberOfPoints];
-			this->points_y = new double[NumberOfPoints];
+			this->points_x	= new T[NumberOfPoints];
+			this->points_y	= new T[NumberOfPoints];
+			this->weights	= new T[NumberOfPoints];
 
 			points_x[0] = 0.659027622374092;	points_y[0] = 0.231933368553031;
 			points_x[1] = 0.659027622374092;	points_y[1] = 0.109039009072877;
@@ -687,9 +677,9 @@ public:
 
 			NumberOfPoints = 7;
 
-			this->weights = new double[NumberOfPoints];
-			this->points_x = new double[NumberOfPoints];
-			this->points_y = new double[NumberOfPoints];
+			this->points_x	= new T[NumberOfPoints];
+			this->points_y	= new T[NumberOfPoints];
+			this->weights	= new T[NumberOfPoints];
 
 			points_x[0] = 0.333333333333333;	points_y[0] = 0.333333333333333;
 			points_x[1] = 0.736712498968435;	points_y[1] = 0.237932366472434;
@@ -713,9 +703,9 @@ public:
 
 			NumberOfPoints = 7;
 
-			this->weights = new double[NumberOfPoints];
-			this->points_x = new double[NumberOfPoints];
-			this->points_y = new double[NumberOfPoints];
+			this->points_x	= new T[NumberOfPoints];
+			this->points_y	= new T[NumberOfPoints];
+			this->weights	= new T[NumberOfPoints];
 
 			points_x[0] = 0.33333333333333333;	points_y[0] = 0.33333333333333333;
 			points_x[1] = 0.79742698535308720;	points_y[1] = 0.10128650732345633;
@@ -739,9 +729,9 @@ public:
 
 			NumberOfPoints = 12;
 
-			this->weights = new double[NumberOfPoints];
-			this->points_x = new double[NumberOfPoints];
-			this->points_y = new double[NumberOfPoints];
+			this->points_x	= new T[NumberOfPoints];
+			this->points_y	= new T[NumberOfPoints];
+			this->weights	= new T[NumberOfPoints];
 
 			points_x[0] = 0.873821971016996;	points_y[0] = 0.063089014491502;
 			points_x[1] = 0.063089014491502;	points_y[1] = 0.873821971016996;
@@ -775,9 +765,9 @@ public:
 
 			NumberOfPoints = 13;
 
-			this->weights = new double[NumberOfPoints];
-			this->points_x = new double[NumberOfPoints];
-			this->points_y = new double[NumberOfPoints];
+			this->points_x	= new T[NumberOfPoints];
+			this->points_y	= new T[NumberOfPoints];
+			this->weights	= new T[NumberOfPoints];
 
 			points_x[0] = 0.333333333333333;	points_y[0] = 0.333333333333333;
 			points_x[1] = 0.479308067841923;	points_y[1] = 0.260345966079038;
@@ -813,9 +803,9 @@ public:
 
 			NumberOfPoints = 19;
 
-			this->weights = new double[NumberOfPoints];
-			this->points_x = new double[NumberOfPoints];
-			this->points_y = new double[NumberOfPoints];
+			this->points_x	= new T[NumberOfPoints];
+			this->points_y	= new T[NumberOfPoints];
+			this->weights	= new T[NumberOfPoints];
 
 			points_x[0] = 0.3333333333333333;	points_y[0] = 0.3333333333333333;
 			points_x[1] = 0.7974269853530872;	points_y[1] = 0.1012865073234563;
@@ -863,9 +853,9 @@ public:
 
 			NumberOfPoints = 19;
 
-			this->weights = new double[NumberOfPoints];
-			this->points_x = new double[NumberOfPoints];
-			this->points_y = new double[NumberOfPoints];
+			this->points_x	= new T[NumberOfPoints];
+			this->points_y	= new T[NumberOfPoints];
+			this->weights	= new T[NumberOfPoints];
 
 			points_x[0] = 0.33333333333333331;			points_y[0] = 0.33333333333333331;
 			points_x[1] = 2.06349616025259287E-002;		points_y[1] = 0.48968251919873701;
@@ -913,9 +903,9 @@ public:
 
 			NumberOfPoints = 19;
 
-			this->weights = new double[NumberOfPoints];
-			this->points_x = new double[NumberOfPoints];
-			this->points_y = new double[NumberOfPoints];
+			this->points_x	= new T[NumberOfPoints];
+			this->points_y	= new T[NumberOfPoints];
+			this->weights	= new T[NumberOfPoints];
 
 			//std::cout << "Order of accuracy 10 is not implemented. Using order 9." << std::endl;
 
@@ -965,9 +955,9 @@ public:
 
 			NumberOfPoints = 28;
 
-			this->weights = new double[NumberOfPoints];
-			this->points_x = new double[NumberOfPoints];
-			this->points_y = new double[NumberOfPoints];
+			this->points_x	= new T[NumberOfPoints];
+			this->points_y	= new T[NumberOfPoints];
+			this->weights	= new T[NumberOfPoints];
 
 			points_x[0] = 0.33333333333333333;		points_y[0] = 0.333333333333333333;
 			points_x[1] = 0.9480217181434233;		points_y[1] = 0.02598914092828833;
@@ -1033,9 +1023,9 @@ public:
 
 			NumberOfPoints = 28;
 
-			this->weights = new double[NumberOfPoints];
-			this->points_x = new double[NumberOfPoints];
-			this->points_y = new double[NumberOfPoints];
+			this->points_x	= new T[NumberOfPoints];
+			this->points_y	= new T[NumberOfPoints];
+			this->weights	= new T[NumberOfPoints];
 
 			//std::cout << "Order of accuracy 12 is not implemented. Using order 11." << std::endl;
 
@@ -1103,9 +1093,9 @@ public:
 
 			NumberOfPoints = 37;
 
-			this->weights = new double[NumberOfPoints];
-			this->points_x = new double[NumberOfPoints];
-			this->points_y = new double[NumberOfPoints];
+			this->points_x	= new T[NumberOfPoints];
+			this->points_y	= new T[NumberOfPoints];
+			this->weights	= new T[NumberOfPoints];
 
 			points_x[0] = 0.333333333333333333333333333333;		points_y[0] = 0.333333333333333333333333333333;
 			points_x[1] = 0.950275662924105565450352089520;		points_y[1] = 0.024862168537947217274823955239;
@@ -1189,9 +1179,9 @@ public:
 
 			NumberOfPoints = 37;
 
-			this->weights = new double[NumberOfPoints];
-			this->points_x = new double[NumberOfPoints];
-			this->points_y = new double[NumberOfPoints];
+			this->points_x	= new T[NumberOfPoints];
+			this->points_y	= new T[NumberOfPoints];
+			this->weights	= new T[NumberOfPoints];
 
 			std::cout << "Order of accuracy > 13 is not implemented. Using order 13." << std::endl;
 
@@ -1279,10 +1269,11 @@ public:
 	};
 	~quadrature_triangle() {
 
-		delete[] weights;
 		delete[] points_x;
 		delete[] points_y;
+		delete[] weights;
 
 	};
 
 };
+

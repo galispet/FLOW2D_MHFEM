@@ -1,10 +1,10 @@
 #pragma once
 
 
-#include <Eigen/Dense>
-
 #include "mesh_primitives.h"
 #include "integration.h"
+
+#include <Eigen/Dense>
 
 
 
@@ -13,28 +13,24 @@
 /*    - Miscellaneous														 */
 /*                                                                           */
 /*****************************************************************************/
-template<typename T>
-inline T square(T const x) {
+inline Real square(Real const x) {
 
 	return x * x;
 
 };
-template<typename T>
-inline T kroneckerDelta(unsigned const i, unsigned const j) {
+inline Real kroneckerDelta(unsigned const i, unsigned const j) {
 
 	return i == j ? 1.0 : 0.0;
 
 };
-template<typename T>
-inline void hardCopy(T * & copyTo, T * & copyFrom, unsigned const n) {
+inline void hardCopy(Real * & copyTo, Real * & copyFrom, unsigned const n) {
 
 	for (unsigned i = 0; i < n; i++)
 		copyTo[i] = copyFrom[i];
 
 };
 
-template<typename T>
-inline T barenblatt(T const x, T const y, T const time) {
+inline Real barenblatt(Real const x, Real const y, Real const time) {
 
 	return (1.0 / sqrt(time))*fmax(1.0 - (x*x + y * y) / (16.0 * sqrt(time)), 0.0);
 
@@ -47,8 +43,7 @@ inline T barenblatt(T const x, T const y, T const time) {
 /*    - Gauss numerical integration over triangle area						 */
 /*                                                                           */
 /*****************************************************************************/
-template<typename T>
-T integrateTriangle(tm_pointer const K, T time, T(*fun)(T, T, T)) {
+Real integrateTriangle(tm_pointer const K, Real time, Real(*fun)(Real, Real, Real)) {
 
 
 
@@ -56,34 +51,34 @@ T integrateTriangle(tm_pointer const K, T time, T(*fun)(T, T, T)) {
 	vm_pointer const b = K->vertices[1];
 	vm_pointer const c = K->vertices[2];
 
-	T const x0 = a->x;
-	T const y0 = a->y;
+	Real const x0 = a->x;
+	Real const y0 = a->y;
 
-	T const x1 = b->x;
-	T const y1 = b->y;
+	Real const x1 = b->x;
+	Real const y1 = b->y;
 
-	T const x2 = c->x;
-	T const y2 = c->y;
+	Real const x2 = c->x;
+	Real const y2 = c->y;
 
-	T const detJF = abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
+	Real const detJF = abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
 
 
 	quadrature_triangle quad(quadrature_order);
 	unsigned const num_quad_points = quad.NumberOfPoints;
 
 
-	T integral = 0.0;
+	Real integral = 0.0;
 
 	for (unsigned n = 0; n < num_quad_points; n++) {
 
 
-		T const s = quad.points_x[n];
-		T const t = quad.points_y[n];
-		T const w = quad.weights[n];
+		Real const s = quad.points_x[n];
+		Real const t = quad.points_y[n];
+		Real const w = quad.weights[n];
 
 		// Gauss points on given triangle. This is the transformation : [-1,1] x [-1,1] square --> reference triangle ([0,0],[1,0],[0,1]) --> given triangle ([x0y,0],[x1,y1],[x2,y2]) 
-		T const x = x0 + (x1 - x0)*s + (x2 - x0)*t;
-		T const y = y0 + (y1 - y0)*s + (y2 - y0)*t;
+		Real const x = x0 + (x1 - x0)*s + (x2 - x0)*t;
+		Real const y = y0 + (y1 - y0)*s + (y2 - y0)*t;
 
 		// Gauss quadrature
 		integral += w * fun(x, y, time);
@@ -94,43 +89,42 @@ T integrateTriangle(tm_pointer const K, T time, T(*fun)(T, T, T)) {
 	return  0.5 * detJF * integral;
 
 };
-template<typename T>
-T integrateTriangle(tm_pointer const K, T(*fun)(T, T)) {
+Real integrateTriangle(tm_pointer const K, Real(*fun)(Real, Real)) {
 
 
 	vm_pointer const a = K->vertices[0];
 	vm_pointer const b = K->vertices[1];
 	vm_pointer const c = K->vertices[2];
 
-	T const x0 = a->x;
-	T const y0 = a->y;
+	Real const x0 = a->x;
+	Real const y0 = a->y;
 
-	T const x1 = b->x;
-	T const y1 = b->y;
+	Real const x1 = b->x;
+	Real const y1 = b->y;
 
-	T const x2 = c->x;
-	T const y2 = c->y;
+	Real const x2 = c->x;
+	Real const y2 = c->y;
 
-	T const detJF = abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
+	Real const detJF = abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
 
 
 	quadrature_triangle quad(quadrature_order);
 	unsigned const num_quad_points = quad.NumberOfPoints;
 
 
-	T integral = 0.0;
+	Real integral = 0.0;
 
 	for (unsigned n = 0; n < num_quad_points; n++) {
 
 
-		T const s = quad.points_x[n];
-		T const t = quad.points_y[n];
+		Real const s = quad.points_x[n];
+		Real const t = quad.points_y[n];
 
-		T const w = quad.weights[n];
+		Real const w = quad.weights[n];
 
 		// Gauss points on given triangle. This is the transformation : [-1,1] x [-1,1] square --> reference triangle ([0,0],[1,0],[0,1]) --> given triangle ([x0y,0],[x1,y1],[x2,y2]) 
-		T const x = x0 + (x1 - x0)*s + (x2 - x0)*t;
-		T const y = y0 + (y1 - y0)*s + (y2 - y0)*t;
+		Real const x = x0 + (x1 - x0)*s + (x2 - x0)*t;
+		Real const y = y0 + (y1 - y0)*s + (y2 - y0)*t;
 
 		// Gauss quadrature
 		integral += w * fun(x, y);
@@ -148,33 +142,32 @@ T integrateTriangle(tm_pointer const K, T(*fun)(T, T)) {
 /*    - Gauss numerical integration over edge								 */
 /*                                                                           */
 /*****************************************************************************/
-template<typename T>
-double integrateEdge(em_pointer const & E, T time, T(*fun)(T, T, T)) {
+Real integrateEdge(em_pointer const & E, Real time, Real(*fun)(Real, Real, Real)) {
 
 
-	T const x0 = E->a->x;
-	T const y0 = E->a->y;
+	Real const x0 = E->a->x;
+	Real const y0 = E->a->y;
 
-	T const x1 = E->b->x;
-	T const y1 = E->b->y;
+	Real const x1 = E->b->x;
+	Real const y1 = E->b->y;
 
-	T const length = E->length();
+	Real const length = E->length();
 
 
 	gauss_quadrature_1D quad(quadrature_order);
 	unsigned const num_quad_points = quad.NumberOfPoints;
 
 
-	T integral = 0.0;
+	Real integral = 0.0;
 
 	for (unsigned n = 0; n < num_quad_points; n++) {
 
 
-		T const x = quad.points[n];
-		T const w = quad.weights[n];
+		Real const x = quad.points[n];
+		Real const w = quad.weights[n];
 
-		T const X = x0 + 0.5*(1.0 + x)*(x1 - x0);
-		T const Y = y0 + 0.5*(1.0 + x)*(y1 - y0);
+		Real const X = x0 + 0.5*(1.0 + x)*(x1 - x0);
+		Real const Y = y0 + 0.5*(1.0 + x)*(y1 - y0);
 
 		integral += w * fun(X, Y, time);
 
@@ -183,33 +176,32 @@ double integrateEdge(em_pointer const & E, T time, T(*fun)(T, T, T)) {
 	return 0.5 * length * integral;
 
 };
-template<typename T>
-double integrateEdge(em_pointer const & E, T(*fun)(T, T)) {
+Real integrateEdge(em_pointer const & E, Real(*fun)(Real, Real)) {
 
 
-	T const x0 = E->a->x;
-	T const y0 = E->a->y;
+	Real const x0 = E->a->x;
+	Real const y0 = E->a->y;
 
-	T const x1 = E->b->x;
-	T const y1 = E->b->y;
+	Real const x1 = E->b->x;
+	Real const y1 = E->b->y;
 
-	T const length = E->length();
+	Real const length = E->length();
 
 
 	gauss_quadrature_1D quad(quadrature_order);
 	unsigned const num_quad_points = quad.NumberOfPoints;
 
 
-	T integral = 0.0;
+	Real integral = 0.0;
 
 	for (unsigned n = 0; n < num_quad_points; n++) {
 
 
-		T const x = quad.points[n];
-		T const w = quad.weights[n];
+		Real const x = quad.points[n];
+		Real const w = quad.weights[n];
 
-		T const X = x0 + 0.5*(1.0 + x)*(x1 - x0);
-		T const Y = y0 + 0.5*(1.0 + x)*(y1 - y0);
+		Real const X = x0 + 0.5*(1.0 + x)*(x1 - x0);
+		Real const Y = y0 + 0.5*(1.0 + x)*(y1 - y0);
 
 		integral += w * fun(X, Y);
 
@@ -221,49 +213,38 @@ double integrateEdge(em_pointer const & E, T(*fun)(T, T)) {
 
 
 
-
-
-
-
-
 /*****************************************************************************/
 /*                                                                           */
 /*    - Model properties													 */
 /*                                                                           */
 /*****************************************************************************/
-template<typename T>
-inline T equationOfState(T const c) {
+inline Real equationOfState(Real const c) {
 
 	return c;
 
 };
-template<typename T>
-inline T equationOfStateDerivative(T const c) {
+inline Real equationOfStateDerivative(Real const c) {
 
 	return 1.0;
 
 };
 
-template<typename T>
-inline T porosity(T const x, T const y) {
+inline Real porosity(Real const x, Real const y) {
 
 	return 1.0;
 
 };
-template<typename T>
-inline T viscosity(T const x, T const y) {
+inline Real viscosity(Real const x, Real const y) {
 
 	return 0.5;
 
 };
-template<typename T>
-inline T source(T const x, T const y, T const time) {
+inline Real source(Real const x, Real const y, Real const time) {
 
 	return 0.0;
 
 };
-template<typename T>
-inline void permeability(T const x, T const y, Eigen::Matrix<T, 2, 2> & out) {
+inline void permeability(Real const x, Real const y, Eigen::Matrix<Real, 2, 2> & out) {
 
 	out(0, 0) = 1.0;
 	out(0, 1) = 0.0;
@@ -279,51 +260,44 @@ inline void permeability(T const x, T const y, Eigen::Matrix<T, 2, 2> & out) {
 /*    - Boundary conditions (Neumann, Dirichlet)							 */
 /*                                                                           */
 /*****************************************************************************/
-template<typename T>
-inline T NEUMANN_GAMMA_Q_velocity(em_pointer const & E, T const time) {
+inline Real NEUMANN_GAMMA_Q_velocity(em_pointer const & E, Real const time) {
 
 	return 0.0;
 
 };
-template<typename T>
-inline T DIRICHLET_GAMMA_Q_concentration(em_pointer const & E, real const time) {
+inline Real DIRICHLET_GAMMA_Q_concentration(em_pointer const & E, real const time) {
 
 	return 0.0;
 
 };
-template<typename T>
-inline T DIRICHLET_GAMMA_P_concentration(em_pointer const & E, real const time) {
+inline Real DIRICHLET_GAMMA_P_concentration(em_pointer const & E, real const time) {
 
 	return integrateEdge(E, time, barenblatt) / E->length();
 
 };
-template<typename T>
-inline T DIRICHLET_GAMMA_P_pressure(em_pointer const & E, real const time) {
+inline Real DIRICHLET_GAMMA_P_pressure(em_pointer const & E, real const time) {
 
 	return integrateEdge(E, time, barenblatt) / E->length();
 
 };
 
-template<typename T>
-inline T NEUMANN_GAMMA_Q_velocity(T const x, T const y, T const time) {
+
+inline Real NEUMANN_GAMMA_Q_velocity(Real const x, Real const y, Real const time) {
 
 	return 0.0;
 
 };
-template<typename T>
-inline T DIRICHLET_GAMMA_Q_concentration(T const x, T const y, T const time) {
+inline Real DIRICHLET_GAMMA_Q_concentration(Real const x, Real const y, Real const time) {
 
 	return 0.0;
 
 }; 
-template<typename T>
-inline T DIRICHLET_GAMMA_P_concentration(T const x, T const y, T const time) {
+inline Real DIRICHLET_GAMMA_P_concentration(Real const x, Real const y, Real const time) {
 
 	return barenblatt(x, y, time);
 
 };
-template<typename T>
-inline T DIRICHLET_GAMMA_P_pressure(T const x, T const y, T const time) {
+inline Real DIRICHLET_GAMMA_P_pressure(Real const x, Real const y, Real const time) {
 
 	return barenblatt(x, y, time);
 

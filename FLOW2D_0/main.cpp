@@ -60,13 +60,13 @@ double const dt = 300.0 / (refinement);
 
 
 
-std::string directory_mesh			= "C:\\Users\\pgali\\Desktop\\eoc\\mesh.txt";
-std::string directory_velocities	= "C:\\Users\\pgali\\Desktop\\eoc\\velocities_";
+std::string fileName_mesh			= "C:\\Users\\pgali\\Desktop\\eoc\\mesh.txt";
+std::string fileName_velocity		= "C:\\Users\\pgali\\Desktop\\eoc\\velocity";
 
-std::string directory_solution		= "C:\\Users\\pgali\\Desktop\\eoc\\output_";
-std::string directory_error			= "C:\\Users\\pgali\\Desktop\\eoc\\error_";
+std::string fileName_pressure		= "C:\\Users\\pgali\\Desktop\\eoc\\pressure";
+std::string fileName_concentration	= "C:\\Users\\pgali\\Desktop\\eoc\\concentration";
+std::string fileName_error			= "C:\\Users\\pgali\\Desktop\\eoc\\error";
 
-std::ofstream OFSTxtFile;
 
 
 std::vector<Vertex>		vertices;
@@ -149,8 +149,8 @@ int main() {
 	/*    - Construct computation mesh from the triangulation					 */
 	/*                                                                           */
 	/*****************************************************************************/
-	Mesh				mesh(triangulation);
-	//Mesh2				mesh(triangulation);
+	//Mesh				mesh(triangulation);
+	Mesh2				mesh(triangulation);
 
 
 	/*****************************************************************************/
@@ -169,8 +169,8 @@ int main() {
 	/*    - Create instance of the solver										 */
 	/*                                                                           */
 	/*****************************************************************************/
-	solver<quadrature_order> solution(mesh, nt0, dt);
-	//solver2<double, 7,scheme::CRANK_NICOLSON> solution(mesh, nt0, dt);
+	//solver<quadrature_order> solution(mesh, nt0, dt);
+	solver2<7, scheme::CRANK_NICOLSON> solution(mesh, nt0, dt);
 
 
 
@@ -180,11 +180,11 @@ int main() {
 	/*    - Create text file of the initial condition							 */
 	/*                                                                           */
 	/*****************************************************************************/
-	//OFSTxtFile.open(directory_solution + std::to_string(nt0) + ".txt");
-	//solution.exportSolution(OFSTxtFile);
-	//OFSTxtFile.close();
+	//solution.exportPressures(fileName_pressure + "_" + std::to_string(nt0) + ".txt");
+	//solution.exportConcentrations(fileName_concentration + "_" + std::to_string(nt0) + ".txt");
 
 	
+
 	std::cout << std::endl;
 	std::cout << "/*****************/" << std::endl;
 	std::cout << "/*               */" << std::endl;
@@ -194,11 +194,12 @@ int main() {
 	std::cout << std::endl;
 
 
-	clock_t begin = clock();
 
-	for (unsigned nt = nt0 + 1; nt < NT + 1; nt++) {
 
-		
+	clock_t const begin = clock();
+
+	for (int nt = nt0 + 1; nt < NT + 1; nt++) {
+
 
 		/*****************************************************************************/
 		/*                                                                           */
@@ -216,8 +217,8 @@ int main() {
 		/*    - Create text file of the solution on the (n+1)-th time level			 */
 		/*                                                                           */
 		/*****************************************************************************/
-		//std::string fileName = "C:\\Users\\pgali\\Desktop\\eoc\\output_" + std::to_string(nt) + ".txt";
-		//solution.exportPressures(fileName);
+		//solution.exportPressures(fileName_pressure + "_" + std::to_string(nt) + ".txt");
+		//solution.exportConcentrations(fileName_concentration + "_" + std::to_string(nt) + ".txt");
 
 
 		/*****************************************************************************/
@@ -225,24 +226,17 @@ int main() {
 		/*    - Create text file of the velocities on the (n+1)-th time level		 */
 		/*                                                                           */
 		/*****************************************************************************/
-		//OFSTxtFile.open(directory_velocities + std::to_string(nt) + ".txt");
-		//solution.exportSolution(OFSTxtFile);
-		//OFSTxtFile.close();
+		//solution.exportVelocities(fileName_velocity + "_" + std::to_string(nt) + ".txt");
 
 
 	}
 
-	clock_t end = clock();
+	clock_t const end = clock();
 
 
 
 
-
-	//OFSTxtFile.open(directory_error + std::to_string(N_x) + ".txt");
-	//solution.compute_error(OFSTxtFile);
-	//OFSTxtFile.close();
-
-
+	solution.computeError(fileName_error + std::to_string(refinement));
 
 
 
@@ -274,37 +268,40 @@ void generate_vertices() {
 
 };
 
-void exportMesh(std::ofstream & txtFile, Mesh const & m) {
+void exportMesh(std::string const & fileName, Mesh2 const & m) {
 
+
+	std::ofstream OFSTxtFile(fileName);
 
 	for (unsigned k = 0; k < m.get_number_of_triangles(); k++) {
 
 
-		t_pointer const	K = m.get_triangle(k);
+		tm_pointer const	K = m.get_triangle(k);
 
-		v_pointer const a = K->vertices[0];
-		v_pointer const b = K->vertices[1];
-		v_pointer const c = K->vertices[2];
+		vm_pointer const a = K->vertices[0];
+		vm_pointer const b = K->vertices[1];
+		vm_pointer const c = K->vertices[2];
 
-		double const x0 = a->x;
-		double const y0 = a->y;
+		Real const x0 = a->x;
+		Real const y0 = a->y;
 
-		double const x1 = b->x;
-		double const y1 = b->y;
+		Real const x1 = b->x;
+		Real const y1 = b->y;
 
-		double const x2 = c->x;
-		double const y2 = c->y;
+		Real const x2 = c->x;
+		Real const y2 = c->y;
 
-		double const x[3] = { x0, x1, x2 };
-		double const y[3] = { y0, y1, y2 };
+		Real const x[3] = { x0, x1, x2 };
+		Real const y[3] = { y0, y1, y2 };
 
 
 		for (unsigned i = 0; i < 3; i++)
-			txtFile << std::setprecision(20) << x[i] << "\t" << y[i] << std::endl;
+			OFSTxtFile << std::setprecision(20) << x[i] << "\t" << y[i] << std::endl;
 
-		txtFile << std::endl;
+		OFSTxtFile << std::endl;
 
 	}
 
+	OFSTxtFile.close();
 
 };

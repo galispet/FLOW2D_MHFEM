@@ -6,13 +6,12 @@
 
 #include "triangulation.h"
 #include "enumerators.h"
-#include "mesh_primitives.h"
 #include "shapes.h"
+#include "mesh_primitives.h"
 
 #include <vector>
 #include <iostream>
 #include <fstream>
-
 #include <cmath>
 
 
