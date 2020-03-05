@@ -4517,6 +4517,49 @@ Real solver2<QuadraturePrecision, TimeScheme>::F2(tm_pointer K, Real const time)
 
 
 
-void evaluate_source_integrals(tm_pointer const K, Real const time, Eigen::Matrix<Real, 3, 1> & out);
+void evaluate_source_integrals(tm_pointer const K, Real const time, Eigen::Matrix<Real, 3, 1> & out) {
+
+
+	vm_pointer const a = K->vertices[0];
+	vm_pointer const b = K->vertices[1];
+	vm_pointer const c = K->vertices[2];
+
+	Real const x0 = a->x;
+	Real const y0 = a->y;
+
+	Real const x1 = b->x;
+	Real const y1 = b->y;
+
+	Real const x2 = c->x;
+	Real const y2 = c->y;
+
+	Real const detJF = abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
+
+	//quadrature_triangle<Real> quad(quadrature_order);
+	//unsigned const num_quad_points = quad.NumberOfPoints;
+
+	Real integral = 0.0;
+
+	for (unsigned i = 0; i < NumberOfQuadraturePointsTriangle; i++) {
+
+		Real const s = QuadraturePointsAndWeightsOnReferenceTriangle(i, 0);
+		Real const t = QuadraturePointsAndWeightsOnReferenceTriangle(i, 1);
+		Real const w = QuadraturePointsAndWeightsOnReferenceTriangle(i, 2);
+
+		//Real const s = quad.points_x[i];
+		//Real const t = quad.points_y[i];
+		//Real const w = 0.5 * quad.weights[i];
+
+		Real const x = x0 + (x1 - x0)*s + (x2 - x0)*t;
+		Real const y = y0 + (y1 - y0)*s + (y2 - y0)*t;
+
+		integral += w * source(x, y, time) * phi0(s, t);
+
+	}
+
+	return 0.5 * detJF * integral;
+
+
+};
 
 
