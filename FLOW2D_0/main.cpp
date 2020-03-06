@@ -1,3 +1,33 @@
+/*****************************************************************************/
+/*                                                                           */
+/*    - To do											 			         */
+/*                                                                           */
+/*****************************************************************************/
+// Neumann boundary : Add second Degree Of Freedom to the velocity prescribed on the Neumann edges
+//					  Maybe do the same as for prescribed pressures on Dirichlet edges (Interpolant)
+
+/*****************************************************************************/
+/*                                                                           */
+/*    - Speed up recommendations						 			         */
+/*                                                                           */
+/*****************************************************************************/
+// quadrature_points_x/y calculate only for dirihlet edges/neuman somehow (hash table?)
+// Allocate memory in the beginning of the assemble function (typically those Eigen::triplet make only once, not in the loop as const)->will it be faster?
+// Try to reserve memory for matrices, see
+		/*
+			unsigned const NumberOfDirichletEdges	= Mesh->get_number_of_dirichlet_edges();
+			unsigned const NumberOfNeumannEdges		= Mesh->get_number_of_neumann_edges();
+			unsigned const NumberOfBoundaryEdges	= NumberOfDirichletEdges + NumberOfNeumannEdges;
+
+			unsigned const NumberOfElements			= 4 * (NumberOfDirichletEdges + (NumberOfBoundaryEdges - NumberOfDirichletEdges) * 3 + (ne - NumberOfBoundaryEdges) * 5 + ne - NumberOfBoundaryEdges);
+
+			std::vector<Eigen::Triplet<Real>> triplet;
+			triplet.reserve(NumberOfElements);
+		*/
+// Use another type of LI(K,e,out) which gives both DOF numbers in one step
+// Interchange the for loops (j-l) in updateConcentrations
+// Make special array of pointers to edges on the boundary (Dirichlet, Neumann) and for Inner edges (No need to check if the edge is neumann/dirichlet)
+
 
 
 #include "mesh.h"

@@ -2,29 +2,6 @@
 
 
 
-/*****************************************************************************/
-/*                                                                           */
-/*    - Speed up recommendations						 			         */
-/*                                                                           */
-/*****************************************************************************/
-
-// Exchange Egien matrices and vector for Mine !!!! Big speed up
-
-// quadrature_points_x/y calculate only for dirihlet edges/neuman somehow -> MUCH less memory needed
-
-// allocate memory in the beginning of the assemble function (typically those Eigen::triplet make only once, not in the loop as const)->will it be faster?
-
-/*****************************************************************************/
-/*                                                                           */
-/*    - To fix											 			         */
-/*                                                                           */
-/*****************************************************************************/
-
-
-	// TODO
-	// Mesh - sort by the wish of the user ->template parameter sorting (1.inner, 2. neumann, 3. dirichlet and permutations ....) 
-
-
 
 
 /*
