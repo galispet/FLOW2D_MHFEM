@@ -63,7 +63,7 @@ Real integrateTriangle(tm_pointer const K, Real time, Real(*fun)(Real, Real, Rea
 	Real const detJF = abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
 
 
-	quadrature_triangle quad(quadrature_order);
+	quadrature_triangle<Real> quad(quadrature_order);
 	unsigned const num_quad_points = quad.NumberOfPoints;
 
 
@@ -108,7 +108,7 @@ Real integrateTriangle(tm_pointer const K, Real(*fun)(Real, Real)) {
 	Real const detJF = abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
 
 
-	quadrature_triangle quad(quadrature_order);
+	quadrature_triangle<Real> quad(quadrature_order);
 	unsigned const num_quad_points = quad.NumberOfPoints;
 
 
@@ -154,7 +154,7 @@ Real integrateEdge(em_pointer const & E, Real time, Real(*fun)(Real, Real, Real)
 	Real const length = E->length();
 
 
-	gauss_quadrature_1D quad(quadrature_order);
+	gauss_quadrature_1D<Real> quad(quadrature_order);
 	unsigned const num_quad_points = quad.NumberOfPoints;
 
 
@@ -188,7 +188,7 @@ Real integrateEdge(em_pointer const & E, Real(*fun)(Real, Real)) {
 	Real const length = E->length();
 
 
-	gauss_quadrature_1D quad(quadrature_order);
+	gauss_quadrature_1D<Real> quad(quadrature_order);
 	unsigned const num_quad_points = quad.NumberOfPoints;
 
 

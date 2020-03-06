@@ -5,6 +5,8 @@
 /*****************************************************************************/
 // Neumann boundary : Add second Degree Of Freedom to the velocity prescribed on the Neumann edges
 //					  Maybe do the same as for prescribed pressures on Dirichlet edges (Interpolant)
+// Check the values at initializeValues() for rkFp, rkFc ... maybe I should compute it also from the initial condition? -> CN scheme will have 2nd order?
+
 
 /*****************************************************************************/
 /*                                                                           */
@@ -27,7 +29,8 @@
 // Use another type of LI(K,e,out) which gives both DOF numbers in one step
 // Interchange the for loops (j-l) in updateConcentrations
 // Make special array of pointers to edges on the boundary (Dirichlet, Neumann) and for Inner edges (No need to check if the edge is neumann/dirichlet)
-
+// Fast Multiplication Of Sparse matrix and vector (iDH1 * Tp1, iDH2 * Tp2 in computePressure)
+// Precompute values of P(1) on the reference triangle. Now only values on edges are precomputed
 
 
 #include "mesh.h"

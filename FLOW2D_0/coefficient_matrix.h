@@ -143,6 +143,7 @@ class CoeffMatrix1D {
 	template<typename real>
 	friend class Matrix;
 
+
 public:
 
 	CoeffMatrix1D() {

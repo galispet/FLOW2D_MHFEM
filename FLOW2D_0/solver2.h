@@ -38,7 +38,6 @@ enum scheme { CRANK_NICOLSON, EULER_BACKWARD };
 //}
 
 
-
 template <unsigned QuadraturePrecision = 6, scheme TimeScheme = CRANK_NICOLSON>
 class solver2 {
 
@@ -88,7 +87,7 @@ public:
 	void computeError(std::string const & fileName);
 
 
-	solver2(Mesh2 & mesh, unsigned const nt0, Real const dt0);
+	solver2(Mesh2 & mesh, int const nt0, Real const dt0);
 	~solver2();
 
 
@@ -203,6 +202,8 @@ private:
 	/*                                                                           */
 	/*****************************************************************************/
 	CoeffMatrix1D<3>									QuadraturePointsAndWeightsOnReferenceTriangle;
+	CoeffMatrix1D<3>									QuadraturePoints_PolynomialBasisOnReferenceTriangle;
+
 	CoeffMatrix3D<3, 8, 2>								QuadraturePoints_RaviartThomasBasis;
 	CoeffMatrix2D<3, 3>									QuadraturePoints_PolynomialBasis;
 	CoeffMatrix2D<3, 3>									QuadraturePoints_PolynomialBasisOpposite;
@@ -211,8 +212,11 @@ private:
 	CoeffMatrix3D<8, 3, 2>								AlphaTimesChi;
 	CoeffMatrix2D<8, 3>									AlphaTimesBeta;
 
-	QuadraturePointsAndWeightsOnReferenceTriangle		.setNumberOfElements(NumberOfQuadraturePointsTriangle);
+	//QuadraturePointsAndWeightsOnReferenceTriangle		.setNumberOfElements(NumberOfQuadraturePointsTriangle);
+	//QuadraturePoints_PolynomialBasisOnReferenceTriangle	.setNumberOfElements(NumberOfQuadraturePointsTriangle);
 
+	//QuadraturePointsAndWeightsOnReferenceTriangle		.setZero();
+	//QuadraturePoints_PolynomialBasisOnReferenceTriangle	.setZero();
 
 	/*****************************************************************************/
 	/*                                                                           */
@@ -506,8 +510,8 @@ private:
 
 
 
-template<typename Real, unsigned QuadraturePrecision, scheme TimeScheme>
-solver2<Real, QuadraturePrecision, TimeScheme>::solver2(Mesh2 & mesh, unsigned const nt0, Real const dt0) : nk(mesh.get_number_of_triangles()), ne(mesh.get_number_of_edges()), Mesh(&mesh), nt(nt0), dt(dt0) {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+solver2<QuadraturePrecision, TimeScheme>::solver2(Mesh2 & mesh, int const nt0, Real const dt0) : nk(mesh.get_number_of_triangles()), ne(mesh.get_number_of_edges()), Mesh(&mesh), nt(nt0), dt(dt0) {
 
 
 	/*****************************************************************************/
@@ -714,8 +718,8 @@ solver2<Real, QuadraturePrecision, TimeScheme>::solver2(Mesh2 & mesh, unsigned c
 	PorosityViscosityDeterminant	= new Real[nk];
 
 
-	quadrature_triangle const GaussQuadratureOnTriangle<Real>(QuadraturePrecision);
-	gauss_quadrature_1D const GaussQuadratureOnEdge<Real>(QuadraturePrecision);
+	quadrature_triangle<Real> const GaussQuadratureOnTriangle(QuadraturePrecision);
+	gauss_quadrature_1D<Real> const GaussQuadratureOnEdge(QuadraturePrecision);
 
 	Eigen::Matrix<Real, 2, 2> JF;
 	Eigen::Matrix<Real, 2, 3> ReferenceNormals;
@@ -728,21 +732,24 @@ solver2<Real, QuadraturePrecision, TimeScheme>::solver2(Mesh2 & mesh, unsigned c
 
 	evaluate_edge_normal(ReferenceNormals);
 
-
-
+	
 	/*****************************************************************************/
 	/*                                                                           */
 	/*    - Precomputation of the quadrature points on the reference triangle	 */
 	/*                                                                           */
 	/*****************************************************************************/
-	for (unsigned i = 0; i < NumberOfQuadraturePointsTriangle; i++) {
+	for (unsigned n = 0; n < NumberOfQuadraturePointsTriangle; n++) {
 
-		Real const s = GaussQuadratureOnTriangle		.points_x[i];
-		Real const t = GaussQuadratureOnTriangle		.points_y[i];
-		Real const w = 0.5 * GaussQuadratureOnTriangle	.weights[i];
+		Real const s = GaussQuadratureOnTriangle.points_x[n];
+		Real const t = GaussQuadratureOnTriangle.points_y[n];
+		Real const w = GaussQuadratureOnTriangle.weights[n];
 
-		QuadraturePointsAndWeightsOnReferenceTriangle. += w * source(x, y, time)*phi1(x, y);
+		QuadraturePointsAndWeightsOnReferenceTriangle = s
+			QuadraturePointsAndWeightsOnReferenceTriangle. = t
+			QuadraturePointsAndWeightsOnReferenceTriangle. = w
 
+		evaluate_polynomial_basis(s, t, BasisPolynomial)
+			QuadraturePoints_PolynomialBasisOnReferenceTriangle. = w * source(x, y, time)*phi1(x, y)
 	}
 
 
@@ -1056,8 +1063,8 @@ solver2<Real, QuadraturePrecision, TimeScheme>::solver2(Mesh2 & mesh, unsigned c
 
 
 };
-template<typename Real, unsigned QuadraturePrecision, scheme TimeScheme>
-solver2<Real, QuadraturePrecision, TimeScheme>::~solver2() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+solver2<QuadraturePrecision, TimeScheme>::~solver2() {
 
 	delete[] Viscosities;
 	delete[] Porosities;
@@ -1085,9 +1092,9 @@ void solver2<QuadraturePrecision, TimeScheme>::initializeValues() {
 	for (unsigned k = 0; k < nk; k++) {
 
 
-		tm_pointer const K			= Mesh->get_triangle(k);
-		unsigned const	 k_index	= K->index;
-		Real const		 area		= K->area();
+		tm_pointer const K		 = Mesh->get_triangle(k);
+		unsigned const	 k_index = K->index;
+		Real const		 area	 = K->area();
 
 
 		vm_pointer const va = K->vertices[0];
@@ -1116,10 +1123,10 @@ void solver2<QuadraturePrecision, TimeScheme>::initializeValues() {
 		Eigen::Vector3d const B(B0, B1, B2);
 
 		Eigen::Matrix3d iM;
-		iM << 0.0, 1.0, 1.0,
-			 -1.0, 1.0, 0.0,
-			 -1.0, 0.0, 1.0;
-		Eigen::Vector3d const Solution = 0.5 * iM * B;
+		iM << 0.0, 0.5, 0.5,
+			 -0.5, 0.5, 0.0,
+			 -0.5, 0.0, 0.5;
+		Eigen::Vector3d const Solution = iM * B;
 
 		Xi.setCoeff(k_index, 0) = Solution(0);
 		Xi.setCoeff(k_index, 1) = Solution(1);
@@ -1150,7 +1157,7 @@ void solver2<QuadraturePrecision, TimeScheme>::initializeValues() {
 
 		/*****************************************************************************/
 		/*                                                                           */
-		/*    - Auxilary variebles												     */
+		/*    - Auxilary variables												     */
 		/*                                                                           */
 		/*****************************************************************************/
 		rkFc.setCoeff(k_index, 0) = 0.0;
@@ -1176,9 +1183,9 @@ void solver2<QuadraturePrecision, TimeScheme>::initializeValues() {
 		for (unsigned El = 0; El < 3; El++) {
 
 
-			em_pointer const E			= K->edges[El];
-			unsigned const	 e_index	= E->index;
-			E_MARKER const	 e_marker	= E->marker;
+			em_pointer const E		  = K->edges[El];
+			unsigned const	 e_index  = E->index;
+			E_MARKER const	 e_marker = E->marker;
 
 			vm_pointer const v = K->get_vertex_cw(E->a);
 			vm_pointer const p = K->get_vertex(El);
@@ -1198,8 +1205,8 @@ void solver2<QuadraturePrecision, TimeScheme>::initializeValues() {
 
 
 };
-template<typename Real, unsigned QuadraturePrecision, scheme TimeScheme>
-void solver2<Real, QuadraturePrecision, TimeScheme>::computeThetas() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver2<QuadraturePrecision, TimeScheme>::computeThetas() {
 
 	for (unsigned k = 0; k < nk; k++)
 		Thetas[k] = 1.0;	// Thetas[k] = equationOfStateDerivative(Xi_prev(Mesh->get_triangle(k), 0));
@@ -1384,11 +1391,11 @@ bool solver<QuadraturePrecision>::stopCriterion() {
 };
 */
 
-template<typename Real, unsigned QuadraturePrecision, scheme TimeScheme>
-bool solver2<Real, QuadraturePrecision, TimeScheme>::stopCriterion() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+bool solver2<QuadraturePrecision, TimeScheme>::stopCriterion() {
 
 
-	quadrature_triangle const QuadratureOnTriangle(QuadraturePrecision);
+	quadrature_triangle<Real> const QuadratureOnTriangle(QuadraturePrecision);
 	unsigned const			  NumberOfQuadraturePoints = QuadratureOnTriangle.NumberOfPoints;
 
 	Eigen::Vector3d BasisPolynomial(3);
@@ -1405,8 +1412,8 @@ bool solver2<Real, QuadraturePrecision, TimeScheme>::stopCriterion() {
 	for (unsigned k = 0; k < nk; k++) {
 
 
-		unsigned const	k_index = ElementIndeces[k];
-		Real const		detJF	= AffineMappingMatrixDeterminant[k_index];
+		unsigned const k_index	 = ElementIndeces[k];
+		Real const	   HalfDetJF = 0.5 * AffineMappingMatrixDeterminant[k_index];
 
 
 		Real IntegralError = 0.0;
@@ -1417,7 +1424,12 @@ bool solver2<Real, QuadraturePrecision, TimeScheme>::stopCriterion() {
 
 			Real const s = QuadratureOnTriangle.points_x[n];
 			Real const t = QuadratureOnTriangle.points_y[n];
-			Real const w = 0.5 * QuadratureOnTriangle.weights[n];
+			Real const w = QuadratureOnTriangle.weights[n];
+
+			//for (unsigned n = 0; n < NumberOfQuadraturePointsTriangle; n++) {
+			//Real const s = QuadraturePointsAndWeightsOnReferenceTriangle(n, 0);
+			//Real const t = QuadraturePointsAndWeightsOnReferenceTriangle(n, 1);
+			//Real const w = QuadraturePointsAndWeightsOnReferenceTriangle(n, 2);
 
 			evaluate_polynomial_basis(s, t, BasisPolynomial);
 
@@ -1427,8 +1439,8 @@ bool solver2<Real, QuadraturePrecision, TimeScheme>::stopCriterion() {
 
 			for (unsigned j = 0; j < 3; j++) {
 
-				Difference	+= (Pi(k_index, j) - Pi_prev(k_index, j)) * BasisPolynomial(j);
-				Norm		+= Pi(k_index, j) * BasisPolynomial(j);
+				Difference	+= BasisPolynomial(j) * (Pi(k_index, j) - Pi_prev(k_index, j));
+				Norm		+= BasisPolynomial(j) * Pi(k_index, j);
 
 			}
 
@@ -1437,8 +1449,8 @@ bool solver2<Real, QuadraturePrecision, TimeScheme>::stopCriterion() {
 
 		}
 
-		ErrorPressure	+= detJF * IntegralError;
-		NormPressure	+= detJF * IntegralNorm;
+		ErrorPressure	+= HalfDetJF * IntegralError;
+		NormPressure	+= HalfDetJF * IntegralNorm;
 
 	}
 
@@ -1511,8 +1523,8 @@ bool solver2<Real, QuadraturePrecision, TimeScheme>::stopCriterion() {
 
 };
 
-template<typename Real, unsigned QuadraturePrecision, scheme TimeScheme>
-void solver2<Real, QuadraturePrecision, TimeScheme>::concentrationCorrection() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver2<QuadraturePrecision, TimeScheme>::concentrationCorrection() {
 
 	//unsigned const nk = nk;
 
@@ -1549,8 +1561,8 @@ void solver2<Real, QuadraturePrecision, TimeScheme>::concentrationCorrection() {
 
 
 
-template<typename Real, unsigned QuadraturePrecision, scheme TimeScheme>
-void solver2<Real, QuadraturePrecision, TimeScheme>::computeTracePressures() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver2<QuadraturePrecision, TimeScheme>::computeTracePressures() {
 
 
 
@@ -1591,8 +1603,8 @@ void solver2<Real, QuadraturePrecision, TimeScheme>::computeTracePressures() {
 
 		em_pointer const E = Mesh->get_edge(e);
 
-		Real const tpValue1 = Tp1[E->index];
-		Real const tpValue2 = Tp2[E->index];
+		Real const TpValue1 = Tp1[E->index];
+		Real const TpValue2 = Tp2[E->index];
 
 		for (unsigned neighbor = 0; neighbor < 2; neighbor++) {
 
@@ -1601,18 +1613,18 @@ void solver2<Real, QuadraturePrecision, TimeScheme>::computeTracePressures() {
 			if (!K)
 				continue;
 
-			unsigned const k_index			= K->index;
-			unsigned const e_index_local	= K->get_edge_index(E);
+			unsigned const k_index		 = K->index;
+			unsigned const e_index_local = K->get_edge_index(E);
 
-			TPi.setCoeff(k_index, e_index_local, 0) = tpValue1;
-			TPi.setCoeff(k_index, e_index_local, 1) = tpValue2;
+			TPi.setCoeff(k_index, e_index_local, 0) = TpValue1;
+			TPi.setCoeff(k_index, e_index_local, 1) = TpValue2;
 
 		}
 	}
 
 };
-template<typename Real, unsigned QuadraturePrecision, scheme TimeScheme>
-void solver2<Real, QuadraturePrecision, TimeScheme>::computePressureEquation() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver2<QuadraturePrecision, TimeScheme>::computePressureEquation() {
 
 
 
@@ -1666,8 +1678,8 @@ void solver2<Real, QuadraturePrecision, TimeScheme>::computePressureEquation() {
 
 		em_pointer const E = Mesh->get_edge(e);
 
-		Real const tpValue1 = Tp1[E->index];
-		Real const tpValue2 = Tp2[E->index];
+		Real const TpValue1 = Tp1[E->index];
+		Real const TpValue2 = Tp2[E->index];
 
 		for (unsigned neighbor = 0; neighbor < 2; neighbor++) {
 
@@ -1676,11 +1688,11 @@ void solver2<Real, QuadraturePrecision, TimeScheme>::computePressureEquation() {
 			if (!K)
 				continue;
 
-			unsigned const k_index			= K->index;
-			unsigned const e_index_local	= K->get_edge_index(E);
+			unsigned const k_index		 = K->index;
+			unsigned const e_index_local = K->get_edge_index(E);
 
-			TPi.setCoeff(k_index, e_index_local, 0) = tpValue1;
-			TPi.setCoeff(k_index, e_index_local, 1) = tpValue2;
+			TPi.setCoeff(k_index, e_index_local, 0) = TpValue1;
+			TPi.setCoeff(k_index, e_index_local, 1) = TpValue2;
 
 		}
 	}
