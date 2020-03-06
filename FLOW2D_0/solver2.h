@@ -3032,8 +3032,8 @@ void solver2<Real, QuadraturePrecision, TimeScheme>::assemblePressureSystem_NoTr
 
 };
 
-template<typename Real, unsigned QuadraturePrecision, scheme TimeScheme>
-void solver2<Real, QuadraturePrecision, TimeScheme>::getSparsityPatternOfThePressureSystem() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver2<QuadraturePrecision, TimeScheme>::getSparsityPatternOfThePressureSystem() {
 
 
 	Real const DummyFillIn = 1.0;
