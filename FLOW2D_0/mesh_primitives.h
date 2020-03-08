@@ -105,7 +105,9 @@ public:
 	unsigned index;
 	E_MARKER marker;
 
-	tm_pointer neighbors[2] = { NULL,NULL };
+	tm_pointer neighbors[2];
+	// This one causes problem with visual stuio 2013... idiotic
+	//tm_pointer neighbors[2] = { NULL, NULL };
 
 
 	/*****************************************************************************/
@@ -170,9 +172,12 @@ public:
 	/*    - Class members														 */
 	/*                                                                           */
 	/*****************************************************************************/
-	vm_pointer vertices[3]	= { NULL,NULL,NULL };
-	em_pointer edges[3]		= { NULL,NULL,NULL };
-	tm_pointer neighbors[3] = { NULL,NULL,NULL };
+	vm_pointer vertices[3];
+	em_pointer edges[3];
+	tm_pointer neighbors[3];
+	//vm_pointer vertices[3]	= { NULL,NULL,NULL };
+	//em_pointer edges[3]		= { NULL,NULL,NULL };
+	//tm_pointer neighbors[3] = { NULL,NULL,NULL };
 
 	unsigned index;
 
@@ -205,9 +210,16 @@ public:
 };
 
 
-MESHTriangle::MESHTriangle(vm_pointer const & va, vm_pointer const & vb, vm_pointer const & vc) : vertices{ va,vb,vc } {
+MESHTriangle::MESHTriangle(vm_pointer const & va, vm_pointer const & vb, vm_pointer const & vc) {
+
+	vertices[0] = va;
+	vertices[1] = vb;
+	vertices[2] = vc;
 
 };
+//MESHTriangle::MESHTriangle(vm_pointer const & va, vm_pointer const & vb, vm_pointer const & vc) : vertices{ va, vb, vc } {
+//
+//};
 MESHTriangle::~MESHTriangle() {
 
 	vertices[0] = NULL;

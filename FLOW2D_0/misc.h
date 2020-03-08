@@ -43,11 +43,11 @@ inline double δij(unsigned const i, unsigned const j) {
 	return i == j ? 1.0 : 0.0;
 
 };
-inline double kroneckerDelta(unsigned const i, unsigned const j) {
-
-	return i == j ? 1.0 : 0.0;
-
-};
+//inline double kroneckerDelta(unsigned const i, unsigned const j) {
+//
+//	return i == j ? 1.0 : 0.0;
+//
+//};
 
 
 inline void HardCopy(double * & copyTo, double * & copyFrom, unsigned const & n) {
@@ -58,16 +58,16 @@ inline void HardCopy(double * & copyTo, double * & copyFrom, unsigned const & n)
 };
 
 
-
-inline double barenblatt(double x, double y, double time) {
-
-	double const norm_squared = x * x + y * y;
-
-	//return (1.0 / pow(time, (1.0 / 3.0)))*fmax(1.0 - norm_squared / (12.0 * pow(time, (2.0 / 3.0))), 0.0);
-
-	return (1.0 / sqrt(time))*fmax(1.0 - norm_squared / (16.0 * sqrt(time)), 0.0);
-
-};
+//
+//inline double barenblatt(double x, double y, double time) {
+//
+//	double const norm_squared = x * x + y * y;
+//
+//	//return (1.0 / pow(time, (1.0 / 3.0)))*fmax(1.0 - norm_squared / (12.0 * pow(time, (2.0 / 3.0))), 0.0);
+//
+//	return (1.0 / sqrt(time))*fmax(1.0 - norm_squared / (16.0 * sqrt(time)), 0.0);
+//
+//};
 
 
 double integrate_edge(e_pointer const e, real time, double(*fun)(double, double, double)) {
@@ -298,21 +298,21 @@ inline void permeability(double x, double y, double(&out)[2][2]) {
 	out[1][1] = 1.0;
 
 };
-inline double porosity(double x, double y) {
-
-	return 1.0;
-
-};
-inline double viscosity(double x, double y) {
-
-	return 0.5;
-
-};
-inline double source(double x, double y, double t) {
-
-	return 0.0;
-
-};
+//inline double porosity(double x, double y) {
+//
+//	return 1.0;
+//
+//};
+//inline double viscosity(double x, double y) {
+//
+//	return 0.5;
+//
+//};
+//inline double source(double x, double y, double t) {
+//
+//	return 0.0;
+//
+//};
 inline double iK(unsigned i, unsigned j, double x, double y) {
 
 	double const k00 = permeability(0, 0, x, y);
@@ -430,7 +430,7 @@ inline unsigned LI(t_pointer const & K, e_pointer const & E, unsigned const & DO
 };
 
 
-
+/*
 inline real NEUMANN_GAMMA_Q_velocity(e_pointer const E, real const time) {
 
 	return 0.0;
@@ -468,7 +468,7 @@ inline real DIRICHLET_GAMMA_P_pressure(real const s, real const t, real const ti
 	return barenblatt(s, t, time);
 
 };
-
+*/
 
 inline double phi1(real const s, real const t) {
 
@@ -486,7 +486,7 @@ inline double phi3(real const s, real const t) {
 
 };
 
-
+/*
 // Sources integrals
 double F1(t_pointer K, real const time) {
 
@@ -626,7 +626,7 @@ double F3(t_pointer K, real const time) {
 	return integral;
 
 };
-
+*/
 
 /*****************************************************************************/
 /*                                                                           */

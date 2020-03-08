@@ -45,6 +45,85 @@ class solver2 {
 	typedef Eigen::SparseMatrix<Real>				SparseMatrix;
 	typedef Eigen::Matrix<Real, Eigen::Dynamic, 1>	DenseVector;
  
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Get number of quadrature points in compilation						 */
+	/*                                                                           */
+	/*****************************************************************************/
+	template<unsigned QuadraturePrecision>
+	unsigned const get_number_of_quadrature_points_edge() {
+
+		switch (QuadraturePrecision) {
+
+		case 2:
+			return 2;
+		case 3:
+			return 3;
+		case 4:
+			return 4;
+		case 5:
+			return 5;
+		case 6:
+			return 6;
+		case 7:
+			return 7;
+		case 8:
+			return 8;
+		case 9:
+			return 9;
+		case 10:
+			return 10;	// order 10 not implemented -> using order 9
+		case 11:
+			return 11;
+		case 12:
+			return 12;	// order 12 not implemented -> using order 11
+		case 13:
+			return 13;
+
+		default:
+			return 0;
+
+		}
+
+	};
+	template<unsigned i>
+	 unsigned const get_number_of_quadrature_points_triangle() {
+
+		switch (i) {
+
+		case 2:
+			return 3;
+		case 3:
+			return 6;
+		case 4:
+			return 7;
+		case 5:
+			return 7;
+		case 6:
+			return 12;
+		case 7:
+			return 13;
+		case 8:
+			return 19;
+		case 9:
+			return 19;
+		case 10:
+			return 19;	// order 10 not implemented -> using order 9
+		case 11:
+			return 28;
+		case 12:
+			return 28;	// order 12 not implemented -> using order 11
+		case 13:
+			return 37;
+
+		default:
+			return 0;
+
+		}
+
+	};
+
+	
 
 	/*****************************************************************************/
 	/*                                                                           */
@@ -120,8 +199,8 @@ private:
 	int		nt;
 	Real	dt;
 	
-	static unsigned const NumberOfQuadraturePointsEdge		= get_number_of_quadrature_points_edge<QuadraturePrecision>();
-	static unsigned const NumberOfQuadraturePointsTriangle	= get_number_of_quadrature_points_triangle<QuadraturePrecision>();
+	 unsigned const NumberOfQuadraturePointsEdge		= get_number_of_quadrature_points_edge<QuadraturePrecision>();
+	unsigned const NumberOfQuadraturePointsTriangle	= get_number_of_quadrature_points_triangle<QuadraturePrecision>();
 
 
 
@@ -415,87 +494,6 @@ private:
 		out[1] = e_index_local + 3;
 
 	};
-
-
-
-	/*****************************************************************************/
-	/*                                                                           */
-	/*    - Get number of quadrature points in compilation						 */
-	/*                                                                           */
-	/*****************************************************************************/
-	template<unsigned i>
-	constexpr unsigned const get_number_of_quadrature_points_edge() {
-
-		switch (i) {
-
-		case 2:
-			return 2;
-		case 3:
-			return 3;
-		case 4:
-			return 4;
-		case 5:
-			return 5;
-		case 6:
-			return 6;
-		case 7:
-			return 7;
-		case 8:
-			return 8;
-		case 9:
-			return 9;
-		case 10:
-			return 10;	// order 10 not implemented -> using order 9
-		case 11:
-			return 11;
-		case 12:
-			return 12;	// order 12 not implemented -> using order 11
-		case 13:
-			return 13;
-
-		default:
-			return 0;
-
-		}
-
-	};
-	template<unsigned i>
-	constexpr unsigned const get_number_of_quadrature_points_triangle() {
-
-		switch (i) {
-
-		case 2:
-			return 3;
-		case 3:
-			return 6;
-		case 4:
-			return 7;
-		case 5:
-			return 7;
-		case 6:
-			return 12;
-		case 7:
-			return 13;
-		case 8:
-			return 19;
-		case 9:
-			return 19;
-		case 10:
-			return 19;	// order 10 not implemented -> using order 9
-		case 11:
-			return 28;
-		case 12:
-			return 28;	// order 12 not implemented -> using order 11
-		case 13:
-			return 37;
-
-		default:
-			return 0;
-
-		}
-
-	};
-
 
 
 };
