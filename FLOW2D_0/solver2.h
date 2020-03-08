@@ -199,7 +199,90 @@ private:
 	int		nt;
 	Real	dt;
 	
-	 unsigned const NumberOfQuadraturePointsEdge		= get_number_of_quadrature_points_edge<QuadraturePrecision>();
+	//Eigen::Vector2d const Solution = [] { Eigen::Matrix2d Temp; Temp << 0.5, 0.5, -0.5, 0.5; return Temp; }() * Eigen::Vector2d (B0, B1);
+	
+		unsigned const NumberOfQuadraturePointsEdge =[] (unsigned QuadraturePrecision) {
+
+		unsigned num = 0;
+
+		switch (QuadraturePrecision) {
+
+		case 2:
+			num = 2;
+		case 3:
+			num = 3;
+		case 4:
+			num = 4;
+		case 5:
+			num = 5;
+		case 6:
+			num = 6;
+		case 7:
+			num = 7;
+		case 8:
+			num = 8;
+		case 9:
+			num = 9;
+		case 10:
+			num = 10;	// order 10 not implemented -> using order 9
+		case 11:
+			num = 11;
+		case 12:
+			num = 12;	// order 12 not implemented -> using order 11
+		case 13:
+			num = 13;
+
+		default:
+			num = 0;
+
+
+		};
+
+		return num;
+
+		};
+	//unsigned const NumberOfQuadraturePointsEdge = [] {
+	//	
+	//	unsigned num = 0;
+
+	//	switch (QuadraturePrecision) {
+
+	//	case 2:
+	//		return 2;
+	//	case 3:
+	//		return 3;
+	//	case 4:
+	//		return 4;
+	//	case 5:
+	//		return 5;
+	//	case 6:
+	//		return 6;
+	//	case 7:
+	//		return 7;
+	//	case 8:
+	//		return 8;
+	//	case 9:
+	//		return 9;
+	//	case 10:
+	//		return 10;	// order 10 not implemented -> using order 9
+	//	case 11:
+	//		return 11;
+	//	case 12:
+	//		return 12;	// order 12 not implemented -> using order 11
+	//	case 13:
+	//		return 13;
+
+	//	default:
+	//		return 0;
+
+
+	//	};
+	//
+	//	return 0;
+
+	//} () ;
+
+	 //unsigned const NumberOfQuadraturePointsEdge		= get_number_of_quadrature_points_edge<QuadraturePrecision>();
 	unsigned const NumberOfQuadraturePointsTriangle	= get_number_of_quadrature_points_triangle<QuadraturePrecision>();
 
 
@@ -318,6 +401,42 @@ private:
 
 	Real * AffineMappingMatrixDeterminant	= NULL;
 	Real * PorosityViscosityDeterminant		= NULL;
+
+	/*
+	em_pointer * EdgesDirichlet = NULL;
+	em_pointer * EdgesNeumann	= NULL;
+
+	unsigned * EdgesDirichlet_Indeces	= NULL;
+	unsigned * EdgesNeumann_Indeces		= NULL;
+
+	unsigned DirichletCount = 0;
+	unsigned NeumannCount	= 0;
+
+	for (unsigned e = 0; e < ne; e++){
+
+		em_pointer const E = Mesh->get_edge(e);
+
+		E_MARKER const e_marker = E->marker;
+		unsigned const e_index = E->index;
+
+		if (e_marker == E_MARKER::DIRICHLET){
+
+			EdgesDirichlet[DirichletCount]			= E;
+			EdgesDirichlet_Indeces[DirichletCount]	= e_index;
+
+			DirichletCount++;
+
+		}
+		else if (e_marker == E_MARKER::NEUMANN){
+
+			EdgesNeumann[NeumannCount]			= E;
+			EdgesNeumann_Indeces[NeumannCount]	= e_index;
+
+			NeumannCount++;
+
+		}
+	}
+	*/
 
 
 	/*****************************************************************************/
@@ -747,7 +866,7 @@ solver2<QuadraturePrecision, TimeScheme>::solver2(Mesh2 & mesh, int const nt0, R
 			QuadraturePointsAndWeightsOnReferenceTriangle. = w
 
 		evaluate_polynomial_basis(s, t, BasisPolynomial)
-			QuadraturePoints_PolynomialBasisOnReferenceTriangle. = w * source(x, y, time)*phi1(x, y)
+			QuadraturePoints_PolynomialBasisOnReferenceTriangle. =
 	}
 
 
@@ -880,10 +999,8 @@ solver2<QuadraturePrecision, TimeScheme>::solver2(Mesh2 & mesh, int const nt0, R
 					QuadraturePoints_PhysicalNormalDotPhysicalRaviartThomasBasis.setCoeff(k_index, El, n, j) = abs(Value) < INTEGRAL_PRECISION ? 0.0 : Value;
 
 				}
-					
 			}
-
-
+			
 
 
 			/*****************************************************************************/
