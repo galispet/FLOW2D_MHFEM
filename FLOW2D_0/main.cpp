@@ -51,7 +51,7 @@
 #include <iomanip>
 
 void generate_vertices();
-void exportMesh(std::ofstream & txtFile, Mesh const & m);
+void exportMesh(std::ofstream & txtFile, MESH const & m);
 
 
 
@@ -178,7 +178,7 @@ int main() {
 	/*    - Construct computation mesh from the triangulation					 */
 	/*                                                                           */
 	/*****************************************************************************/
-	Mesh mesh(triangulation);
+	MESH mesh(triangulation);
 
 
 	/*****************************************************************************/
@@ -294,7 +294,7 @@ void generate_vertices() {
 
 };
 
-void exportMesh(std::string const & fileName, Mesh const & m) {
+void exportMesh(std::string const & fileName, MESH const & m) {
 
 
 	std::ofstream OFSTxtFile(fileName);

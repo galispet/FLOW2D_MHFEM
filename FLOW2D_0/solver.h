@@ -157,7 +157,7 @@ public:
 	void computeError(std::string const & fileName);
 
 
-	solver(Mesh & mesh, int const nt0, Real const dt0);
+	solver(MESH & mesh, int const nt0, Real const dt0);
 	~solver();
 
 
@@ -529,7 +529,7 @@ private:
 
 
 template<unsigned QuadraturePrecision, scheme TimeScheme>
-solver<QuadraturePrecision, TimeScheme>::solver(Mesh & mesh, int const nt0, Real const dt0) : nk(mesh.get_number_of_triangles()), ne(mesh.get_number_of_edges()), Mesh(&mesh), nt(nt0), dt(dt0) {
+solver<QuadraturePrecision, TimeScheme>::solver(MESH & mesh, int const nt0, Real const dt0) : nk(mesh.get_number_of_triangles()), ne(mesh.get_number_of_edges()), Mesh(&mesh), nt(nt0), dt(dt0) {
 
 
 	/*****************************************************************************/
