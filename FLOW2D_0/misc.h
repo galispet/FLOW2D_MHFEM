@@ -84,7 +84,7 @@ double integrate_edge(e_pointer const e, real time, double(*fun)(double, double,
 
 
 	// Quadrature weights and points on reference segment [-1,1]
-	gauss_quadrature_1D quad(quadrature_order);
+	gauss_quadrature_1D<Real> quad(quadrature_order);
 	unsigned const num_quad_points = quad.NumberOfPoints;
 
 
@@ -121,7 +121,7 @@ double integrate_edge(e_pointer const e, double(*fun)(double, double)) {
 
 
 	// Quadrature weights and points on reference segment [-1,1]
-	gauss_quadrature_1D quad(quadrature_order);
+	gauss_quadrature_1D<Real> quad(quadrature_order);
 	unsigned const num_quad_points = quad.NumberOfPoints;
 
 
@@ -166,7 +166,7 @@ double integrate_triangle(t_pointer const K, real time, double(*fun)(double, dou
 
 
 	// Quadrature weights and points on [-1,1]
-	quadrature_triangle quad(quadrature_order);
+	quadrature_triangle<Real> quad(quadrature_order);
 	unsigned const num_quad_points = quad.NumberOfPoints;
 
 
@@ -214,7 +214,7 @@ double integrate_triangle(t_pointer const K, double(*fun)(double, double)) {
 	real const detJF = abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
 
 
-	quadrature_triangle quad(quadrature_order);
+	quadrature_triangle<Real> quad(quadrature_order);
 	unsigned const num_quad_points = quad.NumberOfPoints;
 
 
@@ -506,7 +506,7 @@ double F1(t_pointer K, real const time) {
 
 
 	// Quadrature weights and points on [-1,1]
-	quadrature_triangle quad(quadrature_order);
+	quadrature_triangle<Real> quad(quadrature_order);
 
 	unsigned const num_quad_points = quad.NumberOfPoints;
 
@@ -552,7 +552,7 @@ double F2(t_pointer K, real const time) {
 
 
 	// Quadrature weights and points on [-1,1]
-	quadrature_triangle quad(quadrature_order);
+	quadrature_triangle<Real> quad(quadrature_order);
 
 	unsigned const num_quad_points = quad.NumberOfPoints;
 
@@ -598,7 +598,7 @@ double F3(t_pointer K, real const time) {
 
 
 	// Quadrature weights and points on [-1,1]
-	quadrature_triangle quad(quadrature_order);
+	quadrature_triangle<Real> quad(quadrature_order);
 
 	unsigned const num_quad_points = quad.NumberOfPoints;
 

@@ -1,11 +1,48 @@
+/*****************************************************************************/
+/*                                                                           */
+/*    - To do											 			         */
+/*                                                                           */
+/*****************************************************************************/
+// Neumann boundary : Add second Degree Of Freedom to the velocity prescribed on the Neumann edges
+//					  Maybe do the same as for prescribed pressures on Dirichlet edges (Interpolant)
+// Check the values at initializeValues() for rkFp, rkFc ... maybe I should compute it also from the initial condition? -> CN scheme will have 2nd order?
+
+
+/*****************************************************************************/
+/*                                                                           */
+/*    - Speed up recommendations						 			         */
+/*                                                                           */
+/*****************************************************************************/
+// quadrature_points_x/y calculate only for dirihlet edges/neuman somehow (hash table?)
+// Allocate memory in the beginning of the assemble function (typically those Eigen::triplet make only once, not in the loop as const)->will it be faster?
+// Try to reserve memory for matrices, see
+		/*
+			unsigned const NumberOfDirichletEdges	= Mesh->get_number_of_dirichlet_edges();
+			unsigned const NumberOfNeumannEdges		= Mesh->get_number_of_neumann_edges();
+			unsigned const NumberOfBoundaryEdges	= NumberOfDirichletEdges + NumberOfNeumannEdges;
+
+			unsigned const NumberOfElements			= 4 * (NumberOfDirichletEdges + (NumberOfBoundaryEdges - NumberOfDirichletEdges) * 3 + (ne - NumberOfBoundaryEdges) * 5 + ne - NumberOfBoundaryEdges);
+
+			std::vector<Eigen::Triplet<Real>> triplet;
+			triplet.reserve(NumberOfElements);
+		*/
+		// Use another type of LI(K,e,out) which gives both DOF numbers in one step
+		// Interchange the for loops (j-l) in updateConcentrations
+		// Make special array of pointers to edges on the boundary (Dirichlet, Neumann) and for Inner edges (No need to check if the edge is neumann/dirichlet)
+		// Fast Multiplication Of Sparse matrix and vector (iDH1 * Tp1, iDH2 * Tp2 in computePressure)
+		// Precompute values of P(1) on the reference triangle. Now only values on edges are precomputed
 
 
 #include "mesh.h"
+
+#include "mesh2.h"
 #include "triangulation.h"
 #include "PSLG.h"
-#include "misc.h"
+//#include "misc.h"
 
-#include "solver.h"
+//#include "solver.h"
+//#include "solver2.h"
+#include "solver3.h"
 
 #include <iostream>
 #include <fstream>
@@ -36,14 +73,18 @@ const double b_x = 40.0;
 const double a_y = 0.0;
 const double b_y = 40.0;
 
-unsigned const refinement = 2*2*2*2*2;
+unsigned const refinement = 2 * 2;
 
 const int N_x = 4 * refinement;
 const int N_y = N_x;
 
-unsigned const nt0 = 125 * (refinement * refinement);
-unsigned const NT = 150 * (refinement * refinement);
-double const dt = 300.0 / (refinement * refinement);
+//unsigned const nt0 = 25 * (refinement * refinement);
+//unsigned const NT = 150 * (refinement * refinement);
+//double const dt = 300.0 / (refinement * refinement);
+
+unsigned const nt0 = 25 * (refinement);
+unsigned const NT = 150 * (refinement);
+double const dt = 300.0 / (refinement);
 
 
 
@@ -53,13 +94,13 @@ double const dt = 300.0 / (refinement * refinement);
 
 
 
-std::string directory_mesh			= "C:\\Users\\pgali\\Desktop\\eoc\\mesh.txt";
-std::string directory_velocities	= "C:\\Users\\pgali\\Desktop\\eoc\\velocities_";
+std::string fileName_mesh = "C:\\Users\\pgali\\Desktop\\eoc\\mesh.txt";
+std::string fileName_velocity = "C:\\Users\\pgali\\Desktop\\eoc\\velocity";
 
-std::string directory_solution		= "C:\\Users\\pgali\\Desktop\\eoc\\output_";
-std::string directory_error			= "C:\\Users\\pgali\\Desktop\\eoc\\error_";
+std::string fileName_pressure = "C:\\Users\\pgali\\Desktop\\eoc\\pressure";
+std::string fileName_concentration = "C:\\Users\\pgali\\Desktop\\eoc\\concentration";
+std::string fileName_error = "C:\\Users\\pgali\\Desktop\\eoc\\error";
 
-std::ofstream OFSTxtFile;
 
 
 std::vector<Vertex>		vertices;
@@ -105,7 +146,7 @@ int main() {
 	//pslg.insert_constraint<E_MARKER::DIRICHLET>(vb, vc);
 	//pslg.insert_constraint<E_MARKER::DIRICHLET>(vc, vd);
 	//pslg.insert_constraint<E_MARKER::DIRICHLET>(vd, va);
-	
+
 
 
 	/*****************************************************************************/
@@ -117,24 +158,33 @@ int main() {
 	/*****************************************************************************/
 	//seeds.push_back(Vertex(8.0, 8.0));
 	Triangulation<GK>	triangulation(pslg, seeds);
-	Mesh				mesh(triangulation);
 
 
-
-	
 	/*****************************************************************************/
 	/*                                                                           */
-	/*    - Print Triangulation / Mesh information								 */
+	/*    - Print Triangulation	information										 */
 	/*                                                                           */
 	/*****************************************************************************/
-	cout << "*************** Triangulation ***************" << endl;
+	std::cout << "/*****************/" << std::endl;
+	std::cout << "/*               */" << std::endl;
+	std::cout << "/* Triangulation */" << std::endl;
+	std::cout << "/*               */" << std::endl;
+	std::cout << "/*****************/" << std::endl;
+	std::cout << std::endl;
 	cout << "No. Vertices  : " << triangulation.get_number_of_vertices() << endl;
 	cout << "No. Edges     : " << triangulation.get_number_of_edges() << endl;
 	cout << "No. Triangles : " << triangulation.get_number_of_triangles() << endl;
-	cout << "*********************************************" << endl << endl;
+	cout << endl;
 
 
 
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Construct computation mesh from the triangulation					 */
+	/*                                                                           */
+	/*****************************************************************************/
+	//Mesh				mesh(triangulation);
+	Mesh2				mesh(triangulation);
 
 
 	/*****************************************************************************/
@@ -142,9 +192,9 @@ int main() {
 	/*    - Create text file of the mesh: coordinates							 */
 	/*                                                                           */
 	/*****************************************************************************/
-	OFSTxtFile.open(directory_mesh);
-	exportMesh(OFSTxtFile, mesh);
-	OFSTxtFile.close();
+	//OFSTxtFile.open(directory_mesh);
+	//exportMesh(OFSTxtFile, mesh);
+	//OFSTxtFile.close();
 
 
 
@@ -153,8 +203,9 @@ int main() {
 	/*    - Create instance of the solver										 */
 	/*                                                                           */
 	/*****************************************************************************/
-	solver<quadrature_order> solution(mesh, nt0, dt);
-
+	//solver<quadrature_order> solution(mesh, nt0, dt);
+	//solver2<double, 7, scheme::CRANK_NICOLSON> solution(mesh, nt0, dt);
+	solver3<7, scheme::CRANK_NICOLSON> solution(mesh, nt0, dt);
 
 
 
@@ -163,17 +214,26 @@ int main() {
 	/*    - Create text file of the initial condition							 */
 	/*                                                                           */
 	/*****************************************************************************/
-	OFSTxtFile.open(directory_solution + std::to_string(nt0) + ".txt");
-	solution.exportSolution(OFSTxtFile);
-	OFSTxtFile.close();
+	//solution.exportPressures(fileName_pressure + "_" + std::to_string(nt0) + ".txt");
+	//solution.exportConcentrations(fileName_concentration + "_" + std::to_string(nt0) + ".txt");
 
-	
 
-	clock_t begin = clock();
 
-	for (unsigned nt = nt0 + 1; nt < NT + 1; nt++) {
+	std::cout << std::endl;
+	std::cout << "/*****************/" << std::endl;
+	std::cout << "/*               */" << std::endl;
+	std::cout << "/*  Computing... */" << std::endl;
+	std::cout << "/*               */" << std::endl;
+	std::cout << "/*****************/" << std::endl;
+	std::cout << std::endl;
 
-		
+
+
+
+	clock_t const begin = clock();
+
+	for (int nt = nt0 + 1; nt < NT + 1; nt++) {
+
 
 		/*****************************************************************************/
 		/*                                                                           */
@@ -191,9 +251,8 @@ int main() {
 		/*    - Create text file of the solution on the (n+1)-th time level			 */
 		/*                                                                           */
 		/*****************************************************************************/
-		//OFSTxtFile.open(directory_solution + std::to_string(nt) + ".txt");
-		//solution.exportSolution(OFSTxtFile);
-		//OFSTxtFile.close();
+		//solution.exportPressures(fileName_pressure + "_" + std::to_string(nt) + ".txt");
+		//solution.exportConcentrations(fileName_concentration + "_" + std::to_string(nt) + ".txt");
 
 
 		/*****************************************************************************/
@@ -201,24 +260,17 @@ int main() {
 		/*    - Create text file of the velocities on the (n+1)-th time level		 */
 		/*                                                                           */
 		/*****************************************************************************/
-		//OFSTxtFile.open(directory_velocities + std::to_string(nt) + ".txt");
-		//solution.exportSolution(OFSTxtFile);
-		//OFSTxtFile.close();
+		//solution.exportVelocities(fileName_velocity + "_" + std::to_string(nt) + ".txt");
 
 
 	}
 
-	clock_t end = clock();
+	clock_t const end = clock();
 
 
 
 
-
-	OFSTxtFile.open(directory_error + std::to_string(N_x) + ".txt");
-	solution.compute_error(OFSTxtFile);
-	OFSTxtFile.close();
-
-
+	solution.computeError(fileName_error + std::to_string(refinement));
 
 
 
@@ -250,37 +302,40 @@ void generate_vertices() {
 
 };
 
-void exportMesh(std::ofstream & txtFile, Mesh const & m) {
+void exportMesh(std::string const & fileName, Mesh2 const & m) {
 
+
+	std::ofstream OFSTxtFile(fileName);
 
 	for (unsigned k = 0; k < m.get_number_of_triangles(); k++) {
 
 
-		t_pointer const	K = m.get_triangle(k);
+		tm_pointer const	K = m.get_triangle(k);
 
-		v_pointer const a = K->vertices[0];
-		v_pointer const b = K->vertices[1];
-		v_pointer const c = K->vertices[2];
+		vm_pointer const a = K->vertices[0];
+		vm_pointer const b = K->vertices[1];
+		vm_pointer const c = K->vertices[2];
 
-		double const x0 = a->x;
-		double const y0 = a->y;
+		Real const x0 = a->x;
+		Real const y0 = a->y;
 
-		double const x1 = b->x;
-		double const y1 = b->y;
+		Real const x1 = b->x;
+		Real const y1 = b->y;
 
-		double const x2 = c->x;
-		double const y2 = c->y;
+		Real const x2 = c->x;
+		Real const y2 = c->y;
 
-		double const x[3] = { x0, x1, x2 };
-		double const y[3] = { y0, y1, y2 };
+		Real const x[3] = { x0, x1, x2 };
+		Real const y[3] = { y0, y1, y2 };
 
 
 		for (unsigned i = 0; i < 3; i++)
-			txtFile << std::setprecision(20) << x[i] << "\t" << y[i] << std::endl;
+			OFSTxtFile << std::setprecision(20) << x[i] << "\t" << y[i] << std::endl;
 
-		txtFile << std::endl;
+		OFSTxtFile << std::endl;
 
 	}
 
+	OFSTxtFile.close();
 
 };
