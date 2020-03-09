@@ -251,7 +251,7 @@ int main() {
 		/*    - Create text file of the solution on the (n+1)-th time level			 */
 		/*                                                                           */
 		/*****************************************************************************/
-		solution.exportPressures(fileName_pressure + "_" + std::to_string(nt) + ".txt");
+		//solution.exportPressures(fileName_pressure + "_" + std::to_string(nt) + ".txt");
 		//solution.exportConcentrations(fileName_concentration + "_" + std::to_string(nt) + ".txt");
 
 
