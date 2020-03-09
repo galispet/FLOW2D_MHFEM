@@ -39,15 +39,10 @@
 
 
 #include "mesh.h"
-
-//#include "mesh2.h"
 #include "triangulation.h"
 #include "PSLG.h"
-//#include "misc.h"
-
 #include "solver.h"
-//#include "solver2.h"
-//#include "solver3.h"
+
 
 #include <iostream>
 #include <fstream>
@@ -94,17 +89,12 @@ double const dt = 300.0 / (refinement);
 
 
 
-// const reference to an object T (T const & ) -> const is redunant, reerence is always cosnt (it will never be reference to anz=ythig else)
-
-
-
-
 std::string fileName_mesh		= "C:\\Users\\pgali\\Desktop\\eoc\\mesh.txt";
 std::string fileName_velocity	= "C:\\Users\\pgali\\Desktop\\eoc\\velocity";
 
 std::string fileName_pressure		= "C:\\Users\\pgali\\Desktop\\eoc\\pressure";
 std::string fileName_concentration	= "C:\\Users\\pgali\\Desktop\\eoc\\concentration";
-std::string fileName_error			 = "C:\\Users\\pgali\\Desktop\\eoc\\error";
+std::string fileName_error			= "C:\\Users\\pgali\\Desktop\\eoc\\error";
 
 
 

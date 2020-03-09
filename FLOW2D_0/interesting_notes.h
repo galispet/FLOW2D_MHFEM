@@ -22,6 +22,12 @@
 
 /*
 
+-	const reference to an object T (T const & ) -> const is redunant, reerence is always cosnt (it will never be reference to anz=ythig else)
+
+*/
+
+/*
+
 -	can't do  the following templated call of constructor
 
 

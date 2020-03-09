@@ -130,10 +130,10 @@ class solver {
 	/*							    loop, which updates P,C,Theta				 */
 	/*                                                                           */
 	/*****************************************************************************/
-	Real const TimeSchemeParameter = TimeScheme == CRANK_NICOLSON ? 0.5 : 1.0;
-	Real const INTEGRAL_PRECISION = 1e-11;
-	Real const TOLERANCE = DBL_EPSILON;
-	unsigned const MAX_ITERATIONS = 500;
+	Real const TimeSchemeParameter		= TimeScheme == CRANK_NICOLSON ? 0.5 : 1.0;
+	Real const INTEGRAL_PRECISION		= 1e-11;
+	Real const TOLERANCE				= DBL_EPSILON;
+	unsigned const MAX_ITERATIONS		= 500;
 
 
 
@@ -190,8 +190,8 @@ private:
 	int		nt;
 	Real	dt;
 
-	static unsigned const NumberOfQuadraturePointsEdge = get_number_of_quadrature_points_edge<QuadraturePrecision>();
-	static unsigned const NumberOfQuadraturePointsTriangle = get_number_of_quadrature_points_triangle<QuadraturePrecision>();
+	static unsigned const NumberOfQuadraturePointsEdge		= get_number_of_quadrature_points_edge<QuadraturePrecision>();
+	static unsigned const NumberOfQuadraturePointsTriangle	= get_number_of_quadrature_points_triangle<QuadraturePrecision>();
 
 
 
