@@ -537,11 +537,12 @@ private:
 
 
 
-	///*****************************************************************************/
-	///*                                                                           */
-	///*    - Get number of quadrature points in compilation						 */
-	///*                                                                           */
-	///*****************************************************************************/
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Get number of quadrature points in compilation						 */
+	/*                                                                           */
+	/*****************************************************************************/
+	/*
 	//template<unsigned i>
 	//constexpr unsigned const get_number_of_quadrature_points_edge() {
 
@@ -614,6 +615,7 @@ private:
 	//	}
 
 	//};
+	*/
 
 
 };
@@ -799,30 +801,30 @@ solver3<QuadraturePrecision, TimeScheme>::solver3(Mesh2 & mesh, int const nt0, R
 	/* 		in quadrature points												 */
 	/*                                                                           */
 	/*****************************************************************************/
-	QuadraturePoints_RaviartThomasBasis.setNumberOfElements(NumberOfQuadraturePointsEdge);
-	QuadraturePoints_PolynomialBasis.setNumberOfElements(NumberOfQuadraturePointsEdge);
-	QuadraturePoints_PolynomialBasisOpposite.setNumberOfElements(NumberOfQuadraturePointsEdge);
+	QuadraturePoints_RaviartThomasBasis								.setNumberOfElements(NumberOfQuadraturePointsEdge);
+	QuadraturePoints_PolynomialBasis								.setNumberOfElements(NumberOfQuadraturePointsEdge);
+	QuadraturePoints_PolynomialBasisOpposite						.setNumberOfElements(NumberOfQuadraturePointsEdge);
 	QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis.setNumberOfElements(NumberOfQuadraturePointsEdge);
-	QuadraturePoints_PhysicalNormalDotPhysicalRaviartThomasBasis.setNumberOfElements(nk);
-	AlphaTimesChi.setNumberOfElements(nk);
-	AlphaTimesBeta.setNumberOfElements(nk);
+	QuadraturePoints_PhysicalNormalDotPhysicalRaviartThomasBasis	.setNumberOfElements(nk);
+	AlphaTimesChi													.setNumberOfElements(nk);
+	AlphaTimesBeta													.setNumberOfElements(nk);
 
-	QuadraturePoints_Edge_x.setNumberOfElements(nk);
-	QuadraturePoints_Edge_y.setNumberOfElements(nk);
-
-
+	QuadraturePoints_Edge_x											.setNumberOfElements(nk);
+	QuadraturePoints_Edge_y											.setNumberOfElements(nk);
 
 
-	QuadraturePoints_RaviartThomasBasis.setZero();
-	QuadraturePoints_PolynomialBasis.setZero();
-	QuadraturePoints_PolynomialBasisOpposite.setZero();
+
+
+	QuadraturePoints_RaviartThomasBasis								.setZero();
+	QuadraturePoints_PolynomialBasis								.setZero();
+	QuadraturePoints_PolynomialBasisOpposite						.setZero();
 	QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis.setZero();
-	QuadraturePoints_PhysicalNormalDotPhysicalRaviartThomasBasis.setZero();
-	AlphaTimesChi.setZero();
-	AlphaTimesBeta.setZero();
+	QuadraturePoints_PhysicalNormalDotPhysicalRaviartThomasBasis	.setZero();
+	AlphaTimesChi													.setZero();
+	AlphaTimesBeta													.setZero();
 
-	QuadraturePoints_Edge_x.setZero();
-	QuadraturePoints_Edge_y.setZero();
+	QuadraturePoints_Edge_x											.setZero();
+	QuadraturePoints_Edge_y											.setZero();
 
 
 	/*****************************************************************************/
@@ -830,10 +832,10 @@ solver3<QuadraturePrecision, TimeScheme>::solver3(Mesh2 & mesh, int const nt0, R
 	/*    - Some auxilary and test things					   			         */
 	/*                                                                           */
 	/*****************************************************************************/
-	Elements = new tm_pointer[nk];
-	ElementIndeces = new unsigned[nk];
-	AffineMappingMatrixDeterminant = new Real[nk];
-	PorosityViscosityDeterminant = new Real[nk];
+	Elements						= new tm_pointer[nk];
+	ElementIndeces					= new unsigned[nk];
+	AffineMappingMatrixDeterminant	= new Real[nk];
+	PorosityViscosityDeterminant	= new Real[nk];
 
 
 	quadrature_triangle<Real> const GaussQuadratureOnTriangle(QuadraturePrecision);
@@ -856,18 +858,29 @@ solver3<QuadraturePrecision, TimeScheme>::solver3(Mesh2 & mesh, int const nt0, R
 	/*    - Precomputation of the quadrature points on the reference triangle	 */
 	/*                                                                           */
 	/*****************************************************************************/
+
+	QuadraturePointsAndWeightsOnReferenceTriangle		.setNumberOfElements(NumberOfQuadraturePointsTriangle);
+	QuadraturePoints_PolynomialBasisOnReferenceTriangle	.setNumberOfElements(NumberOfQuadraturePointsTriangle);
+
+	QuadraturePointsAndWeightsOnReferenceTriangle		.setZero();
+	QuadraturePoints_PolynomialBasisOnReferenceTriangle	.setZero();
+
 	for (unsigned n = 0; n < NumberOfQuadraturePointsTriangle; n++) {
 
 		Real const s = GaussQuadratureOnTriangle.points_x[n];
 		Real const t = GaussQuadratureOnTriangle.points_y[n];
 		Real const w = GaussQuadratureOnTriangle.weights[n];
 
-		//QuadraturePointsAndWeightsOnReferenceTriangle = s
-		//	QuadraturePointsAndWeightsOnReferenceTriangle. = t
-		//	QuadraturePointsAndWeightsOnReferenceTriangle. = w
+		QuadraturePointsAndWeightsOnReferenceTriangle.setCoeff(n, 0) = s;
+		QuadraturePointsAndWeightsOnReferenceTriangle.setCoeff(n, 1) = t;
+		QuadraturePointsAndWeightsOnReferenceTriangle.setCoeff(n, 2) = w;
 
-		//evaluate_polynomial_basis(s, t, BasisPolynomial)
-		//	QuadraturePoints_PolynomialBasisOnReferenceTriangle. =
+		evaluate_polynomial_basis(s, t, BasisPolynomial);
+
+		QuadraturePoints_PolynomialBasisOnReferenceTriangle.setCoeff(n, 0) = BasisPolynomial(0);
+		QuadraturePoints_PolynomialBasisOnReferenceTriangle.setCoeff(n, 1) = BasisPolynomial(1);
+		QuadraturePoints_PolynomialBasisOnReferenceTriangle.setCoeff(n, 2) = BasisPolynomial(2);
+
 	}
 
 
@@ -1162,6 +1175,14 @@ solver3<QuadraturePrecision, TimeScheme>::solver3(Mesh2 & mesh, int const nt0, R
 
 	/*****************************************************************************/
 	/*                                                                           */
+	/*    - Evaluate integrals of Source * P1 basis function phi_m			     */
+	/*                                                                           */
+	/*****************************************************************************/
+	evaluate_source_integrals();
+
+
+	/*****************************************************************************/
+	/*                                                                           */
 	/*    - Initilize constant matrices										     */
 	/*    - Assembly of the trace pressure system and compute					 */
 	/*		its LU decomposition												 */
@@ -1208,9 +1229,9 @@ void solver3<QuadraturePrecision, TimeScheme>::initializeValues() {
 	for (unsigned k = 0; k < nk; k++) {
 
 
-		tm_pointer const K = Mesh->get_triangle(k);
-		unsigned const	 k_index = K->index;
-		Real const		 area = K->area();
+		tm_pointer const K			= Mesh->get_triangle(k);
+		unsigned const	 k_index	= K->index;
+		Real const		 area		= K->area();
 
 
 		vm_pointer const va = K->vertices[0];
@@ -1311,14 +1332,6 @@ void solver3<QuadraturePrecision, TimeScheme>::initializeValues() {
 
 		}
 	}
-
-	/*****************************************************************************/
-	/*                                                                           */
-	/*    - Evaluate integrals of Source * P1 basis function phi_m			     */
-	/*                                                                           */
-	/*****************************************************************************/
-	evaluate_source_integrals();
-
 
 };
 template<unsigned QuadraturePrecision, scheme TimeScheme>
@@ -3914,7 +3927,7 @@ void solver3<QuadraturePrecision, TimeScheme>::getSolution() {
 	//std::cout << counter << std::endl;
 
 	//if (nt % 1000 == 0)
-	std::cout << nt << " - Iterations : " << counter << std::endl;
+	//std::cout << nt << " - Iterations : " << counter << std::endl;
 
 };
 
@@ -3964,7 +3977,7 @@ void solver3<QuadraturePrecision, TimeScheme>::exportPressures(std::string const
 		//Real const T[4] = { 0.0, 0.0, 1.0, 0.0 };
 
 		for (unsigned i = 0; i < 3; i++)
-			OFSTxtFile << std::setprecision(20) << x[i] << "\t" << y[i] << "\t" << Pi(k_index, 0) * phi1(S[i], T[i]) + Pi(k_index, 1) * phi2(S[i], T[i]) + Pi(k_index, 2) * phi3(S[i], T[i]) << std::endl;
+			OFSTxtFile << std::setprecision(20) << x[i] << "\t" << y[i] << "\t" << Pi(k_index, 0) * phi0(S[i], T[i]) + Pi(k_index, 1) * phi1(S[i], T[i]) + Pi(k_index, 2) * phi2(S[i], T[i]) << std::endl;
 
 		OFSTxtFile << std::endl;
 
@@ -4008,7 +4021,7 @@ void solver3<QuadraturePrecision, TimeScheme>::exportConcentrations(std::string 
 		//Real const T[4] = { 0.0, 0.0, 1.0, 0.0 };
 
 		for (unsigned i = 0; i < 3; i++)
-			OFSTxtFile << std::setprecision(20) << x[i] << "\t" << y[i] << "\t" << Xi(k_index, 0) * phi1(S[i], T[i]) + Xi(k_index, 1) * phi2(S[i], T[i]) + Xi(k_index, 2) * phi3(S[i], T[i]) << std::endl;
+			OFSTxtFile << std::setprecision(20) << x[i] << "\t" << y[i] << "\t" << Xi(k_index, 0) * phi0(S[i], T[i]) + Xi(k_index, 1) * phi1(S[i], T[i]) + Xi(k_index, 2) * phi2(S[i], T[i]) << std::endl;
 
 		OFSTxtFile << std::endl;
 
@@ -4659,8 +4672,8 @@ void solver3<QuadraturePrecision, TimeScheme>::evaluate_source_integrals() {
 	for (unsigned k = 0; k < nk; k++) {
 
 
-		tm_pointer const K = Elements[k];
-		unsigned const   k_index = ElementIndeces[k];
+		tm_pointer const K			= Mesh->get_triangle(k);
+		unsigned const   k_index	= K->index;
 
 		vm_pointer const va = K->vertices[0];
 		vm_pointer const vb = K->vertices[1];

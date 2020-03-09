@@ -94,12 +94,12 @@ double const dt = 300.0 / (refinement);
 
 
 
-std::string fileName_mesh = "C:\\Users\\pgali\\Desktop\\eoc\\mesh.txt";
-std::string fileName_velocity = "C:\\Users\\pgali\\Desktop\\eoc\\velocity";
+std::string fileName_mesh		= "C:\\Users\\pgali\\Desktop\\eoc\\mesh.txt";
+std::string fileName_velocity	= "C:\\Users\\pgali\\Desktop\\eoc\\velocity";
 
-std::string fileName_pressure = "C:\\Users\\pgali\\Desktop\\eoc\\pressure";
-std::string fileName_concentration = "C:\\Users\\pgali\\Desktop\\eoc\\concentration";
-std::string fileName_error = "C:\\Users\\pgali\\Desktop\\eoc\\error";
+std::string fileName_pressure		= "C:\\Users\\pgali\\Desktop\\eoc\\pressure";
+std::string fileName_concentration	= "C:\\Users\\pgali\\Desktop\\eoc\\concentration";
+std::string fileName_error			 = "C:\\Users\\pgali\\Desktop\\eoc\\error";
 
 
 
@@ -214,7 +214,7 @@ int main() {
 	/*    - Create text file of the initial condition							 */
 	/*                                                                           */
 	/*****************************************************************************/
-	//solution.exportPressures(fileName_pressure + "_" + std::to_string(nt0) + ".txt");
+	solution.exportPressures(fileName_pressure + "_" + std::to_string(nt0) + ".txt");
 	//solution.exportConcentrations(fileName_concentration + "_" + std::to_string(nt0) + ".txt");
 
 
@@ -251,7 +251,7 @@ int main() {
 		/*    - Create text file of the solution on the (n+1)-th time level			 */
 		/*                                                                           */
 		/*****************************************************************************/
-		//solution.exportPressures(fileName_pressure + "_" + std::to_string(nt) + ".txt");
+		solution.exportPressures(fileName_pressure + "_" + std::to_string(nt) + ".txt");
 		//solution.exportConcentrations(fileName_concentration + "_" + std::to_string(nt) + ".txt");
 
 
@@ -270,7 +270,7 @@ int main() {
 
 
 
-	solution.computeError(fileName_error + std::to_string(refinement));
+	//solution.computeError(fileName_error + std::to_string(refinement));
 
 
 
