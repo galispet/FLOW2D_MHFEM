@@ -38,6 +38,9 @@ enum scheme { CRANK_NICOLSON, EULER_BACKWARD };
 //}
 
 
+
+
+
 template <unsigned QuadraturePrecision = 6, scheme TimeScheme = CRANK_NICOLSON>
 class solver2 {
 
@@ -45,84 +48,6 @@ class solver2 {
 	typedef Eigen::SparseMatrix<Real>				SparseMatrix;
 	typedef Eigen::Matrix<Real, Eigen::Dynamic, 1>	DenseVector;
  
-	/*****************************************************************************/
-	/*                                                                           */
-	/*    - Get number of quadrature points in compilation						 */
-	/*                                                                           */
-	/*****************************************************************************/
-	template<unsigned QuadraturePrecision>
-	unsigned const get_number_of_quadrature_points_edge() {
-
-		switch (QuadraturePrecision) {
-
-		case 2:
-			return 2;
-		case 3:
-			return 3;
-		case 4:
-			return 4;
-		case 5:
-			return 5;
-		case 6:
-			return 6;
-		case 7:
-			return 7;
-		case 8:
-			return 8;
-		case 9:
-			return 9;
-		case 10:
-			return 10;	// order 10 not implemented -> using order 9
-		case 11:
-			return 11;
-		case 12:
-			return 12;	// order 12 not implemented -> using order 11
-		case 13:
-			return 13;
-
-		default:
-			return 0;
-
-		}
-
-	};
-	template<unsigned i>
-	 unsigned const get_number_of_quadrature_points_triangle() {
-
-		switch (i) {
-
-		case 2:
-			return 3;
-		case 3:
-			return 6;
-		case 4:
-			return 7;
-		case 5:
-			return 7;
-		case 6:
-			return 12;
-		case 7:
-			return 13;
-		case 8:
-			return 19;
-		case 9:
-			return 19;
-		case 10:
-			return 19;	// order 10 not implemented -> using order 9
-		case 11:
-			return 28;
-		case 12:
-			return 28;	// order 12 not implemented -> using order 11
-		case 13:
-			return 37;
-
-		default:
-			return 0;
-
-		}
-
-	};
-
 	
 
 	/*****************************************************************************/
@@ -199,91 +124,8 @@ private:
 	int		nt;
 	Real	dt;
 	
-	//Eigen::Vector2d const Solution = [] { Eigen::Matrix2d Temp; Temp << 0.5, 0.5, -0.5, 0.5; return Temp; }() * Eigen::Vector2d (B0, B1);
-	
-		unsigned const NumberOfQuadraturePointsEdge =[] (unsigned QuadraturePrecision) {
-
-		unsigned num = 0;
-
-		switch (QuadraturePrecision) {
-
-		case 2:
-			num = 2;
-		case 3:
-			num = 3;
-		case 4:
-			num = 4;
-		case 5:
-			num = 5;
-		case 6:
-			num = 6;
-		case 7:
-			num = 7;
-		case 8:
-			num = 8;
-		case 9:
-			num = 9;
-		case 10:
-			num = 10;	// order 10 not implemented -> using order 9
-		case 11:
-			num = 11;
-		case 12:
-			num = 12;	// order 12 not implemented -> using order 11
-		case 13:
-			num = 13;
-
-		default:
-			num = 0;
-
-
-		};
-
-		return num;
-
-		};
-	//unsigned const NumberOfQuadraturePointsEdge = [] {
-	//	
-	//	unsigned num = 0;
-
-	//	switch (QuadraturePrecision) {
-
-	//	case 2:
-	//		return 2;
-	//	case 3:
-	//		return 3;
-	//	case 4:
-	//		return 4;
-	//	case 5:
-	//		return 5;
-	//	case 6:
-	//		return 6;
-	//	case 7:
-	//		return 7;
-	//	case 8:
-	//		return 8;
-	//	case 9:
-	//		return 9;
-	//	case 10:
-	//		return 10;	// order 10 not implemented -> using order 9
-	//	case 11:
-	//		return 11;
-	//	case 12:
-	//		return 12;	// order 12 not implemented -> using order 11
-	//	case 13:
-	//		return 13;
-
-	//	default:
-	//		return 0;
-
-
-	//	};
-	//
-	//	return 0;
-
-	//} () ;
-
-	 //unsigned const NumberOfQuadraturePointsEdge		= get_number_of_quadrature_points_edge<QuadraturePrecision>();
-	unsigned const NumberOfQuadraturePointsTriangle	= get_number_of_quadrature_points_triangle<QuadraturePrecision>();
+	static unsigned const NumberOfQuadraturePointsEdge		= get_number_of_quadrature_points_edge<QuadraturePrecision>();
+	static unsigned const NumberOfQuadraturePointsTriangle	= get_number_of_quadrature_points_triangle<QuadraturePrecision>();
 
 
 
@@ -615,6 +457,86 @@ private:
 	};
 
 
+
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Get number of quadrature points in compilation						 */
+	/*                                                                           */
+	/*****************************************************************************/
+	template<unsigned i>
+	constexpr unsigned const get_number_of_quadrature_points_edge() {
+
+		switch (i) {
+
+		case 2:
+			return 2;
+		case 3:
+			return 3;
+		case 4:
+			return 4;
+		case 5:
+			return 5;
+		case 6:
+			return 6;
+		case 7:
+			return 7;
+		case 8:
+			return 8;
+		case 9:
+			return 9;
+		case 10:
+			return 10;	// order 10 not implemented -> using order 9
+		case 11:
+			return 11;
+		case 12:
+			return 12;	// order 12 not implemented -> using order 11
+		case 13:
+			return 13;
+
+		default:
+			return 0;
+
+		}
+
+	};
+	template<unsigned i>
+	constexpr unsigned const get_number_of_quadrature_points_triangle() {
+
+		switch (i) {
+
+		case 2:
+			return 3;
+		case 3:
+			return 6;
+		case 4:
+			return 7;
+		case 5:
+			return 7;
+		case 6:
+			return 12;
+		case 7:
+			return 13;
+		case 8:
+			return 19;
+		case 9:
+			return 19;
+		case 10:
+			return 19;	// order 10 not implemented -> using order 9
+		case 11:
+			return 28;
+		case 12:
+			return 28;	// order 12 not implemented -> using order 11
+		case 13:
+			return 37;
+
+		default:
+			return 0;
+
+		}
+
+	};
+
+
 };
 
 
@@ -861,12 +783,12 @@ solver2<QuadraturePrecision, TimeScheme>::solver2(Mesh2 & mesh, int const nt0, R
 		Real const t = GaussQuadratureOnTriangle.points_y[n];
 		Real const w = GaussQuadratureOnTriangle.weights[n];
 
-		QuadraturePointsAndWeightsOnReferenceTriangle = s
-			QuadraturePointsAndWeightsOnReferenceTriangle. = t
-			QuadraturePointsAndWeightsOnReferenceTriangle. = w
+		//QuadraturePointsAndWeightsOnReferenceTriangle = s
+		//	QuadraturePointsAndWeightsOnReferenceTriangle. = t
+		//	QuadraturePointsAndWeightsOnReferenceTriangle. = w
 
-		evaluate_polynomial_basis(s, t, BasisPolynomial)
-			QuadraturePoints_PolynomialBasisOnReferenceTriangle. =
+		//evaluate_polynomial_basis(s, t, BasisPolynomial)
+		//	QuadraturePoints_PolynomialBasisOnReferenceTriangle. =
 	}
 
 
@@ -1201,7 +1123,7 @@ template<unsigned QuadraturePrecision, scheme TimeScheme>
 void solver2<QuadraturePrecision, TimeScheme>::initializeValues() {
 
 
-	Real const time = nt * dt;
+	//Real const time = nt * dt;
 
 
 	for (unsigned k = 0; k < nk; k++) {
@@ -2708,13 +2630,13 @@ void solver2<QuadraturePrecision, TimeScheme>::assembleH() {
 
 		for (unsigned m = 0; m < 3; m++) {
 
-			H1.coeffRef(3 * k_index + m, e_index0) = block1.coeff(m, 0);
-			H1.coeffRef(3 * k_index + m, e_index1) = block1.coeff(m, 1);
-			H1.coeffRef(3 * k_index + m, e_index2) = block1.coeff(m, 2);
+			H1.coeffRef(3 * k_index + m, e_index0) = Block1.coeff(m, 0);
+			H1.coeffRef(3 * k_index + m, e_index1) = Block1.coeff(m, 1);
+			H1.coeffRef(3 * k_index + m, e_index2) = Block1.coeff(m, 2);
 
-			H2.coeffRef(3 * k_index + m, e_index0) = block2.coeff(m, 0);
-			H2.coeffRef(3 * k_index + m, e_index1) = block2.coeff(m, 1);
-			H2.coeffRef(3 * k_index + m, e_index2) = block2.coeff(m, 2);
+			H2.coeffRef(3 * k_index + m, e_index0) = Block2.coeff(m, 0);
+			H2.coeffRef(3 * k_index + m, e_index1) = Block2.coeff(m, 1);
+			H2.coeffRef(3 * k_index + m, e_index2) = Block2.coeff(m, 2);
 
 		}
 	}

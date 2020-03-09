@@ -35,7 +35,7 @@ enum PRINT { PRESSURE, CONCENTRATION, TRACE_PRESSURE };
 
 
 template<unsigned i>
- unsigned const get_number_of_quadrature_points_edge() {
+constexpr unsigned const get_number_of_quadrature_points_edge() {
 
 	switch (i) {
 
@@ -71,7 +71,7 @@ template<unsigned i>
 
 };
 template<unsigned i>
- unsigned const get_number_of_quadrature_points_triangle() {
+constexpr unsigned const get_number_of_quadrature_points_triangle() {
 
 	switch (i) {
 
