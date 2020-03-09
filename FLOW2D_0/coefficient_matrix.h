@@ -6,7 +6,6 @@
 
 
 
-
 template<unsigned N1, unsigned N2, unsigned N3>
 class CoeffMatrix3D {
 
@@ -137,7 +136,7 @@ private:
 
 };
 
-template<unsigned N1>
+template<unsigned N1, unsigned numElements = 0>
 class CoeffMatrix1D {
 
 	template<typename real>
@@ -145,10 +144,18 @@ class CoeffMatrix1D {
 
 public:
 
+
 	CoeffMatrix1D() {
 
 		data = NULL;
 		length = 0;
+
+		if (numElements) {
+
+			length = numElements * (N1);
+			data = new double[length];
+
+		}
 
 	};
 	~CoeffMatrix1D() {
@@ -196,6 +203,9 @@ private:
 	unsigned length;
 
 };
+
+
+
 
 
 

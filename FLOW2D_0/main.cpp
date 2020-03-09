@@ -13,6 +13,7 @@
 /*    - Speed up recommendations						 			         */
 /*                                                                           */
 /*****************************************************************************/
+// Mesh primitives : in solver, create only arrays of pointers to triangles and edges (inner, dirichlet, neumann). We dont need mesh
 // quadrature_points_x/y calculate only for dirihlet edges/neuman somehow (hash table?)
 // Allocate memory in the beginning of the assemble function (typically those Eigen::triplet make only once, not in the loop as const)->will it be faster?
 // Try to reserve memory for matrices, see
@@ -31,18 +32,22 @@
 		// Make special array of pointers to edges on the boundary (Dirichlet, Neumann) and for Inner edges (No need to check if the edge is neumann/dirichlet)
 		// Fast Multiplication Of Sparse matrix and vector (iDH1 * Tp1, iDH2 * Tp2 in computePressure)
 		// Precompute values of P(1) on the reference triangle. Now only values on edges are precomputed
+// Templateed construcotr for gauss quadrature points (NumberOfQuadraturePointsTriangle, QuadraturePoints_PolynomialBasisOnReferenceTriangle, ...), so the memory can be allocated in the compile time
+
+
+
 
 
 #include "mesh.h"
 
-#include "mesh2.h"
+//#include "mesh2.h"
 #include "triangulation.h"
 #include "PSLG.h"
 //#include "misc.h"
 
-//#include "solver.h"
+#include "solver.h"
 //#include "solver2.h"
-#include "solver3.h"
+//#include "solver3.h"
 
 #include <iostream>
 #include <fstream>
@@ -183,8 +188,7 @@ int main() {
 	/*    - Construct computation mesh from the triangulation					 */
 	/*                                                                           */
 	/*****************************************************************************/
-	//Mesh				mesh(triangulation);
-	Mesh2				mesh(triangulation);
+	Mesh mesh(triangulation);
 
 
 	/*****************************************************************************/
@@ -203,9 +207,7 @@ int main() {
 	/*    - Create instance of the solver										 */
 	/*                                                                           */
 	/*****************************************************************************/
-	//solver<quadrature_order> solution(mesh, nt0, dt);
-	//solver2<double, 7, scheme::CRANK_NICOLSON> solution(mesh, nt0, dt);
-	solver3<7, scheme::CRANK_NICOLSON> solution(mesh, nt0, dt);
+	solver<7, scheme::CRANK_NICOLSON> solution(mesh, nt0, dt);
 
 
 
@@ -302,7 +304,7 @@ void generate_vertices() {
 
 };
 
-void exportMesh(std::string const & fileName, Mesh2 const & m) {
+void exportMesh(std::string const & fileName, Mesh const & m) {
 
 
 	std::ofstream OFSTxtFile(fileName);

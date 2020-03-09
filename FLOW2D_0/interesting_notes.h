@@ -18,6 +18,39 @@
 	They're all treated as taking an int * parameter, you can
 	pass any size array to them.
 
+*/
 
+/*
+
+-	can't do  the following templated call of constructor
+
+
+template<unsigned N1>
+class CoeffMatrix1D {
+
+
+	template<unsigned const numElements>
+	CoeffMatrix1D() {
+
+		length = numElements * (N1);
+		data = new double[length];
+
+	};
+
+	OR
+
+	template<unsigned const numElements>
+	CoeffMatrix1D(unsigned const numElements) {
+
+		length = numElements * (N1);
+		data = new double[length];
+
+	};
+
+}
+
+CoeffMatrix1D<3> QuadraturePointsAndWeightsOnReferenceTriangle<4>;
+
+-	is it possible somehow?
 
 */

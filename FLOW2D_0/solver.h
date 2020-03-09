@@ -1,4 +1,5 @@
-﻿#pragma once
+﻿
+#pragma once
 
 
 /*****************************************************************************/
@@ -12,28 +13,25 @@
 #define NDEBUG 
 
 
+#include "miscellaneous.h"
 #include "coefficient_matrix.h"
-#include "integration.h"
-#include "mesh.h"
 #include "matrix.h"
-#include <omp.h>
+#include "mesh.h"
 
 #include <Eigen/Sparse>
-#include <Eigen/Dense>
+#include <omp.h>
 
 
-typedef double real;
-
-real const INTEGRAL_PRECISION = 1e-11;
-
-typedef Eigen::SparseMatrix<real>			SparseMatrix;
-typedef Eigen::VectorXd						DenseVector;
+enum scheme { CRANK_NICOLSON, EULER_BACKWARD };
 
 
-enum SCHEME { IMPLICIT, EXPLICIT };
-enum PRINT { PRESSURE, CONCENTRATION, TRACE_PRESSURE };
 
 
+/*****************************************************************************/
+/*                                                                           */
+/*    - Get number of quadrature points in compilation						 */
+/*                                                                           */
+/*****************************************************************************/
 template<unsigned i>
 constexpr unsigned const get_number_of_quadrature_points_edge() {
 
@@ -107,54 +105,125 @@ constexpr unsigned const get_number_of_quadrature_points_triangle() {
 
 };
 
-template <unsigned QuadraturePrecision>
+
+
+template <unsigned QuadraturePrecision = 6, scheme TimeScheme = CRANK_NICOLSON>
 class solver {
+
+
+	typedef Eigen::SparseMatrix<Real>				SparseMatrix;
+	typedef Eigen::Matrix<Real, Eigen::Dynamic, 1>	DenseVector;
+
+
+
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Numerical model parameters									         */
+	/*                                                                           */
+	/*		- TimeSchemeParameter : 0.5 = Crank-Nicolson, 1.0 = Backward Euler	 */
+	/*		- INTEGRAL_PRECISION  : Values lower than this are treated as zero	 */
+	/*							  : Used in numerical integration etc.			 */
+	/*		- TOLERANCE			  : Tolerance for the inner loop				 */
+	/*							  : Succesive updates of P,C,Theta differ		 */
+	/*							    less than this bound						 */
+	/*		- MAX_ITERATIONS	  : Maximumnumber of iterations of the inner	 */
+	/*							    loop, which updates P,C,Theta				 */
+	/*                                                                           */
+	/*****************************************************************************/
+	Real const TimeSchemeParameter = TimeScheme == CRANK_NICOLSON ? 0.5 : 1.0;
+	Real const INTEGRAL_PRECISION = 1e-11;
+	Real const TOLERANCE = DBL_EPSILON;
+	unsigned const MAX_ITERATIONS = 500;
+
 
 
 public:
 
-	solver(Mesh & m, unsigned nt_0, double dt_0);
-	~solver();
 
 	void getSolution();
 
-	void setTimeStep(double _dt) { this->dt = _dt; };
-	void setTimeLevel(int _nt) { this->nt = _nt; };
+	void setTimeStep(Real const _dt) { this->dt = _dt; };
+	void setTimeLevel(int const _nt) { this->nt = _nt; };
 
-	void exportSolution(std::ofstream & txtFile);
 
-	void compute_error(std::ofstream & txtFile);
+	void exportPressures(std::string const & fileName);
+	void exportConcentrations(std::string const & fileName);
 
+	void exportTracePressures(std::string const & fileName);
+
+	void exportVelocityField(std::string const & fileName);
+	void exportVelocities(std::string const & fileName);
+
+	void computeError(std::string const & fileName);
+
+
+	solver(Mesh & mesh, int const nt0, Real const dt0);
+	~solver();
 
 
 private:
 
 
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Mesh created from the triangulation of given vertices		         */
+	/*                                                                           */
+	/*****************************************************************************/
+	Mesh * Mesh;
 
 
-	// Triangulation mesh
-	Mesh * mesh;
-
-	// nk = number of elements in the mesh, ne = number of edges in the mesh
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - nk : number of elements in the Mesh							         */
+	/*      ne : number of edges in the Mesh							         */
+	/*                                                                           */
+	/*    - nt : Current time level of the solution						         */
+	/*      dt : Time step												         */
+	/*                                                                           */
+	/*    - NumberOfQuadraturePointsEdge : number of quad points on edge		 */
+	/*      NumberOfQuadraturePointsTriangle : number of quad points on element  */
+	/*                                                                           */
+	/*****************************************************************************/
 	unsigned const nk;
 	unsigned const ne;
 
+	int		nt;
+	Real	dt;
 
-	//Eigen::MatrixXd * π2 = new Eigen::MatrixXd[50];
+	static unsigned const NumberOfQuadraturePointsEdge = get_number_of_quadrature_points_edge<QuadraturePrecision>();
+	static unsigned const NumberOfQuadraturePointsTriangle = get_number_of_quadrature_points_triangle<QuadraturePrecision>();
 
-	// Unknows vectors of quantities
-	CoeffMatrix1D<3>	π;
-	CoeffMatrix1D<3>	ξ;
-	CoeffMatrix2D<3, 2> tπ;
-	CoeffMatrix1D<8>	υ;
-	CoeffMatrix1D<3>	sources;
 
-	// Qunatities on time levels. Used in theta-scheme current quantites on time level 'n', last iteration in l 'prev'
-	CoeffMatrix1D<3> π_n;
-	CoeffMatrix1D<3> π_prev;
 
-	CoeffMatrix1D<3> ξ_n;
-	CoeffMatrix1D<3> ξ_prev;
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Unknowns quantities of the model   : Pi			- Internal Pressures */
+	/*										   : TPi		- Trace pressures	 */
+	/*										   : Xi			- Concentrations     */
+	/*										   : Velocity	- Velocities		 */
+	/*                                                                           */
+	/*										   : Sources	- Sources / Sinks	 */
+	/*                                                                           */
+	/*****************************************************************************/
+	CoeffMatrix1D<3>	Pi;
+	CoeffMatrix1D<3>	Xi;
+	CoeffMatrix2D<3, 2> TPi;
+	CoeffMatrix1D<8>	Velocity;
+	CoeffMatrix1D<3>	Sources;
+
+
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Unknowns quantities on different time levels					     */
+	/*			: 'n'		- current time level                                 */
+	/*			: 'prev'	- previous iteration in the inner loop               */
+	/*                                                                           */
+	/*****************************************************************************/
+	CoeffMatrix1D<3> Pi_n;
+	CoeffMatrix1D<3> Pi_prev;
+
+	CoeffMatrix1D<3> Xi_n;
+	CoeffMatrix1D<3> Xi_prev;
 
 	CoeffMatrix1D<3> rkFc;
 	CoeffMatrix1D<3> rkFc_n;
@@ -162,26 +231,25 @@ private:
 	CoeffMatrix1D<3> rkFp_n;
 
 
-	// Integral (geometric) coeffiecients
-	CoeffMatrix2D<8, 8>				α;
-	CoeffMatrix3D<3, 3, 8>			δ;
-	CoeffMatrix2D<3, 8>				γ;
-	SingleCoeffMatrix2D<8, 3>		β;
-	CoeffMatrix3D<8, 3, 2>			χ;
-	SingleCoeffMatrix2D<3, 3>		η;
-	SingleCoeffMatrix3D<3, 8, 3>	τ;
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Integral geometric coefficients								         */
+	/*                                                                           */
+	/*****************************************************************************/
+	CoeffMatrix2D<8, 8>				Alpha;
+	CoeffMatrix3D<3, 3, 8>			Delta;
+	CoeffMatrix2D<3, 8>				Gamma;
+	SingleCoeffMatrix2D<8, 3>		Beta;
+	CoeffMatrix3D<8, 3, 2>			Chi;
+	SingleCoeffMatrix2D<3, 3>		Eta;
+	SingleCoeffMatrix3D<3, 8, 3>	Tau;
 
 
-	CoeffMatrix2D<3, 3>		σ;
-	CoeffMatrix3D<2, 3, 3>	λ;
-	CoeffMatrix1D<3>		φ;
-	CoeffMatrix1D<3>		ψ;
-	CoeffMatrix1D<8>		Ω;
-
-
-
-	static unsigned const NumberOfQuadraturePointsEdge		= get_number_of_quadrature_points_edge<QuadraturePrecision>();
-	static unsigned const NumberOfQuadraturePointsTriangle	= get_number_of_quadrature_points_triangle<QuadraturePrecision>();
+	CoeffMatrix2D<3, 3>		Sigma;
+	CoeffMatrix3D<2, 3, 3>	Lambda;
+	//CoeffMatrix1D<3>		BigPhi;
+	//CoeffMatrix1D<3>		BigPsi;
+	//CoeffMatrix1D<8>		BigOmega;
 
 
 	/*****************************************************************************/
@@ -203,6 +271,13 @@ private:
 	/*       : AlphaTimesBeta													 */
 	/*                                                                           */
 	/*****************************************************************************/
+	CoeffMatrix1D<3>									QuadraturePointsAndWeightsOnReferenceTriangle;
+	CoeffMatrix1D<3>									QuadraturePoints_PolynomialBasisOnReferenceTriangle;
+
+	//CoeffMatrix1D<3, NumberOfQuadraturePointsTriangle>	QuadraturePointsAndWeightsOnReferenceTriangle;
+	//CoeffMatrix1D<3, NumberOfQuadraturePointsTriangle>	QuadraturePoints_PolynomialBasisOnReferenceTriangle;
+
+
 	CoeffMatrix3D<3, 8, 2>								QuadraturePoints_RaviartThomasBasis;
 	CoeffMatrix2D<3, 3>									QuadraturePoints_PolynomialBasis;
 	CoeffMatrix2D<3, 3>									QuadraturePoints_PolynomialBasisOpposite;
@@ -211,7 +286,7 @@ private:
 	CoeffMatrix3D<8, 3, 2>								AlphaTimesChi;
 	CoeffMatrix2D<8, 3>									AlphaTimesBeta;
 
-	
+
 	/*****************************************************************************/
 	/*                                                                           */
 	/*    - Quadrature points on the edges of the physical triangle		         */
@@ -228,83 +303,130 @@ private:
 	/*****************************************************************************/
 	CoeffMatrix1D<3> edgeOrientation;
 
-	t_pointer	* Elements			= NULL;
-	unsigned	* ElementIndeces	= NULL;
-	
-	real * AffineMappingMatrixDeterminant	= NULL;
-	real * PorosityViscosityDeterminant		= NULL;
+	tm_pointer	* Elements = NULL;
+	unsigned	* ElementIndeces = NULL;
+
+	Real * AffineMappingMatrixDeterminant = NULL;
+	Real * PorosityViscosityDeterminant = NULL;
+
+	/*
+	em_pointer * EdgesDirichlet = NULL;
+	em_pointer * EdgesNeumann	= NULL;
+
+	unsigned * EdgesDirichlet_Indeces	= NULL;
+	unsigned * EdgesNeumann_Indeces		= NULL;
+
+	unsigned DirichletCount = 0;
+	unsigned NeumannCount	= 0;
+
+	for (unsigned e = 0; e < ne; e++){
+
+		em_pointer const E = Mesh->get_edge(e);
+
+		E_MARKER const e_marker = E->marker;
+		unsigned const e_index = E->index;
+
+		if (e_marker == E_MARKER::DIRICHLET){
+
+			EdgesDirichlet[DirichletCount]			= E;
+			EdgesDirichlet_Indeces[DirichletCount]	= e_index;
+
+			DirichletCount++;
+
+		}
+		else if (e_marker == E_MARKER::NEUMANN){
+
+			EdgesNeumann[NeumannCount]			= E;
+			EdgesNeumann_Indeces[NeumannCount]	= e_index;
+
+			NeumannCount++;
+
+		}
+	}
+	*/
 
 
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Porous medium physical quantities and coefficients Thetas, which	 */
+	/*		are connected to Equation Of State (EOS)							 */
+	/*                                                                           */
+	/*****************************************************************************/
+	Real * Viscosities;
+	Real * Porosities;
 
-	real * viscosities;
-	real * porosities;
+	Real * Thetas;
+	Real * Thetas_prev;
 
-	real * betas;
-	real * betas_prev;
 
-	// Trace pressure system matrix
-	SparseMatrix R1;
-	SparseMatrix R2;
-	SparseMatrix M_j1_s1;
-	SparseMatrix M_j1_s2;
-	SparseMatrix M_j2_s1;
-	SparseMatrix M_j2_s2;
-	DenseVector V1;
-	DenseVector V2;
-	DenseVector Tp1;
-	DenseVector Tp2;
-	DenseVector π_eigen;
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Pressure and Trace Pressure system matrices							 */
+	/*                                                                           */
+	/*****************************************************************************/
+	SparseMatrix	R1;
+	SparseMatrix	R2;
+	SparseMatrix	M_j1_s1;
+	SparseMatrix	M_j1_s2;
+	SparseMatrix	M_j2_s1;
+	SparseMatrix	M_j2_s2;
 
-	SparseMatrix R1iD;
-	SparseMatrix R2iD;
+	DenseVector		V1;
+	DenseVector		V2;
+	DenseVector		G;
 
-	SparseMatrix iDH1;
-	SparseMatrix iDH2;
+	DenseVector		Tp1;
+	DenseVector		Tp2;
+	DenseVector		Pi_eigen;
+
+	SparseMatrix	iD;
+	SparseMatrix	H1;
+	SparseMatrix	H2;
+
+	SparseMatrix	R1iD;
+	SparseMatrix	R2iD;
+	SparseMatrix	iDH1;
+	SparseMatrix	iDH2;
 
 	CoeffMatrix2D<3, 3> R1_block;
 	CoeffMatrix2D<3, 3> R2_block;
 
-	// Pressure system matrix
-	SparseMatrix iD;
-	SparseMatrix H1;
-	SparseMatrix H2;
-	DenseVector G;
 
-
-	// Solver for the computation of LU factorization
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Eigen solver for the computation of LU factorization				 */
+	/*                                                                           */
+	/*****************************************************************************/
 	Eigen::SparseLU<SparseMatrix>	sparseLUsolver_TracePressureSystem;
-	SparseMatrix					internalPressureSystem;
-
 	Eigen::SparseLU<SparseMatrix>   sparseLUsolver_PressureSystem;
+	SparseMatrix					PressureSystem;
+
+	DenseVector traceSystemRhs;
+	DenseVector pressureSystemRhs;
 
 	//Eigen::COLAMDOrdering<int>										SparseOrdering;
 	//Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic, int>	PermutationMatrix;
 
-	DenseVector pressureSystemRhs;
-	DenseVector traceSystemRhs;
 
-	// Time level 'nt' 
-	int nt;
-	// Time increment 'dt'
-	double dt;
-
-
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Class methods														 */
+	/*                                                                           */
+	/*****************************************************************************/
 	void initializeValues();
-	void computeBetas();
+	void computeThetas();
 
 	bool stopCriterion();
 	void concentrationCorrection();
 
-
+	void computeTracePressures();
 	void computePressureEquation();
 
-	void computeTracePressures();
 	void computeVelocities();
 	void updateConcentrations();
 
-	real upwindConcentration(t_pointer const & K, unsigned const El, unsigned const n);
-	real upwindConcentration_limiter(t_pointer const & K, unsigned const El, unsigned const n);
-
+	Real upwindConcentration(tm_pointer const & K, unsigned const El, unsigned const n);
+	Real upwindConcentration_limiter(tm_pointer const & K, unsigned const El, unsigned const n);
 
 	void assembleR();
 	void assembleM();
@@ -314,60 +436,100 @@ private:
 	void assembleH();
 	void assembleG();
 
-
-	
 	void assemblePressureSystem();
 	void assemblePressureSystem_NoTriplet();
 
 	void getSparsityPatternOfThePressureSystem();
 
+	void assemble_Alpha();
+	void assemble_Beta();
+	void assemble_Chi();
+	void assemble_Eta();
+	void assemble_Tau();
+	void assemble_Delta();
+	void assemble_Gamma();
 
-	void assemble_α();
-	void assemble_β();
-	void assemble_χ();
-	void assemble_η();
-	void assemble_τ();
-	void assemble_δ();
-	void assemble_γ();
-
-	void assemble_σ();
-	void assemble_λ();
-	void assemble_φ();
-	void assemble_ψ();
+	void assemble_Sigma();
+	void assemble_Lambda();
+	void assemble_BigPhi();
+	void assemble_BigPsi();
+	void assemble_BigOmega();
 
 
 
-	void exportVelocityField(std::ofstream & txtFile);
-	void exportVelocities(std::ofstream & txtFile);
-	void exportTracePressures(std::ofstream & txtFile);
+
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Evaluation of Raviart-Thomas, P1 basis function, Edge basis P1(E),	 */
+	/*      edges parametrization, normal vectors							     */
+	/*                                                                           */
+	/*****************************************************************************/
+	inline void evaluate_raviartthomas_basis(Real const s, Real const t, Eigen::Matrix<Real, 2, 8> & out);
+	inline void evaluate_raviartthomas_basis_divergence(Real const s, Real const t, Eigen::Matrix<Real, 8, 1> & out);
+
+	inline void evaluate_polynomial_basis(Real const s, Real const t, Eigen::Matrix<Real, 3, 1> & out);
+	inline void evaluate_polynomial_basis_gradient(Real const s, Real const t, Eigen::Matrix<Real, 2, 3> & out);
+
+	inline void evaluate_edge_polynomial_basis(Real const ksi, unsigned const El, Eigen::Matrix<Real, 2, 1> & out, Real const & orientation);
+
+	inline void evaluate_edge_normal(Eigen::Matrix<Real, 2, 3> & out);
+	inline void evaluate_edge_parametrization(Real const ksi, unsigned const El, Eigen::Matrix<Real, 2, 1> & out);
+	inline void evaluate_edge_parametrization_derivative(Real const ksi, unsigned const El, Eigen::Matrix<Real, 2, 1> & out);
+	inline void evaluate_edge_parametrization_opposite(Real const ksi, unsigned const El, Eigen::Matrix<Real, 2, 1> & out);
+	inline void evaluate_edge_parametrization_opposite_derivative(Real const ksi, unsigned const El, Eigen::Matrix<Real, 2, 1> & out);
+
+
+	inline Real phi0(Real const s, Real const t);
+	inline Real phi1(Real const s, Real const t);
+	inline Real phi2(Real const s, Real const t);
+
+
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Integral of Source * Polynomial basis function						 */
+	/*                                                                           */
+	/*****************************************************************************/
+	Real F0(tm_pointer const K, Real const time);
+	Real F1(tm_pointer const K, Real const time);
+	Real F2(tm_pointer const K, Real const time);
+
+	void evaluate_source_integrals();
+
+
+
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Return the number of the basis function on the E of the K			 */
+	/*			: (0 if DOF == 0), (1 if DOF == 1)								 */
+	/*			: E0 -> 0,3														 */
+	/*			: E1 -> 1,4														 */
+	/*			: E2 -> 2,5														 */
+	/*	  - 6,7 are defined inside element and are not connected to any edge	 */
+	/*                                                                           */
+	/*****************************************************************************/
+	inline unsigned LI(tm_pointer const & K, em_pointer const & E, unsigned const & DOF) {
+
+		return K->get_edge_index(E) + 3 * DOF;
+
+	};
+	inline void LI(tm_pointer const & K, em_pointer const & E, unsigned(&out)[2]) {
+
+		unsigned const e_index_local = K->get_edge_index(E);
+
+		out[0] = e_index_local;
+		out[1] = e_index_local + 3;
+
+	};
+
+
 
 };
 
 
 
 
-
-
-
-
-
-
-
-template<unsigned QuadraturePrecision>
-solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
-
-	: nk(m.get_number_of_triangles()), ne(m.get_number_of_edges())
-	//,
-	//  NumberOfQuadraturePointsEdge(get_number_of_quadrature_points_edge()),
-	//  NumberOfQuadraturePointsTriangle(get_number_of_quadrature_points_triangle())
-
-{
-
-
-	mesh = &m;
-
-	nt = nt_0;
-	dt = dt_0;
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+solver<QuadraturePrecision, TimeScheme>::solver(Mesh & mesh, int const nt0, Real const dt0) : nk(mesh.get_number_of_triangles()), ne(mesh.get_number_of_edges()), Mesh(&mesh), nt(nt0), dt(dt0) {
 
 
 	/*****************************************************************************/
@@ -375,8 +537,8 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	/*    - Memory allocation for the physical quantities   			         */
 	/*                                                                           */
 	/*****************************************************************************/
-	viscosities = new double[nk];
-	porosities	= new double[nk];
+	Viscosities = new Real[nk];
+	Porosities = new Real[nk];
 
 
 	/*****************************************************************************/
@@ -385,82 +547,91 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	/*      links model equations and EOS                                        */
 	/*                                                                           */
 	/*****************************************************************************/
-	betas		= new double[nk];
-	betas_prev	= new double[nk];
+	Thetas = new Real[nk];
+	Thetas_prev = new Real[nk];
 
 
 	/*****************************************************************************/
 	/*                                                                           */
-	/*    - Memory allocation for the unknowns : π - Internal Pressures		     */
-	/*										   : tπ - Trace pressures		     */
-	/*										   : ξ - Concentrations     	     */
-	/*										   : υ - Velocities				     */
+	/*    - Memory allocation for the unknowns : Pi			- Internal Pressures */
+	/*										   : TPi		- Trace pressures	 */
+	/*										   : Xi			- Concentrations     */
+	/*										   : Velocity	- Velocities		 */
+	/*                                                                           */
+	/*										   : Sources	- Sources / Sinks	 */
 	/*                                                                           */
 	/*****************************************************************************/
-	π		.setNumberOfElements(nk);
-	tπ		.setNumberOfElements(nk);
-	ξ		.setNumberOfElements(nk);
-	υ		.setNumberOfElements(nk);
-	sources	.setNumberOfElements(nk);	// Sink / sources
+	Pi.setNumberOfElements(nk);
+	TPi.setNumberOfElements(nk);
+	Xi.setNumberOfElements(nk);
+	Velocity.setNumberOfElements(nk);
+	Sources.setNumberOfElements(nk);
 
-	π		.setZero();
-	tπ		.setZero();
-	ξ		.setZero();
-	υ		.setZero();
-	sources	.setZero();
-
-
-	/*****************************************************************************/
-	/*                                                                           */
-	/*    - Memory allocation for the auxillary variables used in			     */
-	/*      time discretization                                                  */
-	/*    - 'n'    = current time level                                          */
-	/*      'prev' = previous iteration in the inner loop                        */
-	/*                                                                           */
-	/*****************************************************************************/
-	π_n		.setNumberOfElements(nk);
-	π_prev	.setNumberOfElements(nk);
-	ξ_n		.setNumberOfElements(nk);
-	ξ_prev	.setNumberOfElements(nk);
-	rkFc	.setNumberOfElements(nk);
-	rkFc_n	.setNumberOfElements(nk);
-	rkFp_n	.setNumberOfElements(nk);
-	
-	π_n		.setZero();
-	π_prev	.setZero();
-	ξ_n		.setZero();
-	ξ_prev	.setZero();
-	rkFc	.setZero();
-	rkFc_n	.setZero();
-	rkFp_n	.setZero();
+	Pi.setZero();
+	TPi.setZero();
+	Xi.setZero();
+	Velocity.setZero();
+	Sources.setZero();
 
 
 	/*****************************************************************************/
 	/*                                                                           */
-	/*    - Memory allocation for the integral coefficients				         */
+	/*    - Memory allocation for the quantities on different time levels	     */
+	/*			: 'n'		- current time level                                 */
+	/*			: 'prev'	- previous iteration in the inner loop               */
 	/*                                                                           */
 	/*****************************************************************************/
-	α.setNumberOfElements(nk);
-	γ.setNumberOfElements(nk);
-	δ.setNumberOfElements(nk);
-	χ.setNumberOfElements(nk);
+	Pi_n.setNumberOfElements(nk);
+	Pi_prev.setNumberOfElements(nk);
+	Xi_n.setNumberOfElements(nk);
+	Xi_prev.setNumberOfElements(nk);
+	rkFc.setNumberOfElements(nk);
+	rkFc_n.setNumberOfElements(nk);
+	rkFp_n.setNumberOfElements(nk);
 
-	σ.setNumberOfElements(nk);
-	λ.setNumberOfElements(nk);
-	φ.setNumberOfElements(nk);
+	Pi_n.setZero();
+	Pi_prev.setZero();
+	Xi_n.setZero();
+	Xi_prev.setZero();
+	rkFc.setZero();
+	rkFc_n.setZero();
+	rkFp_n.setZero();
 
 
-	α.setZero();
-	β.setZero();
-	χ.setZero();
-	η.setZero();
-	τ.setZero();
-	γ.setZero();
-	δ.setZero();
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Memory allocation for the integral geometric coefficients	         */
+	/*                                                                           */
+	/*****************************************************************************/
+	Alpha.setNumberOfElements(nk);
+	Gamma.setNumberOfElements(nk);
+	Delta.setNumberOfElements(nk);
+	Chi.setNumberOfElements(nk);
 
-	σ.setZero();
-	λ.setZero();
-	φ.setZero();
+	Sigma.setNumberOfElements(nk);
+	Lambda.setNumberOfElements(nk);
+
+	//BigPhi	.setNumberOfElements(nk);
+	//BigPsi	.setNumberOfElements(nk);
+	//BigOmega.setNumberOfElements(nk);
+
+	Alpha.setZero();
+	Beta.setZero();
+	Chi.setZero();
+	Eta.setZero();
+	Tau.setZero();
+	Gamma.setZero();
+	Delta.setZero();
+
+	Sigma.setZero();
+	Lambda.setZero();
+
+	//BigPhi	.setZero();
+	//BigPsi	.setZero();
+	//BigOmega.setZero();
+
+
+
 
 
 	/*****************************************************************************/
@@ -468,37 +639,36 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	/*    - Memory allocation for the linear system matrices			         */
 	/*                                                                           */
 	/*****************************************************************************/
-	internalPressureSystem	.resize(2 * ne, 2 * ne);
-	pressureSystemRhs		.resize(2 * ne);
-	traceSystemRhs			.resize(2 * ne);
+	PressureSystem.resize(2 * ne, 2 * ne);
+	pressureSystemRhs.resize(2 * ne);
+	traceSystemRhs.resize(2 * ne);
 
-	iD						.resize(3 * nk, 3 * nk);
-	//H1						.resize(3 * nk, ne);
-	//H2						.resize(3 * nk, ne);
+	R1.resize(ne, 3 * nk);
+	R2.resize(ne, 3 * nk);
+	M_j1_s1.resize(ne, ne);
+	M_j1_s2.resize(ne, ne);
+	M_j2_s1.resize(ne, ne);
+	M_j2_s2.resize(ne, ne);
 
-	R1						.resize(ne, 3 * nk);
-	R2						.resize(ne, 3 * nk);
-	M_j1_s1					.resize(ne, ne);
-	M_j1_s2					.resize(ne, ne);
-	M_j2_s1					.resize(ne, ne);
-	M_j2_s2					.resize(ne, ne);
+	V1.resize(ne);
+	V2.resize(ne);
+	G.resize(3 * nk);
 
-	R1_block				.setNumberOfElements(nk);
-	R2_block				.setNumberOfElements(nk);
+	Tp1.resize(ne);
+	Tp2.resize(ne);
+	Pi_eigen.resize(3 * nk);
 
-	R1iD					.resize(ne, 3 * nk);
-	R2iD					.resize(ne, 3 * nk);
+	iD.resize(3 * nk, 3 * nk);
+	//H1		.resize(3 * nk, ne);
+	//H2		.resize(3 * nk, ne);
+	R1iD.resize(ne, 3 * nk);
+	R2iD.resize(ne, 3 * nk);
 
-	iDH1					.resize(3 * nk, ne);
-	iDH2					.resize(3 * nk, ne);
+	iDH1.resize(3 * nk, ne);
+	iDH2.resize(3 * nk, ne);
 
-	G						.resize(3 * nk);
-	V1						.resize(ne);
-	V2						.resize(ne);
-
-	π_eigen					.resize(3 * nk);
-	Tp1						.resize(ne);
-	Tp2						.resize(ne);
+	R1_block.setNumberOfElements(nk);
+	R2_block.setNumberOfElements(nk);
 
 
 	/*****************************************************************************/
@@ -508,8 +678,7 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	/*                                                                           */
 	/*****************************************************************************/
 	edgeOrientation.setNumberOfElements(nk);
-	
-	initializeValues();	
+	initializeValues();
 
 
 	/*****************************************************************************/
@@ -517,11 +686,11 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	/*    - Initilize integral coefficient matrices							     */
 	/*                                                                           */
 	/*****************************************************************************/
-	assemble_α();
-	assemble_β();
-	assemble_χ();
-	assemble_η();
-	assemble_τ();
+	assemble_Alpha();
+	assemble_Beta();
+	assemble_Chi();
+	assemble_Eta();
+	assemble_Tau();
 
 
 	/*****************************************************************************/
@@ -530,29 +699,30 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	/* 		in quadrature points												 */
 	/*                                                                           */
 	/*****************************************************************************/
-	QuadraturePoints_RaviartThomasBasis									.setNumberOfElements(NumberOfQuadraturePointsEdge);
-	QuadraturePoints_PolynomialBasis									.setNumberOfElements(NumberOfQuadraturePointsEdge);
-	QuadraturePoints_PolynomialBasisOpposite							.setNumberOfElements(NumberOfQuadraturePointsEdge);
-	QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis	.setNumberOfElements(NumberOfQuadraturePointsEdge);
-	QuadraturePoints_PhysicalNormalDotPhysicalRaviartThomasBasis		.setNumberOfElements(nk);
-	AlphaTimesChi														.setNumberOfElements(nk);
-	AlphaTimesBeta														.setNumberOfElements(nk);
+	QuadraturePoints_RaviartThomasBasis.setNumberOfElements(NumberOfQuadraturePointsEdge);
+	QuadraturePoints_PolynomialBasis.setNumberOfElements(NumberOfQuadraturePointsEdge);
+	QuadraturePoints_PolynomialBasisOpposite.setNumberOfElements(NumberOfQuadraturePointsEdge);
+	QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis.setNumberOfElements(NumberOfQuadraturePointsEdge);
+	QuadraturePoints_PhysicalNormalDotPhysicalRaviartThomasBasis.setNumberOfElements(nk);
+	AlphaTimesChi.setNumberOfElements(nk);
+	AlphaTimesBeta.setNumberOfElements(nk);
 
-	QuadraturePoints_Edge_x												.setNumberOfElements(nk);
-	QuadraturePoints_Edge_y												.setNumberOfElements(nk);
+	QuadraturePoints_Edge_x.setNumberOfElements(nk);
+	QuadraturePoints_Edge_y.setNumberOfElements(nk);
 
 
-	
-	QuadraturePoints_RaviartThomasBasis									.setZero();
-	QuadraturePoints_PolynomialBasis									.setZero();
-	QuadraturePoints_PolynomialBasisOpposite							.setZero();
-	QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis	.setZero();
-	QuadraturePoints_PhysicalNormalDotPhysicalRaviartThomasBasis		.setZero();
-	AlphaTimesChi														.setZero();
-	AlphaTimesBeta														.setZero();
 
-	QuadraturePoints_Edge_x												.setZero();
-	QuadraturePoints_Edge_y												.setZero();
+
+	QuadraturePoints_RaviartThomasBasis.setZero();
+	QuadraturePoints_PolynomialBasis.setZero();
+	QuadraturePoints_PolynomialBasisOpposite.setZero();
+	QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis.setZero();
+	QuadraturePoints_PhysicalNormalDotPhysicalRaviartThomasBasis.setZero();
+	AlphaTimesChi.setZero();
+	AlphaTimesBeta.setZero();
+
+	QuadraturePoints_Edge_x.setZero();
+	QuadraturePoints_Edge_y.setZero();
 
 
 	/*****************************************************************************/
@@ -560,55 +730,87 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	/*    - Some auxilary and test things					   			         */
 	/*                                                                           */
 	/*****************************************************************************/
-	Elements						= new t_pointer	[nk];
-	ElementIndeces					= new unsigned	[nk];
-	AffineMappingMatrixDeterminant	= new real		[nk];
-	PorosityViscosityDeterminant	= new real		[nk];
+	Elements = new tm_pointer[nk];
+	ElementIndeces = new unsigned[nk];
+	AffineMappingMatrixDeterminant = new Real[nk];
+	PorosityViscosityDeterminant = new Real[nk];
 
 
+	quadrature_triangle<Real> const GaussQuadratureOnTriangle(QuadraturePrecision);
+	gauss_quadrature_1D<Real> const GaussQuadratureOnEdge(QuadraturePrecision);
 
-	gauss_quadrature_1D const GaussQuadratureOnEdge(QuadraturePrecision);
+	Eigen::Matrix<Real, 2, 2> JF;
+	Eigen::Matrix<Real, 2, 3> ReferenceNormals;
+	Eigen::Matrix<Real, 2, 8> BasisRaviartThomas;
 
-	Eigen::MatrixXd JF(2, 2);
-	Eigen::MatrixXd ReferenceNormals(2, 3);
-	Eigen::VectorXd Parametrization(2);
-	Eigen::VectorXd ParametrizationOpposite(2);
-	Eigen::MatrixXd BasisRaviartThomas(2, 8);
-	Eigen::VectorXd BasisPolynomial(3);
-	Eigen::VectorXd BasisPolynomialOpposite(3);
+	Eigen::Matrix<Real, 2, 1> Parametrization;
+	Eigen::Matrix<Real, 2, 1> ParametrizationOpposite;
+	Eigen::Matrix<Real, 3, 1> BasisPolynomial;
+	Eigen::Matrix<Real, 3, 1> BasisPolynomialOpposite;
 
 	evaluate_edge_normal(ReferenceNormals);
+
+
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Precomputation of the quadrature points on the reference triangle	 */
+	/*                                                                           */
+	/*****************************************************************************/
+
+	QuadraturePointsAndWeightsOnReferenceTriangle.setNumberOfElements(NumberOfQuadraturePointsTriangle);
+	QuadraturePoints_PolynomialBasisOnReferenceTriangle.setNumberOfElements(NumberOfQuadraturePointsTriangle);
+
+	QuadraturePointsAndWeightsOnReferenceTriangle.setZero();
+	QuadraturePoints_PolynomialBasisOnReferenceTriangle.setZero();
+
+	for (unsigned n = 0; n < NumberOfQuadraturePointsTriangle; n++) {
+
+		Real const s = GaussQuadratureOnTriangle.points_x[n];
+		Real const t = GaussQuadratureOnTriangle.points_y[n];
+		Real const w = GaussQuadratureOnTriangle.weights[n];
+
+		QuadraturePointsAndWeightsOnReferenceTriangle.setCoeff(n, 0) = s;
+		QuadraturePointsAndWeightsOnReferenceTriangle.setCoeff(n, 1) = t;
+		QuadraturePointsAndWeightsOnReferenceTriangle.setCoeff(n, 2) = w;
+
+		evaluate_polynomial_basis(s, t, BasisPolynomial);
+
+		QuadraturePoints_PolynomialBasisOnReferenceTriangle.setCoeff(n, 0) = BasisPolynomial(0);
+		QuadraturePoints_PolynomialBasisOnReferenceTriangle.setCoeff(n, 1) = BasisPolynomial(1);
+		QuadraturePoints_PolynomialBasisOnReferenceTriangle.setCoeff(n, 2) = BasisPolynomial(2);
+
+	}
+
 
 	/*****************************************************************************/
 	/*                                                                           */
 	/*    - Precomputation of values defined on the elements				     */
 	/*                                                                           */
 	/*****************************************************************************/
-
 	for (unsigned k = 0; k < nk; k++) {
 
 
-		t_pointer const K		= mesh->get_triangle(k);
-		unsigned const	k_index = K->index;
+		tm_pointer const	K = Mesh->get_triangle(k);
+		unsigned const		k_index = K->index;
 
-		Elements[k]			= K;
-		ElementIndeces[k]	= k_index;
+		Elements[k] = K;
+		ElementIndeces[k] = k_index;
 
 
-		v_pointer const va = K->vertices[0];
-		v_pointer const vb = K->vertices[1];
-		v_pointer const vc = K->vertices[2];
+		vm_pointer const va = K->vertices[0];
+		vm_pointer const vb = K->vertices[1];
+		vm_pointer const vc = K->vertices[2];
 
-		real const x0 = (real) va->x;
-		real const y0 = (real) va->y;
+		Real const x0 = va->x;
+		Real const y0 = va->y;
 
-		real const x1 = (real) vb->x;
-		real const y1 = (real) vb->y;
+		Real const x1 = vb->x;
+		Real const y1 = vb->y;
 
-		real const x2 = (real) vc->x;
-		real const y2 = (real) vc->y;
+		Real const x2 = vc->x;
+		Real const y2 = vc->y;
 
-		real const detJF = (real) abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
+		Real const detJF = abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
 
 
 		/*****************************************************************************/
@@ -617,18 +819,17 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 		/*							  : Affine mapping matrix JF				     */
 		/*                                                                           */
 		/*****************************************************************************/
-
 		AffineMappingMatrixDeterminant[k_index] = detJF;
-		PorosityViscosityDeterminant[k_index]	= 1.0 / (viscosities[k_index] * porosities[k_index] * detJF);
+		PorosityViscosityDeterminant[k_index] = 1.0 / (Viscosities[k_index] * Porosities[k_index] * detJF);
 
 		JF(0, 0) = x1 - x0;
 		JF(0, 1) = x2 - x0;
 		JF(1, 0) = y1 - y0;
 		JF(1, 1) = y2 - y0;
 
-		Eigen::MatrixXd const itJF	= (JF.inverse()).transpose();
+		Eigen::Matrix<Real, 2, 2> const itJF = (JF.inverse()).transpose();
 
-		
+
 
 
 		/*****************************************************************************/
@@ -638,14 +839,13 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 		/*    - Used in : Sigma computation											 */
 		/*                                                                           */
 		/*****************************************************************************/
-
 		for (unsigned j = 0; j < 8; j++) {
 			for (unsigned l = 0; l < 3; l++) {
 
-				real AlphaBeta = 0.0;
+				Real AlphaBeta = 0.0;
 
 				for (unsigned i = 0; i < 8; i++)
-					AlphaBeta += α(k_index, j, i) * β(i, l);
+					AlphaBeta += Alpha(k_index, j, i) * Beta(i, l);
 
 				AlphaTimesBeta.setCoeff(k_index, j, l) = AlphaBeta;
 
@@ -656,20 +856,20 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 		for (unsigned El = 0; El < 3; El++) {
 
 
-			e_pointer const		E			= K->edges[El];
-			unsigned const		e_index		= E->index;
-			E_MARKER const		e_marker	= E->marker;
+			em_pointer const	E = K->edges[El];
+			unsigned const		e_index = E->index;
+			E_MARKER const		e_marker = E->marker;
 
 
-			real const a = (real) 0.0;
-			real const b = (real) El != 0 ? 1.0 : sqrt(2.0);
+			Real const a = 0.0;
+			Real const b = El != 0 ? 1.0 : sqrt(2.0);
 
-			real const c = (real) (b - a) / 2.0;
-			real const d = (real) (b + a) / 2.0;
+			Real const c = 0.5 * (b - a);
+			Real const d = 0.5 * (b + a);
 
 
 			//Vector<real> const normal = normals.getColumn(El);
-			Eigen::Vector2d const PhysicalNormal = (itJF * ReferenceNormals.col(El)) / (itJF * ReferenceNormals.col(El)).norm();
+			Eigen::Matrix<Real, 2, 1> const PhysicalNormal = (itJF * ReferenceNormals.col(El)) / (itJF * ReferenceNormals.col(El)).norm();
 
 
 
@@ -682,21 +882,21 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 			/*    - Used in : Upwind concentration                                       */
 			/*                                                                           */
 			/*****************************************************************************/
-
 			for (unsigned n = 0; n < NumberOfQuadraturePointsEdge; n++) {
 
 
-				real const x = (real) GaussQuadratureOnEdge.points[n] * c + d;
-				real const w = (real) GaussQuadratureOnEdge.weights[n] * c;
+				Real const x = GaussQuadratureOnEdge.points[n] * c + d;
+				Real const w = GaussQuadratureOnEdge.weights[n] * c;
 
 
 				evaluate_edge_parametrization(x, El, Parametrization);
 
-				real const s = Parametrization(0);
-				real const t = Parametrization(1);
 
-				real const X = x0 + JF(0, 0) * s + JF(0, 1) * t;
-				real const Y = y0 + JF(1, 0) * s + JF(1, 1) * t;
+				Real const s = Parametrization(0);
+				Real const t = Parametrization(1);
+
+				Real const X = x0 + JF(0, 0) * s + JF(0, 1) * t;
+				Real const Y = y0 + JF(1, 0) * s + JF(1, 1) * t;
 
 				evaluate_raviartthomas_basis(s, t, BasisRaviartThomas);
 
@@ -705,11 +905,13 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 				QuadraturePoints_Edge_y.setCoeff(k_index, El, n) = abs(Y) < INTEGRAL_PRECISION ? 0.0 : Y;
 
 
-				for (unsigned j = 0; j < 8; j++)
-					QuadraturePoints_PhysicalNormalDotPhysicalRaviartThomasBasis.setCoeff(k_index, El, n, j) = PhysicalNormal.dot(JF * BasisRaviartThomas.col(j)) / detJF;
+				for (unsigned j = 0; j < 8; j++) {
 
+					Real const Value = PhysicalNormal.dot(JF * BasisRaviartThomas.col(j)) / detJF;
+					QuadraturePoints_PhysicalNormalDotPhysicalRaviartThomasBasis.setCoeff(k_index, El, n, j) = abs(Value) < INTEGRAL_PRECISION ? 0.0 : Value;
+
+				}
 			}
-
 
 
 
@@ -720,14 +922,13 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 			/*    - Used in : computation of Lambda				                         */
 			/*                                                                           */
 			/*****************************************************************************/
-
 			for (unsigned j = 0; j < 8; j++) {
 				for (unsigned s = 0; s < 2; s++) {
 
-					real AlphaChi = 0.0;
+					Real AlphaChi = 0.0;
 
 					for (unsigned i = 0; i < 8; i++)
-						AlphaChi += α(k_index, j, i) * χ(k_index, i, El, s);
+						AlphaChi += Alpha(k_index, j, i) * Chi(k_index, i, El, s);
 
 					AlphaTimesChi.setCoeff(k_index, j, El, s) = AlphaChi;
 
@@ -741,7 +942,6 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 			/*    - Used in : Trace / Internal pressure system                           */
 			/*                                                                           */
 			/*****************************************************************************/
-
 			if (e_marker == E_MARKER::DIRICHLET) {
 
 				R1_block.setCoeff(k_index, El, 0) = 0.0;
@@ -760,25 +960,25 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 			unsigned const dof0 = LI(K, E, 0);
 			unsigned const dof1 = LI(K, E, 1);
 
-			real const ChiCoeff0 = χ(k_index, dof0, El, 0);
-			real const ChiCoeff1 = χ(k_index, dof1, El, 1);
+			Real const ChiCoeff0 = Chi(k_index, dof0, El, 0);
+			Real const ChiCoeff1 = Chi(k_index, dof1, El, 1);
 
 
 			for (unsigned m = 0; m < 3; m++) {
 
 
-				real AlphaBeta1 = 0.0;
-				real AlphaBeta2 = 0.0;
+				Real AlphaBeta1 = 0.0;
+				Real AlphaBeta2 = 0.0;
 
 				for (unsigned i = 0; i < 8; i++) {
 
-					AlphaBeta1 += α(k_index, dof0, i) * β(i, m);
-					AlphaBeta2 += α(k_index, dof1, i) * β(i, m);
+					AlphaBeta1 += Alpha(k_index, dof0, i) * Beta(i, m);
+					AlphaBeta2 += Alpha(k_index, dof1, i) * Beta(i, m);
 
 				}
 
-				real const Value1 = ChiCoeff0 * AlphaBeta1 / viscosities[k_index];
-				real const Value2 = ChiCoeff1 * AlphaBeta2 / viscosities[k_index];
+				Real const Value1 = ChiCoeff0 * AlphaBeta1 / Viscosities[k_index];
+				Real const Value2 = ChiCoeff1 * AlphaBeta2 / Viscosities[k_index];
 
 				R1_block.setCoeff(k_index, El, m) = abs(Value1) < INTEGRAL_PRECISION ? 0.0 : Value1;
 				R2_block.setCoeff(k_index, El, m) = abs(Value2) < INTEGRAL_PRECISION ? 0.0 : Value2;
@@ -794,25 +994,24 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 	/*    - Precomputation of values defined on the edges					     */
 	/*                                                                           */
 	/*****************************************************************************/
-
 	for (unsigned El = 0; El < 3; El++) {
 
 
-		real const a = (real) 0.0;
-		real const b = (real) El != 0 ? 1.0 : sqrt(2.0);
+		Real const a = 0.0;
+		Real const b = El != 0 ? 1.0 : sqrt(2.0);
 
-		real const c = (real) (b - a) / 2.0;
-		real const d = (real) (b + a) / 2.0;
+		Real const c = 0.5 * (b - a);
+		Real const d = 0.5 * (b + a);
 
 		//Vector<real> const normal = ReferenceNormals.getColumn(El);
-		Eigen::VectorXd const ReferenceNormal = ReferenceNormals.col(El);
+		Eigen::Matrix<Real, 2, 1> const ReferenceNormal = ReferenceNormals.col(El);
 
 
 		for (unsigned n = 0; n < NumberOfQuadraturePointsEdge; n++) {
 
 
-			real const x = (real) GaussQuadratureOnEdge.points[n] * c + d;
-			real const w = (real) GaussQuadratureOnEdge.weights[n] * c;
+			Real const x = GaussQuadratureOnEdge.points[n] * c + d;
+			Real const w = GaussQuadratureOnEdge.weights[n] * c;
 
 
 			/*****************************************************************************/
@@ -821,19 +1020,18 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 			/*								reference triangle						     */
 			/*                                                                           */
 			/*****************************************************************************/
+			evaluate_edge_parametrization(x, El, Parametrization);
+			evaluate_edge_parametrization_opposite(x, El, ParametrizationOpposite);
 
-			evaluate_edge_parametrization			(x, El, Parametrization);
-			evaluate_edge_parametrization_opposite	(x, El, ParametrizationOpposite);
+			Real const s = Parametrization(0);
+			Real const t = Parametrization(1);
 
-			real const s = Parametrization(0);
-			real const t = Parametrization(1);
-						
-			real const s_opposite = ParametrizationOpposite(0);
-			real const t_opposite = ParametrizationOpposite(1);
+			Real const s_opposite = ParametrizationOpposite(0);
+			Real const t_opposite = ParametrizationOpposite(1);
 
-			evaluate_raviartthomas_basis(s,			 t,			 BasisRaviartThomas);
-			evaluate_polynomial_basis	(s,			 t,			 BasisPolynomial);
-			evaluate_polynomial_basis	(s_opposite, t_opposite, BasisPolynomialOpposite);
+			evaluate_raviartthomas_basis(s, t, BasisRaviartThomas);
+			evaluate_polynomial_basis(s, t, BasisPolynomial);
+			evaluate_polynomial_basis(s_opposite, t_opposite, BasisPolynomialOpposite);
 
 
 			/*****************************************************************************/
@@ -843,15 +1041,14 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 			/*							  : RT basis * Normal * Polynomial basis		 */
 			/*                                                                           */
 			/*****************************************************************************/
-
 			for (unsigned j = 0; j < 8; j++) {
 
 
 				//Vector<real> const Wj = BasisRaviartThomas.getColumn(j);
-				Eigen::VectorXd const Wj = BasisRaviartThomas.col(j);
+				Eigen::Matrix<Real, 2, 1> const Wj = BasisRaviartThomas.col(j);
 
 				//real const dotProduct = dot(Wj, normal);
-				real const DotProduct = Wj.dot(ReferenceNormal);
+				Real const DotProduct = Wj.dot(ReferenceNormal);
 
 
 				QuadraturePoints_RaviartThomasBasis.setCoeff(n, El, j, 0) = Wj(0);
@@ -860,18 +1057,28 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 				for (unsigned m = 0; m < 3; m++) {
 
 
-					real const Phim				= BasisPolynomial(m);
-					real const Phim_opposite	= BasisPolynomialOpposite(m);
-					real const Value			= w * DotProduct * Phim;
+					Real const Phim = BasisPolynomial(m);
+					Real const Phim_opposite = BasisPolynomialOpposite(m);
+					Real const Value = w * DotProduct * Phim;
 
-					QuadraturePoints_PolynomialBasis									.setCoeff(n, El, m)		= Phim;
-					QuadraturePoints_PolynomialBasisOpposite							.setCoeff(n, El, m)		= Phim_opposite;
-					QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis	.setCoeff(n, j, El, m)	= abs(Value) < INTEGRAL_PRECISION ? 0.0 : Value;
-					
+					QuadraturePoints_PolynomialBasis.setCoeff(n, El, m) = Phim;
+					QuadraturePoints_PolynomialBasisOpposite.setCoeff(n, El, m) = Phim_opposite;
+					QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis.setCoeff(n, j, El, m) = abs(Value) < INTEGRAL_PRECISION ? 0.0 : Value;
+
 				}
 			}
 		}
 	}
+
+
+
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Evaluate integrals of Source * P1 basis function phi_m			     */
+	/*                                                                           */
+	/*****************************************************************************/
+	evaluate_source_integrals();
+
 
 
 	/*****************************************************************************/
@@ -893,14 +1100,14 @@ solver<QuadraturePrecision>::solver(Mesh & m, unsigned nt_0, double dt_0)
 
 
 };
-template<unsigned QuadraturePrecision>
-solver<QuadraturePrecision>::~solver() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+solver<QuadraturePrecision, TimeScheme>::~solver() {
 
-	delete[] viscosities;
-	delete[] porosities;
+	delete[] Viscosities;
+	delete[] Porosities;
 
-	delete[] betas;
-	delete[] betas_prev;
+	delete[] Thetas;
+	delete[] Thetas_prev;
 
 	delete[] Elements;
 	delete[] ElementIndeces;
@@ -912,34 +1119,33 @@ solver<QuadraturePrecision>::~solver() {
 
 
 
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::initializeValues() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::initializeValues() {
 
 
-	double const time = nt * dt;
+	Real const time = nt * dt;
 
 
 	for (unsigned k = 0; k < nk; k++) {
 
 
-		t_pointer const K = mesh->get_triangle(k);
-		unsigned const k_index = K->index;
+		tm_pointer const K = Mesh->get_triangle(k);
+		unsigned const	 k_index = K->index;
+		Real const		 area = K->area();
 
-		real const area = K->area();
 
+		vm_pointer const va = K->vertices[0];
+		vm_pointer const vb = K->vertices[1];
+		vm_pointer const vc = K->vertices[2];
 
-		v_pointer const va = K->vertices[0];
-		v_pointer const vb = K->vertices[1];
-		v_pointer const vc = K->vertices[2];
+		Real const x0 = va->x;
+		Real const y0 = va->y;
 
-		real const x0 = (real)va->x;
-		real const y0 = (real)va->y;
+		Real const x1 = vb->x;
+		Real const y1 = vb->y;
 
-		real const x1 = (real)vb->x;
-		real const y1 = (real)vb->y;
-
-		real const x2 = (real)vc->x;
-		real const y2 = (real)vc->y;
+		Real const x2 = vc->x;
+		Real const y2 = vc->y;
 
 
 		/*****************************************************************************/
@@ -947,46 +1153,34 @@ void solver<QuadraturePrecision>::initializeValues() {
 		/*    - Interpolant of the Barenblatt solution for the initial condition     */
 		/*                                                                           */
 		/*****************************************************************************/
-
-		real const B0 = barenblatt(x0, y0, time);
-		real const B1 = barenblatt(x1, y1, time);
-		real const B2 = barenblatt(x2, y2, time);
+		Real const B0 = barenblatt(x0, y0, time);
+		Real const B1 = barenblatt(x1, y1, time);
+		Real const B2 = barenblatt(x2, y2, time);
 
 		Eigen::Vector3d const B(B0, B1, B2);
 
-		//Eigen::Matrix3d M;
-		//M << 1.0, -1.0, -1.0,
-		//	 1.0, +1.0, -1.0,
-		//	 1.0, -1.0, +1.0;
-		//Eigen::Vector3d const Solution = M.colPivHouseholderQr().solve(B);
-		
-		Eigen::Matrix3d M;
-
-		M << 0.0, 0.5, 0.5,
+		Eigen::Matrix3d iM;
+		iM << 0.0, 0.5, 0.5,
 			-0.5, 0.5, 0.0,
 			-0.5, 0.0, 0.5;
+		Eigen::Vector3d const Solution = iM * B;
 
-		Eigen::Vector3d const Solution = M * B;
+		Xi.setCoeff(k_index, 0) = Solution(0);
+		Xi.setCoeff(k_index, 1) = Solution(1);
+		Xi.setCoeff(k_index, 2) = Solution(2);
 
-		ξ.setCoeff(k_index, 0) = Solution(0);
-		ξ.setCoeff(k_index, 1) = Solution(1);
-		ξ.setCoeff(k_index, 2) = Solution(2);
+		Pi.setCoeff(k_index, 0) = equationOfState(Xi(k_index, 0));
+		Pi.setCoeff(k_index, 1) = equationOfState(Xi(k_index, 1));
+		Pi.setCoeff(k_index, 2) = equationOfState(Xi(k_index, 2));
 
-		π.setCoeff(k_index, 0) = EquationOfState(ξ(k_index, 0));
-		π.setCoeff(k_index, 1) = EquationOfState(ξ(k_index, 1));
-		π.setCoeff(k_index, 2) = EquationOfState(ξ(k_index, 2));
+		//Pi.setCoeff(k_index, 0) = integrate_triangle<Real>(K, time, barenblatt) / area;
+		//Pi.setCoeff(k_index, 1) = 0.0;
+		//Pi.setCoeff(k_index, 2) = 0.0;
 
-		//π.setCoeff(k_index, 0) = integrate_triangle(K, time, barenblatt) / area;
-		//π.setCoeff(k_index, 1) = 0.0;
-		//π.setCoeff(k_index, 2) = 0.0;
+		//Xi.setCoeff(k_index, 0) = integrate_triangle<Real>(K, time, barenblatt) / area;
+		//Xi.setCoeff(k_index, 1) = 0.0;
+		//Xi.setCoeff(k_index, 2) = 0.0;
 
-		//ξ.setCoeff(k_index, 0) = integrate_triangle(K, time, barenblatt) / area;
-		//ξ.setCoeff(k_index, 1) = 0.0;
-		//ξ.setCoeff(k_index, 2) = 0.0;
-
-		sources.setCoeff(k_index, 0) = F1(K, time);
-		sources.setCoeff(k_index, 1) = F2(K, time);
-		sources.setCoeff(k_index, 2) = F3(K, time);
 
 
 		/*****************************************************************************/
@@ -994,18 +1188,15 @@ void solver<QuadraturePrecision>::initializeValues() {
 		/*    - Mean values of the viscosity, porosity on each element			     */
 		/*                                                                           */
 		/*****************************************************************************/
-
-		viscosities[k_index]	= integrate_triangle(K, viscosity) / area;
-		porosities[k_index]		= integrate_triangle(K, porosity) / area;
-
+		Viscosities[k_index] = integrateTriangle<QuadraturePrecision>(K, viscosity) / area;
+		Porosities[k_index] = integrateTriangle<QuadraturePrecision>(K, porosity) / area;
 
 
 		/*****************************************************************************/
 		/*                                                                           */
-		/*    - Auxilary variebles												     */
+		/*    - Auxilary variables												     */
 		/*                                                                           */
 		/*****************************************************************************/
-
 		rkFc.setCoeff(k_index, 0) = 0.0;
 		rkFc.setCoeff(k_index, 1) = 0.0;
 		rkFc.setCoeff(k_index, 2) = 0.0;
@@ -1019,44 +1210,41 @@ void solver<QuadraturePrecision>::initializeValues() {
 		rkFp_n.setCoeff(k_index, 2) = 0.0;
 
 
-		// This is auxilary variable that helps to compute Edge integral coefficient Chi. Edge basis function must have unique global orientation.
+		/*****************************************************************************/
+		/*                                                                           */
+		/*    - This auxilary variable helps compute Edge integral coefficient Chi.	 */
+		/*      Edge basis function are defined globaly on each edge. From each      */
+		/*      element these basis functions must be the same                       */
+		/*                                                                           */
+		/*****************************************************************************/
 		for (unsigned El = 0; El < 3; El++) {
 
-			e_pointer const E = K->edges[El];
 
-			v_pointer const a = E->a;
-			v_pointer const b = E->b;
+			em_pointer const E = K->edges[El];
+			unsigned const	 e_index = E->index;
+			E_MARKER const	 e_marker = E->marker;
 
-			v_pointer const v = K->get_vertex_cw(a);
-			v_pointer const p = K->get_vertex(El);
+			vm_pointer const v = K->get_vertex_cw(E->a);
+			vm_pointer const p = K->get_vertex(El);
 
-			// Boundary edges must be oriented ALSO !
-			if (v != p)
-				edgeOrientation.setCoeff(k_index, El) = -1.0;
-			else
-				edgeOrientation.setCoeff(k_index, El) = +1.0;
+			if (v != p) edgeOrientation.setCoeff(k_index, El) = -1.0;
+			else		edgeOrientation.setCoeff(k_index, El) = +1.0;
 
 		}
-
 	}
-	
-};
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::computeBetas() {
-
-	for (unsigned k = 0; k < nk; k++) {
-
-		betas[k] = 1.0;
-
-	}
-	//	betas[i] = (eos(concentrations[i]) - eos(concentrations_temporary[i])) / (concentrations[i] - concentrations_temporary[i]);
 
 };
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::computeThetas() {
 
+	for (unsigned k = 0; k < nk; k++)
+		Thetas[k] = 1.0;	// Thetas[k] = equationOfStateDerivative(Xi_prev(Mesh->get_triangle(k), 0));
+
+};
 
 /*
-template<unsigned QuadraturePrecision>
-bool solver<QuadraturePrecision>::stopCriterion() {
+template<typename Real, unsigned QuadraturePrecision, scheme TimeScheme>
+bool solver<Real, QuadraturePrecision, TimeScheme>::stopCriterion() {
 
 
 	double sP1 = 0.0;
@@ -1076,8 +1264,8 @@ bool solver<QuadraturePrecision>::stopCriterion() {
 		//unsigned const k_index = mesh->get_triangle(k)->index;
 		unsigned const k_index = ElementIndeces[k];
 
-		sP1 += sqr(π(k_index, 0) - π_prev(k_index, 0));
-		sP2 += sqr(π(k_index, 0));
+		sP1 += square(Pi(k_index, 0) - Pi_prev(k_index, 0));
+		sP2 += square(Pi(k_index, 0));
 
 	}
 
@@ -1092,8 +1280,8 @@ bool solver<QuadraturePrecision>::stopCriterion() {
 		//unsigned const k_index = mesh->get_triangle(k)->index;
 		unsigned const k_index = ElementIndeces[k];
 
-		sC1 += sqr(ξ(k_index, 0) - ξ_prev(k_index, 0));
-		sC2 += sqr(ξ(k_index, 0));
+		sC1 += square(Xi(k_index, 0) - Xi_prev(k_index, 0));
+		sC2 += square(Xi(k_index, 0));
 
 	}
 
@@ -1105,8 +1293,8 @@ bool solver<QuadraturePrecision>::stopCriterion() {
 
 	for (unsigned k = 0; k < nk; k++) {
 
-		sB1 += sqr(betas[k] - betas_prev[k]);
-		sB2 += sqr(betas[k]);
+		sB1 += square(Thetas[k] - Thetas_prev[k]);
+		sB2 += square(Thetas[k]);
 
 	}
 
@@ -1118,7 +1306,7 @@ bool solver<QuadraturePrecision>::stopCriterion() {
 	return true;
 
 
-	
+
 	//for (unsigned k = 0; k < nk; k++) {
 	//	K = mesh->getElement(k);
 	//	double const a = K->nodes[0]->x;
@@ -1130,18 +1318,19 @@ bool solver<QuadraturePrecision>::stopCriterion() {
 	//	for (unsigned j = 0; j < error_quadRule; j++) {
 	//		y = quad.points[j];
 	//		w = quad.weights[j];
-	//		val = ((π(K, 0, 0)*phi1(y, a, b) + π(K, 0, 1)*phi2(y, a, b)) - (π_prev(K, 0, 0)*phi1(y, a, b) + π_prev(K, 0, 1) * phi2(y, a, b)));
-	//		sP1 += w * sqr(val);
-	//		sP2 += w * sqr(π(K, 0, 0)*phi1(y, a, b) + π(K, 0, 1)*phi2(y, a, b));
+	//		val = ((Pi(K, 0, 0)*phi1(y, a, b) + Pi(K, 0, 1)*phi2(y, a, b)) - (Pi_prev(K, 0, 0)*phi1(y, a, b) + Pi_prev(K, 0, 1) * phi2(y, a, b)));
+	//		sP1 += w * square(val);
+	//		sP2 += w * square(Pi(K, 0, 0)*phi1(y, a, b) + Pi(K, 0, 1)*phi2(y, a, b));
 	//	}
 	//}
 	//double const val_P = sP1 / sP2;
 	//if (val_P > TOL)
 	//	return false;
 	//return true;
-	
 
-};*/
+
+};
+*/
 /*
 
 template<unsigned QuadraturePrecision>
@@ -1195,19 +1384,19 @@ bool solver<QuadraturePrecision>::stopCriterion() {
 
 			for (unsigned j = 0; j < 3; j++) {
 
-				DifferencePressure	+= (π(k_index, j) - π_prev(k_index, j)) * BasisPolynomial(j);
-				NormPressure		+= π(k_index, j) * BasisPolynomial(j);
+				DifferencePressure	+= (Pi(k_index, j) - Pi_prev(k_index, j)) * BasisPolynomial(j);
+				NormPressure		+= Pi(k_index, j) * BasisPolynomial(j);
 
-				DifferenceConcentration += (ξ(k_index, j) - ξ_prev(k_index, j)) * BasisPolynomial(j);
-				NormConcentration		+= ξ(k_index, j) * BasisPolynomial(j);
+				DifferenceConcentration += (Xi(k_index, j) - Xi_prev(k_index, j)) * BasisPolynomial(j);
+				NormConcentration		+= Xi(k_index, j) * BasisPolynomial(j);
 
 			}
 
-			IntegralErrorPressure	+= w * sqr(DifferencePressure);
-			IntegralNormPressure	+= w * sqr(NormPressure);
+			IntegralErrorPressure	+= w * square(DifferencePressure);
+			IntegralNormPressure	+= w * square(NormPressure);
 
-			IntegralErrorConcentration	+= w * sqr(DifferenceConcentration);
-			IntegralNormConcentration	+= w * sqr(NormConcentration);
+			IntegralErrorConcentration	+= w * square(DifferenceConcentration);
+			IntegralNormConcentration	+= w * square(NormConcentration);
 
 		}
 
@@ -1231,135 +1420,140 @@ bool solver<QuadraturePrecision>::stopCriterion() {
 };
 */
 
-template<unsigned QuadraturePrecision>
-bool solver<QuadraturePrecision>::stopCriterion() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+bool solver<QuadraturePrecision, TimeScheme>::stopCriterion() {
 
 
-	quadrature_triangle const QuadratureOnTriangle(QuadraturePrecision);
+	quadrature_triangle<Real> const QuadratureOnTriangle(QuadraturePrecision);
 	unsigned const			  NumberOfQuadraturePoints = QuadratureOnTriangle.NumberOfPoints;
 
-	Eigen::VectorXd BasisPolynomial(3);
+	Eigen::Vector3d BasisPolynomial(3);
 
-	real ErrorPressure = 0.0;
-	real NormPressure = 0.0;
+	Real ErrorPressure = 0.0;
+	Real NormPressure = 0.0;
 
-	real ErrorConcentration = 0.0;
-	real NormConcentration = 0.0;
+	Real ErrorConcentration = 0.0;
+	Real NormConcentration = 0.0;
 
-	real ErrorBeta = 0.0;
-	real NormBeta = 0.0;
-
-	for (unsigned k = 0; k < nk; k++) {
-
-
-		unsigned const	k_index = ElementIndeces[k];
-		real const		detJF	= AffineMappingMatrixDeterminant[k_index];
-
-
-		real IntegralError = 0.0;
-		real IntegralNorm = 0.0;
-
-		for (unsigned n = 0; n < NumberOfQuadraturePoints; n++) {
-
-
-			real const s = (real) QuadratureOnTriangle.points_x[n];
-			real const t = (real) QuadratureOnTriangle.points_y[n];
-			real const w = (real) 0.5 * QuadratureOnTriangle.weights[n];
-
-			evaluate_polynomial_basis(s, t, BasisPolynomial);
-
-
-			real Difference = 0.0;
-			real Norm		= 0.0;
-
-			for (unsigned j = 0; j < 3; j++) {
-
-				Difference	+= (π(k_index, j) - π_prev(k_index, j)) * BasisPolynomial(j);
-				Norm		+=  π(k_index, j) * BasisPolynomial(j);
-
-			}
-
-			IntegralError	+= w * sqr(Difference);
-			IntegralNorm	+= w * sqr(Norm);
-
-		}
-
-		ErrorPressure	+= detJF * IntegralError;
-		NormPressure	+= detJF * IntegralNorm;
-
-	}
-
-	real const eP = ErrorPressure / NormPressure;
-
-	if (eP > TOL)
-		return false;
-
+	Real ErrorThetas = 0.0;
+	Real NormThetas = 0.0;
 
 	for (unsigned k = 0; k < nk; k++) {
 
 
-		unsigned const	k_index = ElementIndeces[k];
-		real const		detJF	= AffineMappingMatrixDeterminant[k_index];
+		unsigned const k_index = ElementIndeces[k];
+		Real const	   HalfDetJF = 0.5 * AffineMappingMatrixDeterminant[k_index];
 
 
-		real IntegralError = 0.0;
-		real IntegralNorm = 0.0;
+		Real IntegralError = 0.0;
+		Real IntegralNorm = 0.0;
 
 		for (unsigned n = 0; n < NumberOfQuadraturePoints; n++) {
 
 
-			real const s = (real) QuadratureOnTriangle.points_x[n];
-			real const t = (real) QuadratureOnTriangle.points_y[n];
-			real const w = (real) 0.5 * QuadratureOnTriangle.weights[n];
+			Real const s = QuadratureOnTriangle.points_x[n];
+			Real const t = QuadratureOnTriangle.points_y[n];
+			Real const w = QuadratureOnTriangle.weights[n];
+
+			//for (unsigned n = 0; n < NumberOfQuadraturePointsTriangle; n++) {
+			//Real const s = QuadraturePointsAndWeightsOnReferenceTriangle(n, 0);
+			//Real const t = QuadraturePointsAndWeightsOnReferenceTriangle(n, 1);
+			//Real const w = QuadraturePointsAndWeightsOnReferenceTriangle(n, 2);
 
 			evaluate_polynomial_basis(s, t, BasisPolynomial);
 
 
-			real Difference = 0.0;
-			real Norm = 0.0;
+			Real Difference = 0.0;
+			Real Norm = 0.0;
 
 			for (unsigned j = 0; j < 3; j++) {
 
-				Difference	+= (ξ(k_index, j) - ξ_prev(k_index, j)) * BasisPolynomial(j);
-				Norm		+=  ξ(k_index, j) * BasisPolynomial(j);
+				Difference += BasisPolynomial(j) * (Pi(k_index, j) - Pi_prev(k_index, j));
+				Norm += BasisPolynomial(j) * Pi(k_index, j);
 
 			}
 
-			IntegralError	+= w * sqr(Difference);
-			IntegralNorm	+= w * sqr(Norm);
+			IntegralError += w * square(Difference);
+			IntegralNorm += w * square(Norm);
 
 		}
 
-		ErrorConcentration	+= detJF * IntegralError;
-		NormConcentration	+= detJF * IntegralNorm;
+		ErrorPressure += HalfDetJF * IntegralError;
+		NormPressure += HalfDetJF * IntegralNorm;
 
 	}
 
-	real const eC = ErrorConcentration / NormConcentration;
+	Real const eP = ErrorPressure / NormPressure;
 
-	if (eC > TOL)
+	if (eP > TOLERANCE)
 		return false;
 
-	
-	/*for (unsigned k = 0; k < nk; k++) {
+	/*
+	for (unsigned k = 0; k < nk; k++) {
 
-		sB1 += sqr(betas[k] - betas_prev[k]);
-		sB2 += sqr(betas[k]);
+
+		unsigned const	k_index = ElementIndeces[k];
+		Real const		detJF = AffineMappingMatrixDeterminant[k_index];
+
+
+		Real IntegralError = 0.0;
+		Real IntegralNorm = 0.0;
+
+		for (unsigned n = 0; n < NumberOfQuadraturePoints; n++) {
+
+
+			Real const s = QuadratureOnTriangle.points_x[n];
+			Real const t = QuadratureOnTriangle.points_y[n];
+			Real const w = 0.5 * QuadratureOnTriangle.weights[n];
+
+			evaluate_polynomial_basis(s, t, BasisPolynomial);
+
+
+			Real Difference = 0.0;
+			Real Norm = 0.0;
+
+			for (unsigned j = 0; j < 3; j++) {
+
+				Difference += (Xi(k_index, j) - Xi_prev(k_index, j)) * BasisPolynomial(j);
+				Norm += Xi(k_index, j) * BasisPolynomial(j);
+
+			}
+
+			IntegralError += w * square(Difference);
+			IntegralNorm += w * square(Norm);
+
+		}
+
+		ErrorConcentration += detJF * IntegralError;
+		NormConcentration += detJF * IntegralNorm;
 
 	}
 
-	double const val_B = sB1 / sB2;
+	Real const eC = ErrorConcentration / NormConcentration;
 
-	if (val_B > TOL)
-		return false;*/
+	if (eC > TOLERANCE)
+		return false;
+		*/
+
+		/*for (unsigned k = 0; k < nk; k++) {
+
+			sB1 += square(betas[k] - betas_prev[k]);
+			sB2 += square(betas[k]);
+
+		}
+
+		double const val_B = sB1 / sB2;
+
+		if (val_B > TOLERANCE)
+			return false;*/
 
 	return true;
 
 
 };
 
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::concentrationCorrection() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::concentrationCorrection() {
 
 	//unsigned const nk = nk;
 
@@ -1374,8 +1568,8 @@ void solver<QuadraturePrecision>::concentrationCorrection() {
 
 	//	K = mesh->getElement(k);
 
-	//	s1 += sqr(ξ(K, 0, 0) - ξ_n(K, 0, 0));
-	//	s2 += sqr(ξ(K, 0, 0));
+	//	s1 += square(Xi(K, 0, 0) - Xi_n(K, 0, 0));
+	//	s2 += square(Xi(K, 0, 0));
 
 	//}
 
@@ -1386,7 +1580,7 @@ void solver<QuadraturePrecision>::concentrationCorrection() {
 	//		std::cout << "Corrected" << std::endl;
 	//		K = mesh->getElement(k);
 
-	//		ξ.setCoeff(K, 0, 0) = ξ_n(K, 0, 0) + DBL_EPSILON * ξ(K, 0, 0);
+	//		Xi.setCoeff(K, 0, 0) = Xi_n(K, 0, 0) + DBL_EPSILON * Xi(K, 0, 0);
 
 	//	}
 
@@ -1396,26 +1590,30 @@ void solver<QuadraturePrecision>::concentrationCorrection() {
 
 
 
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::computeTracePressures() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::computeTracePressures() {
 
 
-	// Assembly eigen-vector of internal pressures
+
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Copy Internal Pressures into Eigen container						 */
+	/*                                                                           */
+	/*****************************************************************************/
 	for (unsigned k = 0; k < nk; k++) {
 
-		//unsigned const k_index = mesh->get_triangle(k)->index;
 		unsigned const k_index = ElementIndeces[k];
 
 		for (unsigned m = 0; m < 3; m++)
-			π_eigen[3 * k_index + m] = π(k_index, m);
+			Pi_eigen[3 * k_index + m] = Pi(k_index, m);
 
 	}
 
 	assembleV();
 
 
-	traceSystemRhs.head(ne) = R1 * π_eigen - V1;
-	traceSystemRhs.tail(ne) = R2 * π_eigen - V2;
+	traceSystemRhs.head(ne) = R1 * Pi_eigen - V1;
+	traceSystemRhs.tail(ne) = R2 * Pi_eigen - V2;
 
 	DenseVector const solution = sparseLUsolver_TracePressureSystem.solve(traceSystemRhs);
 
@@ -1423,18 +1621,23 @@ void solver<QuadraturePrecision>::computeTracePressures() {
 	Tp2 = solution.tail(ne);
 
 
-	// Copy Trace Pressure solution to each element
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Copy Trace Pressure solution to each elements's edges from			 */
+	/*      the Eigen container                                                  */
+	/*                                                                           */
+	/*****************************************************************************/
 	for (unsigned e = 0; e < ne; e++) {
 
 
-		e_pointer const E = mesh->get_edge(e);
+		em_pointer const E = Mesh->get_edge(e);
 
-		real const tpval1 = Tp1[E->index];
-		real const tpval2 = Tp2[E->index];
+		Real const TpValue1 = Tp1[E->index];
+		Real const TpValue2 = Tp2[E->index];
 
 		for (unsigned neighbor = 0; neighbor < 2; neighbor++) {
 
-			t_pointer const K = E->neighbors[neighbor];
+			tm_pointer const K = E->neighbors[neighbor];
 
 			if (!K)
 				continue;
@@ -1442,15 +1645,15 @@ void solver<QuadraturePrecision>::computeTracePressures() {
 			unsigned const k_index = K->index;
 			unsigned const e_index_local = K->get_edge_index(E);
 
-			tπ.setCoeff(k_index, e_index_local, 0) = tpval1;
-			tπ.setCoeff(k_index, e_index_local, 1) = tpval2;
+			TPi.setCoeff(k_index, e_index_local, 0) = TpValue1;
+			TPi.setCoeff(k_index, e_index_local, 1) = TpValue2;
 
 		}
 	}
 
 };
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::computePressureEquation() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::computePressureEquation() {
 
 
 
@@ -1468,42 +1671,48 @@ void solver<QuadraturePrecision>::computePressureEquation() {
 	/*    - Sparsity pattern is already known. Method factorize() is enough		 */
 	/*                                                                           */
 	/*****************************************************************************/
-	sparseLUsolver_PressureSystem.factorize(internalPressureSystem);
+	sparseLUsolver_PressureSystem.factorize(PressureSystem);
 
 
 	DenseVector const solution = sparseLUsolver_PressureSystem.solve(pressureSystemRhs);
 
-	// Trace pressures
 	Tp1 = solution.head(ne);
 	Tp2 = solution.tail(ne);
 
-	// Internal Pressures
-	π_eigen = iD * G - (iDH1 * Tp1 + iDH2 * Tp2);
+	Pi_eigen = iD * G - (iDH1 * Tp1 + iDH2 * Tp2);
 
 
-	// Copy Internal Pressure eigen-solution to each element
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Copy Internal Pressures from Eigen container						 */
+	/*                                                                           */
+	/*****************************************************************************/
 	for (unsigned k = 0; k < nk; k++) {
 
-		//unsigned const k_index = mesh->get_triangle(k)->index;
 		unsigned const k_index = ElementIndeces[k];
 
 		for (unsigned m = 0; m < 3; m++)
-			π.setCoeff(k_index, m) = π_eigen[3 * k_index + m];
+			Pi.setCoeff(k_index, m) = Pi_eigen[3 * k_index + m];
 
 	}
 
-	// Copy Trace Pressure solution to each element
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Copy Trace Pressure solution to each elements's edges from			 */
+	/*      the Eigen container                                                  */
+	/*                                                                           */
+	/*****************************************************************************/
 	for (unsigned e = 0; e < ne; e++) {
 
 
-		e_pointer const E = mesh->get_edge(e);
+		em_pointer const E = Mesh->get_edge(e);
 
-		real const tpval1 = Tp1[E->index];
-		real const tpval2 = Tp2[E->index];
+		Real const TpValue1 = Tp1[E->index];
+		Real const TpValue2 = Tp2[E->index];
 
 		for (unsigned neighbor = 0; neighbor < 2; neighbor++) {
 
-			t_pointer const K = E->neighbors[neighbor];
+			tm_pointer const K = E->neighbors[neighbor];
 
 			if (!K)
 				continue;
@@ -1511,8 +1720,8 @@ void solver<QuadraturePrecision>::computePressureEquation() {
 			unsigned const k_index = K->index;
 			unsigned const e_index_local = K->get_edge_index(E);
 
-			tπ.setCoeff(k_index, e_index_local, 0) = tpval1;
-			tπ.setCoeff(k_index, e_index_local, 1) = tpval2;
+			TPi.setCoeff(k_index, e_index_local, 0) = TpValue1;
+			TPi.setCoeff(k_index, e_index_local, 1) = TpValue2;
 
 		}
 	}
@@ -1521,37 +1730,39 @@ void solver<QuadraturePrecision>::computePressureEquation() {
 
 
 
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::computeVelocities() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::computeVelocities() {
 
 
-	real const time = (nt + 1)* dt;
+	Real const time = (nt + 1) * dt;
 
 	for (unsigned k = 0; k < nk; k++) {
 
 
-		//t_pointer const K		= mesh->get_triangle(k);
-		//unsigned const	k_index = K->index;
-
-		t_pointer const K		= Elements[k];
-		unsigned const	k_index = ElementIndeces[k];
+		tm_pointer const K = Elements[k];
+		unsigned const	 k_index = ElementIndeces[k];
 
 
+		/*****************************************************************************/
+		/*                                                                           */
+		/*    - Loop over edges of the element										 */
+		/*                                                                           */
+		/*****************************************************************************/
 		for (unsigned El = 0; El < 3; El++) {
 
 
-			e_pointer const E = K->edges[El];
+			em_pointer const E = K->edges[El];
 
 
 			if (E->marker == E_MARKER::NEUMANN) {
 
-				υ.setCoeff(k_index, LI(K, E, 0)) = NEUMANN_GAMMA_Q_velocity(E, time);
-				υ.setCoeff(k_index, LI(K, E, 1)) = 0.0;
+				Velocity.setCoeff(k_index, LI(K, E, 0)) = NEUMANN_GAMMA_Q_velocity(E, time);
+				Velocity.setCoeff(k_index, LI(K, E, 1)) = 0.0;
 
 				continue;
 
 			}
-					
+
 			/*****************************************************************************/
 			/*                                                                           */
 			/*    - Loop over the two degrees of freedom on each edge					 */
@@ -1562,37 +1773,37 @@ void solver<QuadraturePrecision>::computeVelocities() {
 
 				unsigned const j = LI(K, E, dof);
 
-				real Value1 = 0.0;
-				real Value2 = 0.0;
+				Real Value1 = 0.0;
+				Real Value2 = 0.0;
 
 				for (unsigned m = 0; m < 8; m++) {
 
 
-					real const Alpha	= α(k_index, m, j);
+					Real const AlphaTemp = Alpha(k_index, m, j);
 
-					real BetaPi			= 0.0;
-					real ChiTracePi		= 0.0;
+					Real BetaPi = 0.0;
+					Real ChiTracePi = 0.0;
 
 					for (unsigned i = 0; i < 3; i++)
-						BetaPi += β(m, i) * π(k_index, i);
+						BetaPi += Beta(m, i) * Pi(k_index, i);
 
-					Value1 += Alpha * BetaPi;
+					Value1 += AlphaTemp * BetaPi;
 
 
 					for (unsigned l = 0; l < 3; l++)
 						for (unsigned s = 0; s < 2; s++)
-							ChiTracePi += χ(k_index, m, l, s) * tπ(k_index, l, s);
+							ChiTracePi += Chi(k_index, m, l, s) * TPi(k_index, l, s);
 
-					Value2 += Alpha * ChiTracePi;
+					Value2 += AlphaTemp * ChiTracePi;
 
 				}
 
-				υ.setCoeff(k_index, j) = (Value1 - Value2) / viscosities[k_index];
+				Velocity.setCoeff(k_index, j) = (Value1 - Value2) / Viscosities[k_index];
 
 			}
 		}
 
-		
+
 		/*****************************************************************************/
 		/*                                                                           */
 		/*    - Compute Bubble velocities inside element							 */
@@ -1601,81 +1812,84 @@ void solver<QuadraturePrecision>::computeVelocities() {
 		for (unsigned dof = 6; dof < 8; dof++) {
 
 
-			real Value1 = 0.0;
-			real Value2 = 0.0;
+			Real Value1 = 0.0;
+			Real Value2 = 0.0;
 
 			for (unsigned m = 0; m < 8; m++) {
 
 
-				real const Alpha	= α(k_index, dof, m);
+				Real const AlphaTemp = Alpha(k_index, dof, m);
 
-				real BetaPi			= 0.0;
-				real ChiTracePi		= 0.0;
+				Real BetaPi = 0.0;
+				Real ChiTracePi = 0.0;
 
 				for (unsigned i = 0; i < 3; i++)
-					BetaPi += β(m, i) * π(k_index, i);
+					BetaPi += Beta(m, i) * Pi(k_index, i);
 
-				Value1 += Alpha * BetaPi;
+				Value1 += AlphaTemp * BetaPi;
 
 
 				for (unsigned l = 0; l < 3; l++)
 					for (unsigned s = 0; s < 2; s++)
-						ChiTracePi += χ(k_index, m, l, s) * tπ(k_index, l, s);
+						ChiTracePi += Chi(k_index, m, l, s) * TPi(k_index, l, s);
 
-				Value2 += Alpha * ChiTracePi;
+				Value2 += AlphaTemp * ChiTracePi;
 
 			}
 
-			υ.setCoeff(k_index, dof) = (Value1 - Value2) / viscosities[k_index];
+			Velocity.setCoeff(k_index, dof) = (Value1 - Value2) / Viscosities[k_index];
 
 		}
-		
+
 	}
 
 };
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::updateConcentrations() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::updateConcentrations() {
 
+
+	Real const TimeCoefficient1 = dt * TimeSchemeParameter;
+	Real const TimeCoefficient2 = dt * (1.0 - TimeSchemeParameter);
 
 	for (unsigned k = 0; k < nk; k++) {
 
 
-		unsigned const	k_index	= ElementIndeces[k];
-		real const		coeff	= 1.0 / (porosities[k_index] * AffineMappingMatrixDeterminant[k_index]);
+		unsigned const	k_index = ElementIndeces[k];
+		Real const		Coefficient = 1.0 / (Porosities[k_index] * AffineMappingMatrixDeterminant[k_index]);
 
-		real Value0 = 0.0;
-		real Value1 = 0.0;
-		real Value2 = 0.0;
+		Real Value0 = 0.0;
+		Real Value1 = 0.0;
+		Real Value2 = 0.0;
 
 		for (unsigned j = 0; j < 8; j++) {
 
 
-			real EtaGamma0 = 0.0;
-			real EtaGamma1 = 0.0;
-			real EtaGamma2 = 0.0;
+			Real EtaGamma0 = 0.0;
+			Real EtaGamma1 = 0.0;
+			Real EtaGamma2 = 0.0;
 
 			for (unsigned l = 0; l < 3; l++) {
 
-				EtaGamma0 += η(0, l) * γ(k_index, l, j);
-				EtaGamma1 += η(1, l) * γ(k_index, l, j);
-				EtaGamma2 += η(2, l) * γ(k_index, l, j);
+				EtaGamma0 += Eta(0, l) * Gamma(k_index, l, j);
+				EtaGamma1 += Eta(1, l) * Gamma(k_index, l, j);
+				EtaGamma2 += Eta(2, l) * Gamma(k_index, l, j);
 
 			}
-			
-			Value0 += υ(k_index, j) * EtaGamma0;
-			Value1 += υ(k_index, j) * EtaGamma1;
-			Value2 += υ(k_index, j) * EtaGamma2;
+
+			Value0 += Velocity(k_index, j) * EtaGamma0;
+			Value1 += Velocity(k_index, j) * EtaGamma1;
+			Value2 += Velocity(k_index, j) * EtaGamma2;
 
 		}
 
 		// In the computation of Eta, there is coefficient detJF. When inverting, the coefficient is inverted
-		rkFc.setCoeff(k_index, 0) = -Value0 * coeff;
-		rkFc.setCoeff(k_index, 1) = -Value1 * coeff;
-		rkFc.setCoeff(k_index, 2) = -Value2 * coeff;
+		rkFc.setCoeff(k_index, 0) = -Value0 * Coefficient;
+		rkFc.setCoeff(k_index, 1) = -Value1 * Coefficient;
+		rkFc.setCoeff(k_index, 2) = -Value2 * Coefficient;
 
-		ξ.setCoeff(k_index, 0) = ξ_n(k_index, 0) + dt * (θ * rkFc(k_index, 0) + (1.0 - θ) * rkFc_n(k_index, 0));
-		ξ.setCoeff(k_index, 1) = ξ_n(k_index, 1) + dt * (θ * rkFc(k_index, 1) + (1.0 - θ) * rkFc_n(k_index, 1));
-		ξ.setCoeff(k_index, 2) = ξ_n(k_index, 2) + dt * (θ * rkFc(k_index, 2) + (1.0 - θ) * rkFc_n(k_index, 2));
+		Xi.setCoeff(k_index, 0) = Xi_n(k_index, 0) + (TimeCoefficient1 * rkFc(k_index, 0) + TimeCoefficient2 * rkFc_n(k_index, 0));
+		Xi.setCoeff(k_index, 1) = Xi_n(k_index, 1) + (TimeCoefficient1 * rkFc(k_index, 1) + TimeCoefficient2 * rkFc_n(k_index, 1));
+		Xi.setCoeff(k_index, 2) = Xi_n(k_index, 2) + (TimeCoefficient1 * rkFc(k_index, 2) + TimeCoefficient2 * rkFc_n(k_index, 2));
 
 	}
 
@@ -1683,29 +1897,34 @@ void solver<QuadraturePrecision>::updateConcentrations() {
 
 
 
-template<unsigned QuadraturePrecision>
-real solver<QuadraturePrecision>::upwindConcentration(t_pointer const & K, unsigned const El, unsigned const n) {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+Real solver<QuadraturePrecision, TimeScheme>::upwindConcentration(tm_pointer const & K, unsigned const El, unsigned const n) {
 
 
-	real const time = (nt + 1) * dt;
+	Real const time = (nt + 1) * dt;
 
-	unsigned const	k_index		= K->index;
-	e_pointer const E			= K->edges[El];
-	E_MARKER const	e_marker	= E->marker;
+	unsigned const	 k_index = K->index;
+	em_pointer const E = K->edges[El];
+	E_MARKER const	 e_marker = E->marker;
 
 
-	real VelocityDotNormal	= 0.0;
-	real Concentration		= 0.0;
+	Real VelocityDotNormal = 0.0;
+	Real Concentration = 0.0;
 
 	if (e_marker == E_MARKER::NEUMANN) {
 
 
 		VelocityDotNormal = NEUMANN_GAMMA_Q_velocity(E, time);
 
+		//Real const X = QuadraturePoints_Edge_x(k_index, El, n);
+		//Real const Y = QuadraturePoints_Edge_y(k_index, El, n);
+		//
+		//VelocityDotNormal = NEUMANN_GAMMA_Q_velocity(X, Y, time);
+
 		if (VelocityDotNormal < 0.0) {
 
-			real const X = QuadraturePoints_Edge_x(k_index, El, n);
-			real const Y = QuadraturePoints_Edge_y(k_index, El, n);
+			Real const X = QuadraturePoints_Edge_x(k_index, El, n);
+			Real const Y = QuadraturePoints_Edge_y(k_index, El, n);
 
 			return DIRICHLET_GAMMA_Q_concentration(X, Y, time);
 
@@ -1717,16 +1936,16 @@ real solver<QuadraturePrecision>::upwindConcentration(t_pointer const & K, unsig
 
 			unsigned const j = LI(K, E, dof);
 
-			VelocityDotNormal += υ(k_index, j) * QuadraturePoints_PhysicalNormalDotPhysicalRaviartThomasBasis(k_index, El, n, j);
+			VelocityDotNormal += Velocity(k_index, j) * QuadraturePoints_PhysicalNormalDotPhysicalRaviartThomasBasis(k_index, El, n, j);
 
 		}
 	}
 
-	
+
 	if (VelocityDotNormal >= 0.0) {
 
 		for (unsigned m = 0; m < 3; m++)
-			Concentration += ξ_prev(k_index, m) * QuadraturePoints_PolynomialBasis(n, El, m);
+			Concentration += Xi_prev(k_index, m) * QuadraturePoints_PolynomialBasis(n, El, m);
 
 	}
 	else {
@@ -1734,39 +1953,38 @@ real solver<QuadraturePrecision>::upwindConcentration(t_pointer const & K, unsig
 
 		if (E->marker == E_MARKER::DIRICHLET) {
 
-			real const X = QuadraturePoints_Edge_x(k_index, El, n);
-			real const Y = QuadraturePoints_Edge_y(k_index, El, n);
+			Real const X = QuadraturePoints_Edge_x(k_index, El, n);
+			Real const Y = QuadraturePoints_Edge_y(k_index, El, n);
 
 			return DIRICHLET_GAMMA_P_concentration(X, Y, time);
 
 		}
-		
-		unsigned const kn_index			= K->neighbors[El]->index;
-		unsigned const e_index_Kn_loc	= K->neighbors[El]->get_edge_index(E);
+
+		unsigned const kn_index = K->neighbors[El]->index;
+		unsigned const e_index_Kn_loc = K->neighbors[El]->get_edge_index(E);
 
 		// The linear combination of the polynomial basis must be computed backwards
 		for (unsigned m = 0; m < 3; m++)
-			Concentration += ξ_prev(kn_index, m) * QuadraturePoints_PolynomialBasisOpposite(n, e_index_Kn_loc, m);
-		
+			Concentration += Xi_prev(kn_index, m) * QuadraturePoints_PolynomialBasisOpposite(n, e_index_Kn_loc, m);
+
 	}
-	
+
 	return Concentration;
 
 };
-template<unsigned QuadraturePrecision>
-real solver<QuadraturePrecision>::upwindConcentration_limiter(t_pointer const & K, unsigned const El, unsigned const n) {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+Real solver<QuadraturePrecision, TimeScheme>::upwindConcentration_limiter(tm_pointer const & K, unsigned const El, unsigned const n) {
 
 
-	real const time = (nt + 1) * dt;
+	Real const time = (nt + 1) * dt;
 
-	unsigned const k_index = K->index;
+	unsigned const		k_index = K->index;
+	em_pointer const	E = K->edges[El];
+	E_MARKER const		e_marker = E->marker;
 
-	e_pointer const E = K->edges[El];
-	E_MARKER const e_marker = E->marker;
 
-
-	real VelocityDotNormal = 0.0;
-	real Concentration = 0.0;
+	Real VelocityDotNormal = 0.0;
+	Real Concentration = 0.0;
 
 	if (e_marker == E_MARKER::NEUMANN) {
 
@@ -1775,8 +1993,8 @@ real solver<QuadraturePrecision>::upwindConcentration_limiter(t_pointer const & 
 
 		if (VelocityDotNormal < 0.0) {
 
-			real const X = QuadraturePoints_Edge_x(k_index, El, n);
-			real const Y = QuadraturePoints_Edge_y(k_index, El, n);
+			Real const X = QuadraturePoints_Edge_x(k_index, El, n);
+			Real const Y = QuadraturePoints_Edge_y(k_index, El, n);
 
 			return DIRICHLET_GAMMA_Q_concentration(X, Y, time);
 
@@ -1788,34 +2006,32 @@ real solver<QuadraturePrecision>::upwindConcentration_limiter(t_pointer const & 
 
 			unsigned const j = LI(K, E, dof);
 
-			VelocityDotNormal += υ(k_index, j) * QuadraturePoints_PhysicalNormalDotPhysicalRaviartThomasBasis(k_index, El, n, j);
+			VelocityDotNormal += Velocity(k_index, j) * QuadraturePoints_PhysicalNormalDotPhysicalRaviartThomasBasis(k_index, El, n, j);
 
 		}
 	}
 
 	if (VelocityDotNormal >= 0.0) {
 
-		real const CKmean = ξ_prev(k_index, 0) * QuadraturePoints_PolynomialBasis(n, El, 0);
+		Real const CKmean = Xi_prev(k_index, 0) * QuadraturePoints_PolynomialBasis(n, El, 0);
 
 		for (unsigned m = 0; m < 3; m++)
-			Concentration += ξ_prev(k_index, m) * QuadraturePoints_PolynomialBasis(n, El, m);
+			Concentration += Xi_prev(k_index, m) * QuadraturePoints_PolynomialBasis(n, El, m);
 
 		if (K->neighbors[El]) {
 
 			unsigned const kn_index = K->neighbors[El]->index;
 			unsigned const e_index_Kn_loc = K->neighbors[El]->get_edge_index(E);
 
-			real const CKNmean = ξ_prev(kn_index, 0) * QuadraturePoints_PolynomialBasis(n, e_index_Kn_loc, 0);
+			Real const CKNmean = Xi_prev(kn_index, 0) * QuadraturePoints_PolynomialBasis(n, e_index_Kn_loc, 0);
 
 
-			real const Cmin = std::min(CKmean, CKNmean);
-			real const Cmax = std::max(CKmean, CKNmean);
+			Real const Cmin = std::min(CKmean, CKNmean);
+			Real const Cmax = std::max(CKmean, CKNmean);
 
 
-			if (Concentration < Cmin)
-				return Cmin;
-			else if (Concentration > Cmax)
-				return Cmax;
+			if (Concentration < Cmin) return Cmin;
+			else if (Concentration > Cmax) return Cmax;
 
 		}
 
@@ -1827,8 +2043,8 @@ real solver<QuadraturePrecision>::upwindConcentration_limiter(t_pointer const & 
 
 		if (E->marker == E_MARKER::DIRICHLET) {
 
-			real const X = QuadraturePoints_Edge_x(k_index, El, n);
-			real const Y = QuadraturePoints_Edge_y(k_index, El, n);
+			Real const X = QuadraturePoints_Edge_x(k_index, El, n);
+			Real const Y = QuadraturePoints_Edge_y(k_index, El, n);
 
 			return DIRICHLET_GAMMA_P_concentration(X, Y, time);
 
@@ -1838,25 +2054,22 @@ real solver<QuadraturePrecision>::upwindConcentration_limiter(t_pointer const & 
 		unsigned const e_index_Kn_loc = K->neighbors[El]->get_edge_index(E);
 
 
-		real const CKmean = ξ_prev(k_index, 0) * QuadraturePoints_PolynomialBasis(n, El, 0);
-		real const CKNmean = ξ_prev(kn_index, 0) * QuadraturePoints_PolynomialBasis(n, e_index_Kn_loc, 0);
+		Real const CKmean = Xi_prev(k_index, 0) * QuadraturePoints_PolynomialBasis(n, El, 0);
+		Real const CKNmean = Xi_prev(kn_index, 0) * QuadraturePoints_PolynomialBasis(n, e_index_Kn_loc, 0);
 
-		real const Cmin = std::min(CKmean, CKNmean);
-		real const Cmax = std::max(CKmean, CKNmean);
+		Real const Cmin = std::min(CKmean, CKNmean);
+		Real const Cmax = std::max(CKmean, CKNmean);
 
 
 		Concentration = 0.0;
+
 		for (unsigned m = 0; m < 3; m++)
-			Concentration += ξ_prev(kn_index, m) * QuadraturePoints_PolynomialBasis(n, e_index_Kn_loc, m);
+			Concentration += Xi_prev(kn_index, m) * QuadraturePoints_PolynomialBasis(n, e_index_Kn_loc, m);
 
-		if (Concentration < Cmin)
-			return Cmin;
-		else if (Concentration > Cmax)
-			return Cmax;
-
+		if (Concentration < Cmin) return Cmin;
+		else if (Concentration > Cmax) return Cmax;
 
 		return Concentration;
-
 
 	}
 
@@ -1864,9 +2077,9 @@ real solver<QuadraturePrecision>::upwindConcentration_limiter(t_pointer const & 
 	if (VelocityDotNormal >= 0.0) {
 
 		for (unsigned m = 0; m < 3; m++)
-			Concentration += ξ_prev(k_index, m) * QuadraturePoints_PolynomialBasis(n, El, m);
+			Concentration += Xi_prev(k_index, m) * QuadraturePoints_PolynomialBasis(n, El, m);
 
-		//Concentration = ξ_prev(k_index, 0) * QuadraturePoints_PolynomialBasis(n, El, 0);
+		//Concentration = Xi_prev(k_index, 0) * QuadraturePoints_PolynomialBasis(n, El, 0);
 
 	}
 	else {
@@ -1887,31 +2100,31 @@ real solver<QuadraturePrecision>::upwindConcentration_limiter(t_pointer const & 
 
 
 		for (unsigned m = 0; m < 3; m++)
-			Concentration += ξ_prev(kn_index, m) * QuadraturePoints_PolynomialBasis(n, e_index_Kn_loc, m);
+			Concentration += Xi_prev(kn_index, m) * QuadraturePoints_PolynomialBasis(n, e_index_Kn_loc, m);
 
-		//Concentration = ξ_prev(kn_index, 0) * QuadraturePoints_PolynomialBasis(n, e_index_Kn_loc, 0);
+		//Concentration = Xi_prev(kn_index, 0) * QuadraturePoints_PolynomialBasis(n, e_index_Kn_loc, 0);
 
 	}
 	*/
 
-	
+
 	//return Concentration;
 
 };
 
 
 
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::assembleR() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::assembleR() {
 
 
-	
+
 	for (unsigned e = 0; e < ne; e++) {
 
 
-		e_pointer const		E			= mesh->get_edge(e);
-		unsigned const		e_index		= E->index;
-		E_MARKER const		e_marker	= E->marker;
+		em_pointer const E = Mesh->get_edge(e);
+		unsigned const	 e_index = E->index;
+		E_MARKER const	 e_marker = E->marker;
 
 
 		if (e_marker == E_MARKER::DIRICHLET)
@@ -1920,7 +2133,7 @@ void solver<QuadraturePrecision>::assembleR() {
 
 		for (unsigned neighborElement = 0; neighborElement < 2; neighborElement++) {
 
-			t_pointer const K = E->neighbors[neighborElement];
+			tm_pointer const K = E->neighbors[neighborElement];
 
 			if (!K)
 				continue;
@@ -1931,39 +2144,60 @@ void solver<QuadraturePrecision>::assembleR() {
 			unsigned const dof0 = LI(K, E, 0);
 			unsigned const dof1 = LI(K, E, 1);
 
-			real const ChiCoeff0 = χ(k_index, dof0, K->get_edge_index(E), 0);
-			real const ChiCoeff1 = χ(k_index, dof1, K->get_edge_index(E), 1);
+			Real const ChiCoeff0 = Chi(k_index, dof0, K->get_edge_index(E), 0);
+			Real const ChiCoeff1 = Chi(k_index, dof1, K->get_edge_index(E), 1);
 
 
 			for (unsigned l = 0; l < 3; l++) {
 
-				real Value1 = 0.0;
-				real Value2 = 0.0;
+				Real Value1 = 0.0;
+				Real Value2 = 0.0;
 
 				for (unsigned j = 0; j < 8; j++) {
 
-					Value1 += α(k_index, dof0, j) * β(j, l);
-					Value2 += α(k_index, dof1, j) * β(j, l);
+					Value1 += Alpha(k_index, dof0, j) * Beta(j, l);
+					Value2 += Alpha(k_index, dof1, j) * Beta(j, l);
 
 				}
 
-				Value1 *= (ChiCoeff0 / viscosities[k_index]);
-				Value2 *= (ChiCoeff1 / viscosities[k_index]);
+				Value1 *= ChiCoeff0 / Viscosities[k_index];
+				Value2 *= ChiCoeff1 / Viscosities[k_index];
 
 				R1.coeffRef(e_index, 3 * k_index + l) = abs(Value1) < INTEGRAL_PRECISION ? 0.0 : Value1;
 				R2.coeffRef(e_index, 3 * k_index + l) = abs(Value2) < INTEGRAL_PRECISION ? 0.0 : Value2;
-					
+
 			}
 		}
 
+		/*
+			e_pointer const E = mesh->get_edge(e);
+			unsigned const e_index = E->index;
+			E_MARKER const e_marker = E->marker;
 
-	/*
-		e_pointer const E = mesh->get_edge(e);
-		unsigned const e_index = E->index;
-		E_MARKER const e_marker = E->marker;
+
+			if (e_marker == E_MARKER::DIRICHLET) {
 
 
-		if (e_marker == E_MARKER::DIRICHLET) {
+				for (unsigned neighborElement = 0; neighborElement < 2; neighborElement++) {
+
+					t_pointer const K = E->neighbors[neighborElement];
+
+					if (!K)
+						continue;
+
+					unsigned const k_index = K->index;
+
+					for (unsigned m = 0; m < 3; m++) {
+
+						R1.coeffRef(e_index, 3 * k_index + m) = 0.0;
+						R2.coeffRef(e_index, 3 * k_index + m) = 0.0;
+
+					}
+				}
+
+				continue;
+
+			}
 
 
 			for (unsigned neighborElement = 0; neighborElement < 2; neighborElement++) {
@@ -1975,78 +2209,54 @@ void solver<QuadraturePrecision>::assembleR() {
 
 				unsigned const k_index = K->index;
 
+				unsigned const dof0 = LI(K, E, 0);
+				unsigned const dof1 = LI(K, E, 1);
+
 				for (unsigned m = 0; m < 3; m++) {
 
-					R1.coeffRef(e_index, 3 * k_index + m) = 0.0;
-					R2.coeffRef(e_index, 3 * k_index + m) = 0.0;
+
+					real AB1 = 0.0;
+					real AB2 = 0.0;
+
+					for (unsigned i = 0; i < 8; i++) {
+
+						AB1 += Alpha(k_index, dof0, i)*Beta(i, m);
+						AB2 += Alpha(k_index, dof1, i)*Beta(i, m);
+
+					}
+
+					real const val1 = AB1 / viscosities[k_index];
+					real const val2 = AB2 / viscosities[k_index];
+
+					R1.coeffRef(e_index, 3 * k_index + m) = abs(val1) < INTEGRAL_PRECISION ? 0.0 : val1;
+					R2.coeffRef(e_index, 3 * k_index + m) = abs(val2) < INTEGRAL_PRECISION ? 0.0 : val2;
 
 				}
 			}
-
-			continue;
-
-		}
-
-
-		for (unsigned neighborElement = 0; neighborElement < 2; neighborElement++) {
-
-			t_pointer const K = E->neighbors[neighborElement];
-
-			if (!K)
-				continue;
-
-			unsigned const k_index = K->index;
-
-			unsigned const dof0 = LI(K, E, 0);
-			unsigned const dof1 = LI(K, E, 1);
-
-			for (unsigned m = 0; m < 3; m++) {
-
-
-				real AB1 = 0.0;
-				real AB2 = 0.0;
-
-				for (unsigned i = 0; i < 8; i++) {
-
-					AB1 += α(k_index, dof0, i)*β(i, m);
-					AB2 += α(k_index, dof1, i)*β(i, m);
-
-				}
-
-				real const val1 = AB1 / viscosities[k_index];
-				real const val2 = AB2 / viscosities[k_index];
-
-				R1.coeffRef(e_index, 3 * k_index + m) = abs(val1) < INTEGRAL_PRECISION ? 0.0 : val1;
-				R2.coeffRef(e_index, 3 * k_index + m) = abs(val2) < INTEGRAL_PRECISION ? 0.0 : val2;
-
-			}
-		}
-		*/
-
+			*/
 
 	}
-	
 
 };
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::assembleM() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::assembleM() {
 
 
-	unsigned const NumberOfDirichletEdges	= mesh->get_number_of_dirichlet_edges();
-	unsigned const NumberOfNeumannEdges		= mesh->get_number_of_neumann_edges();
-	unsigned const NumberOfBoundaryEdges	= NumberOfDirichletEdges + NumberOfNeumannEdges;
+	unsigned const NumberOfDirichletEdges = Mesh->get_number_of_dirichlet_edges();
+	unsigned const NumberOfNeumannEdges = Mesh->get_number_of_neumann_edges();
+	unsigned const NumberOfBoundaryEdges = NumberOfDirichletEdges + NumberOfNeumannEdges;
 
 	unsigned const NumberOfElements = 4 * (NumberOfDirichletEdges + (NumberOfBoundaryEdges - NumberOfDirichletEdges) * 3 + (ne - NumberOfBoundaryEdges) * 5 + ne - NumberOfBoundaryEdges);
 
-	std::vector<Eigen::Triplet<real>> triplet;
+	std::vector<Eigen::Triplet<Real>> triplet;
 	triplet.reserve(NumberOfElements);
 
 	for (unsigned e = 0; e < ne; e++) {
 
 
-		e_pointer const E			= mesh->get_edge(e);
-		unsigned const	e_index		= E->index;
-		E_MARKER const	e_marker	= E->marker;
+		em_pointer const E = Mesh->get_edge(e);
+		unsigned const	 e_index = E->index;
+		E_MARKER const	 e_marker = E->marker;
 
 
 
@@ -2058,10 +2268,10 @@ void solver<QuadraturePrecision>::assembleM() {
 			M_j2_s1.coeffRef(e_index, e_index) = +0.0;
 			M_j2_s2.coeffRef(e_index, e_index) = -1.0;
 
-			Eigen::Triplet<real> const T_j1_s1(e_index,			e_index,		-1.0);
-			Eigen::Triplet<real> const T_j1_s2(e_index,			e_index + ne,	+0.0);
-			Eigen::Triplet<real> const T_j2_s1(e_index + ne,	e_index,		+0.0);
-			Eigen::Triplet<real> const T_j2_s2(e_index + ne,	e_index + ne,	-1.0);
+			Eigen::Triplet<Real> const T_j1_s1(e_index, e_index, -1.0);
+			Eigen::Triplet<Real> const T_j1_s2(e_index, e_index + ne, +0.0);
+			Eigen::Triplet<Real> const T_j2_s1(e_index + ne, e_index, +0.0);
+			Eigen::Triplet<Real> const T_j2_s2(e_index + ne, e_index + ne, -1.0);
 
 			triplet.push_back(T_j1_s1);
 			triplet.push_back(T_j1_s2);
@@ -2076,7 +2286,7 @@ void solver<QuadraturePrecision>::assembleM() {
 		for (unsigned neighborElement = 0; neighborElement < 2; neighborElement++) {
 
 
-			t_pointer const K = E->neighbors[neighborElement];
+			tm_pointer const K = E->neighbors[neighborElement];
 
 			if (!K)
 				continue;
@@ -2087,35 +2297,35 @@ void solver<QuadraturePrecision>::assembleM() {
 			unsigned const dof0 = LI(K, E, 0);
 			unsigned const dof1 = LI(K, E, 1);
 
-			real const ChiCoeff0 = χ(k_index, dof0, K->get_edge_index(E), 0);
-			real const ChiCoeff1 = χ(k_index, dof1, K->get_edge_index(E), 1);
+			Real const ChiCoeff0 = Chi(k_index, dof0, K->get_edge_index(E), 0);
+			Real const ChiCoeff1 = Chi(k_index, dof1, K->get_edge_index(E), 1);
 
 
 			for (unsigned El = 0; El < 3; El++) {
 
 
-				e_pointer const E_local					= K->edges[El];
-				unsigned const	e_local_index_global	= E_local->index;
+				em_pointer const E_local = K->edges[El];
+				unsigned const	 e_local_index_global = E_local->index;
 
-				real ACHI_j1_s1 = 0.0;
-				real ACHI_j1_s2 = 0.0;
-				real ACHI_j2_s1 = 0.0;
-				real ACHI_j2_s2 = 0.0;
+				Real ACHI_j1_s1 = 0.0;
+				Real ACHI_j1_s2 = 0.0;
+				Real ACHI_j2_s1 = 0.0;
+				Real ACHI_j2_s2 = 0.0;
 
 				for (unsigned j = 0; j < 8; j++) {
 
-					ACHI_j1_s1 += α(k_index, dof0, j) * χ(k_index, j, El, 0);
-					ACHI_j1_s2 += α(k_index, dof0, j) * χ(k_index, j, El, 1);
+					ACHI_j1_s1 += Alpha(k_index, dof0, j) * Chi(k_index, j, El, 0);
+					ACHI_j1_s2 += Alpha(k_index, dof0, j) * Chi(k_index, j, El, 1);
 
-					ACHI_j2_s1 += α(k_index, dof1, j) * χ(k_index, j, El, 0);
-					ACHI_j2_s2 += α(k_index, dof1, j) * χ(k_index, j, El, 1);
+					ACHI_j2_s1 += Alpha(k_index, dof1, j) * Chi(k_index, j, El, 0);
+					ACHI_j2_s2 += Alpha(k_index, dof1, j) * Chi(k_index, j, El, 1);
 
 				}
 
-				real const Value11 = ChiCoeff0 * ACHI_j1_s1 / viscosities[k_index];
-				real const Value12 = ChiCoeff0 * ACHI_j1_s2 / viscosities[k_index];
-				real const Value21 = ChiCoeff1 * ACHI_j2_s1 / viscosities[k_index];
-				real const Value22 = ChiCoeff1 * ACHI_j2_s2 / viscosities[k_index];
+				Real const Value11 = ChiCoeff0 * ACHI_j1_s1 / Viscosities[k_index];
+				Real const Value12 = ChiCoeff0 * ACHI_j1_s2 / Viscosities[k_index];
+				Real const Value21 = ChiCoeff1 * ACHI_j2_s1 / Viscosities[k_index];
+				Real const Value22 = ChiCoeff1 * ACHI_j2_s2 / Viscosities[k_index];
 
 
 				M_j1_s1.coeffRef(e_index, e_local_index_global) += Value11;
@@ -2124,10 +2334,10 @@ void solver<QuadraturePrecision>::assembleM() {
 				M_j2_s2.coeffRef(e_index, e_local_index_global) += Value22;
 
 
-				Eigen::Triplet<real> const T_j1_s1(e_index,			e_local_index_global,		Value11);
-				Eigen::Triplet<real> const T_j1_s2(e_index,			e_local_index_global + ne,	Value12);
-				Eigen::Triplet<real> const T_j2_s1(e_index + ne,	e_local_index_global,		Value21);
-				Eigen::Triplet<real> const T_j2_s2(e_index + ne,	e_local_index_global + ne,	Value22);
+				Eigen::Triplet<Real> const T_j1_s1(e_index, e_local_index_global, Value11);
+				Eigen::Triplet<Real> const T_j1_s2(e_index, e_local_index_global + ne, Value12);
+				Eigen::Triplet<Real> const T_j2_s1(e_index + ne, e_local_index_global, Value21);
+				Eigen::Triplet<Real> const T_j2_s2(e_index + ne, e_local_index_global + ne, Value22);
 
 				triplet.push_back(T_j1_s1);
 				triplet.push_back(T_j1_s2);
@@ -2136,8 +2346,6 @@ void solver<QuadraturePrecision>::assembleM() {
 
 			}
 		}
-
-
 
 		/*
 		if (e_marker == E_MARKER::DIRICHLET) {
@@ -2194,11 +2402,11 @@ void solver<QuadraturePrecision>::assembleM() {
 
 				for (unsigned i = 0; i < 8; i++) {
 
-					ACHI_j1_s1 += α(k_index, dof0, i) * χ(i, e_local_index_local, 0);
-					ACHI_j1_s2 += α(k_index, dof0, i) * χ(i, e_local_index_local, 1);
+					ACHI_j1_s1 += Alpha(k_index, dof0, i) * Chi(i, e_local_index_local, 0);
+					ACHI_j1_s2 += Alpha(k_index, dof0, i) * Chi(i, e_local_index_local, 1);
 
-					ACHI_j2_s1 += α(k_index, dof1, i) * χ(i, e_local_index_local, 0);
-					ACHI_j2_s2 += α(k_index, dof1, i) * χ(i, e_local_index_local, 1);
+					ACHI_j2_s1 += Alpha(k_index, dof1, i) * Chi(i, e_local_index_local, 0);
+					ACHI_j2_s2 += Alpha(k_index, dof1, i) * Chi(i, e_local_index_local, 1);
 
 				}
 
@@ -2208,7 +2416,7 @@ void solver<QuadraturePrecision>::assembleM() {
 				real const val3 = ACHI_j2_s1 / viscosities[k_index];
 				real const val4 = ACHI_j2_s2 / viscosities[k_index];
 
-				
+
 				//if (e_local_index_global == e_index) {
 				//	M_j1_s1.coeffRef(e_index, e_local_index_global) += val1;
 				//	M_j1_s2.coeffRef(e_index, e_local_index_global) += val2;
@@ -2220,7 +2428,7 @@ void solver<QuadraturePrecision>::assembleM() {
 				//M_j1_s2.coeffRef(e_index, e_local_index_global) = val2;
 				//M_j2_s1.coeffRef(e_index, e_local_index_global) = val3;
 				//M_j2_s2.coeffRef(e_index, e_local_index_global) = val4;
-				
+
 
 				M_j1_s1.coeffRef(e_index, e_local_index_global) += val1;
 				M_j1_s2.coeffRef(e_index, e_local_index_global) += val2;
@@ -2251,18 +2459,18 @@ void solver<QuadraturePrecision>::assembleM() {
 	sparseLUsolver_TracePressureSystem.compute(tracePressureSystem_LU);
 
 };
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::assembleV() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::assembleV() {
 
 
-	real const time = (nt + 1) * dt;
+	Real const time = (nt + 1) * dt;
 
 	for (unsigned e = 0; e < ne; e++) {
 
 
-		e_pointer const E			= mesh->get_edge(e);
-		unsigned const	e_index		= E->index;
-		E_MARKER const	e_marker	= E->marker;
+		em_pointer const E = Mesh->get_edge(e);
+		unsigned const	 e_index = E->index;
+		E_MARKER const	 e_marker = E->marker;
 
 
 		V1[e_index] = 0.0;
@@ -2272,12 +2480,12 @@ void solver<QuadraturePrecision>::assembleV() {
 		if (e_marker == E_MARKER::NEUMANN) {
 
 
-			real ChiCoeff0 = 1.0;
-			real ChiCoeff1 = 1.0;
+			Real ChiCoeff0 = 1.0;
+			Real ChiCoeff1 = 1.0;
 
 			for (unsigned neighborElement = 0; neighborElement < 2; neighborElement++) {
 
-				t_pointer const K = E->neighbors[neighborElement];
+				tm_pointer const K = E->neighbors[neighborElement];
 
 				if (!K)
 					continue;
@@ -2287,8 +2495,8 @@ void solver<QuadraturePrecision>::assembleV() {
 				unsigned const dof0 = LI(K, E, 0);
 				unsigned const dof1 = LI(K, E, 1);
 
-				ChiCoeff0 = χ(k_index, dof0, K->get_edge_index(E), 0);
-				ChiCoeff1 = χ(k_index, dof1, K->get_edge_index(E), 1);
+				ChiCoeff0 = Chi(k_index, dof0, K->get_edge_index(E), 0);
+				ChiCoeff1 = Chi(k_index, dof1, K->get_edge_index(E), 1);
 
 				break;
 
@@ -2298,27 +2506,27 @@ void solver<QuadraturePrecision>::assembleV() {
 			V2[e_index] = ChiCoeff1 * 0.0;
 
 		}
-			
+
 		else if (e_marker == E_MARKER::DIRICHLET) {
 
-			real const x0 = (real) E->a->x;
-			real const y0 = (real) E->a->y;
+			Real const x0 = E->a->x;
+			Real const y0 = E->a->y;
 
-			real const x1 = (real) E->b->x;
-			real const y1 = (real) E->b->y;
+			Real const x1 = E->b->x;
+			Real const y1 = E->b->y;
 
 
 			/*****************************************************************************/
 			/*                                                                           */
 			/*    - Interpolant of the Barenblatt solution for the Dirichlet Edge	     */
 			/*    - Optimized : System matrix is known, so we can write the solution     */
-			/*					immediately                                              */
+			/*					immediately using inverse matrix (which is also known)   */
 			/*                                                                           */
 			/*                : M = [1, -1 ; 1, 1]    M^(-1) = 0.5*[1, 1; -1, 1]         */
 			/*                                                                           */
 			/*****************************************************************************/
-			real const B0 = barenblatt(x0, y0, time);
-			real const B1 = barenblatt(x1, y1, time);
+			Real const B0 = DIRICHLET_GAMMA_P_pressure(x0, y0, time);
+			Real const B1 = DIRICHLET_GAMMA_P_pressure(x1, y1, time);
 
 			V1[e_index] = 0.5 * (+B0 + B1);
 			V2[e_index] = 0.5 * (-B0 + B1);
@@ -2344,58 +2552,58 @@ void solver<QuadraturePrecision>::assembleV() {
 
 
 
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::assembleInverseD() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::assembleInverseD() {
 
 
-	assemble_σ();
+	assemble_Sigma();
 
-	real const coeff = θ * dt;
-	Eigen::Matrix3d block;
+	Real const TimeCoefficient = TimeSchemeParameter * dt;
+	Eigen::Matrix3d Block;
 
 
 	for (unsigned k = 0; k < nk; k++) {
 
 
-		t_pointer const K = mesh->get_triangle(k);
-
-		unsigned const k_index		= K->index;
-		unsigned const start_index	= 3 * k_index;
+		tm_pointer const K = Elements[k];
+		unsigned const	 k_index = ElementIndeces[k];
+		unsigned const	 start_index = 3 * k_index;
 
 
 		for (unsigned r = 0; r < 3; r++)
 			for (unsigned s = 0; s < 3; s++)
-				block(r, s) = δij(r, s) - coeff * σ(k_index, r, s);
+				Block(r, s) = kroneckerDelta(r, s) - TimeCoefficient * Sigma(k_index, r, s);
 
-
-		Eigen::Matrix3d const inverse_block = block.inverse();
-
+		Eigen::Matrix3d const inverseBlock = Block.inverse();
 
 		for (unsigned i = 0; i < 3; i++)
 			for (unsigned j = 0; j < 3; j++)
-				iD.coeffRef(start_index + i, start_index + j) = abs(inverse_block(i, j)) < INTEGRAL_PRECISION ? 0.0 : inverse_block(i, j);
+				iD.coeffRef(start_index + i, start_index + j) = abs(inverseBlock(i, j)) < INTEGRAL_PRECISION ? 0.0 : inverseBlock(i, j);
 
 	}
 
 };
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::assembleH() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::assembleH() {
 
 
-	assemble_λ();
+	assemble_Lambda();
 
-	Eigen::Matrix3d block1;
-	Eigen::Matrix3d block2;
+	Eigen::Matrix3d Block1;
+	Eigen::Matrix3d Block2;
+
+	Real const TimeCoefficient = -TimeSchemeParameter * dt;
+
 
 	for (unsigned k = 0; k < nk; k++) {
 
 
-		t_pointer const K = mesh->get_triangle(k);
-		unsigned const k_index = K->index;
+		tm_pointer const	K = Elements[k];
+		unsigned const		k_index = ElementIndeces[k];
 
-		e_pointer const E0 = K->edges[0];
-		e_pointer const E1 = K->edges[1];
-		e_pointer const E2 = K->edges[2];
+		em_pointer const E0 = K->edges[0];
+		em_pointer const E1 = K->edges[1];
+		em_pointer const E2 = K->edges[2];
 
 		unsigned const e_index0 = E0->index;
 		unsigned const e_index1 = E1->index;
@@ -2405,69 +2613,39 @@ void solver<QuadraturePrecision>::assembleH() {
 		for (unsigned m = 0; m < 3; m++) {
 			for (unsigned Ei = 0; Ei < 3; Ei++) {
 
-				block1(m, Ei) = λ(k_index, 0, m, Ei);
-				block2(m, Ei) = λ(k_index, 1, m, Ei);
+				Block1(m, Ei) = TimeCoefficient * Lambda(k_index, 0, m, Ei);
+				Block2(m, Ei) = TimeCoefficient * Lambda(k_index, 1, m, Ei);
 
 			}
 		}
 
-		real const coeff = -θ * dt;
 
-		block1 *= coeff;
-		block2 *= coeff;
+		for (unsigned m = 0; m < 3; m++) {
 
-		/*for (unsigned m = 0; m < 3; m++) {
-			H1.coeffRef(3 * k_index + m, e_index0) = block1.coeff(m, 0);
-			H1.coeffRef(3 * k_index + m, e_index1) = block1.coeff(m, 1);
-			H1.coeffRef(3 * k_index + m, e_index2) = block1.coeff(m, 2);
-			H2.coeffRef(3 * k_index + m, e_index0) = block2.coeff(m, 0);
-			H2.coeffRef(3 * k_index + m, e_index1) = block2.coeff(m, 1);
-			H2.coeffRef(3 * k_index + m, e_index2) = block2.coeff(m, 2);
-		}*/
-		
-		H1.coeffRef(3 * k_index + 0, e_index0) = block1.coeff(0, 0);
-		H1.coeffRef(3 * k_index + 0, e_index1) = block1.coeff(0, 1);
-		H1.coeffRef(3 * k_index + 0, e_index2) = block1.coeff(0, 2);
+			H1.coeffRef(3 * k_index + m, e_index0) = Block1.coeff(m, 0);
+			H1.coeffRef(3 * k_index + m, e_index1) = Block1.coeff(m, 1);
+			H1.coeffRef(3 * k_index + m, e_index2) = Block1.coeff(m, 2);
 
-		H1.coeffRef(3 * k_index + 1, e_index0) = block1.coeff(1, 0);
-		H1.coeffRef(3 * k_index + 1, e_index1) = block1.coeff(1, 1);
-		H1.coeffRef(3 * k_index + 1, e_index2) = block1.coeff(1, 2);
+			H2.coeffRef(3 * k_index + m, e_index0) = Block2.coeff(m, 0);
+			H2.coeffRef(3 * k_index + m, e_index1) = Block2.coeff(m, 1);
+			H2.coeffRef(3 * k_index + m, e_index2) = Block2.coeff(m, 2);
 
-		H1.coeffRef(3 * k_index + 2, e_index0) = block1.coeff(2, 0);
-		H1.coeffRef(3 * k_index + 2, e_index1) = block1.coeff(2, 1);
-		H1.coeffRef(3 * k_index + 2, e_index2) = block1.coeff(2, 2);
-
-
-		H2.coeffRef(3 * k_index + 0, e_index0) = block2.coeff(0, 0);
-		H2.coeffRef(3 * k_index + 0, e_index1) = block2.coeff(0, 1);
-		H2.coeffRef(3 * k_index + 0, e_index2) = block2.coeff(0, 2);
-
-		H2.coeffRef(3 * k_index + 1, e_index0) = block2.coeff(1, 0);
-		H2.coeffRef(3 * k_index + 1, e_index1) = block2.coeff(1, 1);
-		H2.coeffRef(3 * k_index + 1, e_index2) = block2.coeff(1, 2);
-
-		H2.coeffRef(3 * k_index + 2, e_index0) = block2.coeff(2, 0);
-		H2.coeffRef(3 * k_index + 2, e_index1) = block2.coeff(2, 1);
-		H2.coeffRef(3 * k_index + 2, e_index2) = block2.coeff(2, 2);
-
+		}
 	}
 
-	//std::cout << H1.toDense() << std::endl << std::endl;
-	//std::cout << H2.toDense() << std::endl;
-
 };
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::assembleG() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::assembleG() {
 
 
-	real const coeff = dt * (1.0 - θ);
+	Real const TimeCoefficient = dt * (1.0 - TimeSchemeParameter);
 
 	for (unsigned k = 0; k < nk; k++) {
 
 		unsigned const k_index = ElementIndeces[k];
 
 		for (unsigned m = 0; m < 3; m++)
-			G[3 * k_index + m] = π_n(k_index, m) + coeff * rkFp_n(k_index, m);
+			G[3 * k_index + m] = Pi_n(k_index, m) + TimeCoefficient * rkFp_n(k_index, m);
 
 	}
 
@@ -2475,20 +2653,20 @@ void solver<QuadraturePrecision>::assembleG() {
 
 
 
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::assemblePressureSystem() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem() {
 
 
-	real const coefficient = θ * dt;
+	Real const TimeCoefficient = TimeSchemeParameter * dt;
 
-	Eigen::Matrix3d block;
-	Eigen::Matrix3d block1;
-	Eigen::Matrix3d block2;
+	Eigen::Matrix3d Block;
+	Eigen::Matrix3d Block1;
+	Eigen::Matrix3d Block2;
 
-	std::vector<Eigen::Triplet<real>> tri;
+	std::vector<Eigen::Triplet<Real>> tri;
 
-	std::vector<Eigen::Triplet<real>> triR1iD;
-	std::vector<Eigen::Triplet<real>> triR2iD;
+	std::vector<Eigen::Triplet<Real>> triR1iD;
+	std::vector<Eigen::Triplet<Real>> triR2iD;
 
 	//std::vector<Eigen::Triplet<real>> triiDH1;
 	//std::vector<Eigen::Triplet<real>> triiDH2;
@@ -2497,15 +2675,15 @@ void solver<QuadraturePrecision>::assemblePressureSystem() {
 	// It is sufficient to zero only diagonal elements. Therefore, there is no need for += in the sequel
 	for (unsigned e = 0; e < ne; e++) {
 
-		real const M11 = M_j1_s1.coeff(e, e);
-		real const M12 = M_j1_s2.coeff(e, e);
-		real const M21 = M_j2_s1.coeff(e, e);
-		real const M22 = M_j2_s2.coeff(e, e);
+		Real const M11 = M_j1_s1.coeff(e, e);
+		Real const M12 = M_j1_s2.coeff(e, e);
+		Real const M21 = M_j2_s1.coeff(e, e);
+		Real const M22 = M_j2_s2.coeff(e, e);
 
-		Eigen::Triplet<real> const T11(e,		e,		M11);
-		Eigen::Triplet<real> const T12(e,		e + ne, M12);
-		Eigen::Triplet<real> const T21(e + ne,	e,		M21);
-		Eigen::Triplet<real> const T22(e + ne,	e + ne, M22);
+		Eigen::Triplet<Real> const T11(e, e, M11);
+		Eigen::Triplet<Real> const T12(e, e + ne, M12);
+		Eigen::Triplet<Real> const T21(e + ne, e, M21);
+		Eigen::Triplet<Real> const T22(e + ne, e + ne, M22);
 
 		tri.push_back(T11);
 		tri.push_back(T12);
@@ -2517,9 +2695,9 @@ void solver<QuadraturePrecision>::assemblePressureSystem() {
 	//#pragma omp parallel for private(block,block1,block2) shared(tri, triR1iD, triR2iD)
 	for (unsigned k = 0; k < nk; k++) {
 
-		t_pointer const K				= Elements[k];
-		unsigned const	k_index			= ElementIndeces[k];
-		unsigned const	start_index		= 3 * k_index;
+		tm_pointer const K = Elements[k];
+		unsigned const	 k_index = ElementIndeces[k];
+		unsigned const	 start_index = 3 * k_index;
 
 
 		/*****************************************************************************/
@@ -2527,66 +2705,70 @@ void solver<QuadraturePrecision>::assemblePressureSystem() {
 		/*    - Inverse of the matrix D										         */
 		/*                                                                           */
 		/*****************************************************************************/
-
 		for (unsigned r = 0; r < 3; r++)
 			for (unsigned s = 0; s < 3; s++)
-				block(r, s) = δij(r, s) - coefficient * σ(k_index, r, s);
+				Block(r, s) = kroneckerDelta(r, s) - TimeCoefficient * Sigma(k_index, r, s);
 
-		Eigen::Matrix3d const InverseBlock = block.inverse();
+		Eigen::Matrix3d const InverseBlock = Block.inverse();
 
 		for (unsigned i = 0; i < 3; i++)
 			for (unsigned j = 0; j < 3; j++)
 				iD.coeffRef(start_index + i, start_index + j) = InverseBlock(i, j);
-		
+
+
 		/*****************************************************************************/
 		/*                                                                           */
 		/*    - H1, H2														         */
 		/*                                                                           */
 		/*****************************************************************************/
-
 		for (unsigned m = 0; m < 3; m++) {
 			for (unsigned Ei = 0; Ei < 3; Ei++) {
 
-				block1(m, Ei) = λ(k_index, 0, m, Ei);
-				block2(m, Ei) = λ(k_index, 1, m, Ei);
+				Block1(m, Ei) = -TimeCoefficient * Lambda(k_index, 0, m, Ei);
+				Block2(m, Ei) = -TimeCoefficient * Lambda(k_index, 1, m, Ei);
 
 			}
 		}
 
-		block1 *= -coefficient;
-		block2 *= -coefficient;
+
+		/*****************************************************************************/
+		/*                                                                           */
+		/*    - H1, H2 blocks multiplied by the blocks Inverse of D					 */
+		/*                                                                           */
+		/*****************************************************************************/
+		Eigen::Matrix3d const iDH1Block = InverseBlock * Block1;
+		Eigen::Matrix3d const iDH2Block = InverseBlock * Block2;
 
 
 		/*****************************************************************************/
 		/*                                                                           */
-		/*    - H1, H2 blocks multiplied by the blocks Inverse of D			         */
+		/*    - Assembly of the resulting matrix R1 * iD * H1						 */
 		/*                                                                           */
 		/*****************************************************************************/
-
-		Eigen::Matrix3d const iDH1block = InverseBlock * block1;
-		Eigen::Matrix3d const iDH2block = InverseBlock * block2;
-
-		
-
-		/*****************************************************************************/
-		/*                                                                           */
-		/*    - Assembly of the resulting matrix R1 * D.inverse * H1		         */
-		/*                                                                           */
-		/*****************************************************************************/
-
 		for (unsigned ei = 0; ei < 3; ei++) {
 
 
-			e_pointer const Ei			= K->edges[ei];
-			unsigned const	e_index_i	= Ei->index;
+			em_pointer const Ei = K->edges[ei];
+			unsigned const	 e_index_i = Ei->index;
 
 
 			for (unsigned j = 0; j < 3; j++) {
-				
+
+
+				unsigned const start_index_j = start_index + j;
 
 				/*****************************************************************************/
 				/*                                                                           */
-				/*    - Assembly of the Matrices iDH1, iDH2								     */
+				/*    - Assemble Matrices H1, H2									         */
+				/*                                                                           */
+				/*****************************************************************************/
+				//H1.coeffRef(start_index + j, e_index_i) = Block1.coeff(j, ei);
+				//H2.coeffRef(start_index + j, e_index_i) = Block2.coeff(j, ei);
+
+
+				/*****************************************************************************/
+				/*                                                                           */
+				/*    - Assembly of the Matrices iDH1, iDH2	: iD * H1, iD * H2			     */
 				/*                                                                           */
 				/*****************************************************************************/
 				//Eigen::Triplet<real> const TH1(start_index + j, e_index_i, iDH1block(j, ei));
@@ -2595,8 +2777,10 @@ void solver<QuadraturePrecision>::assemblePressureSystem() {
 				//triiDH1.push_back(TH1);
 				//triiDH2.push_back(TH2);
 
-				iDH1.coeffRef(start_index + j, e_index_i) = iDH1block.coeff(j, ei);
-				iDH2.coeffRef(start_index + j, e_index_i) = iDH2block.coeff(j, ei);
+				iDH1.coeffRef(start_index_j, e_index_i) = iDH1Block.coeff(j, ei);
+				iDH2.coeffRef(start_index_j, e_index_i) = iDH2Block.coeff(j, ei);
+				//iDH1.coeffRef(start_index + j, e_index_i) = iDH1block.coeff(j, ei);
+				//iDH2.coeffRef(start_index + j, e_index_i) = iDH2block.coeff(j, ei);
 
 
 				/*****************************************************************************/
@@ -2604,9 +2788,8 @@ void solver<QuadraturePrecision>::assemblePressureSystem() {
 				/*    - Assemble Matrices R1 * D.inverse, R2 * D.inverse			         */
 				/*                                                                           */
 				/*****************************************************************************/
-
-				real Sum1 = 0.0;
-				real Sum2 = 0.0;
+				Real Sum1 = 0.0;
+				Real Sum2 = 0.0;
 
 				for (unsigned m = 0; m < 3; m++) {
 
@@ -2615,8 +2798,10 @@ void solver<QuadraturePrecision>::assemblePressureSystem() {
 
 				}
 
-				Eigen::Triplet<real> const TR1(e_index_i, start_index + j, Sum1);
-				Eigen::Triplet<real> const TR2(e_index_i, start_index + j, Sum2);
+				Eigen::Triplet<Real> const TR1(e_index_i, start_index_j, Sum1);
+				Eigen::Triplet<Real> const TR2(e_index_i, start_index_j, Sum2);
+				//Eigen::Triplet<Real> const TR1(e_index_i, start_index + j, Sum1);
+				//Eigen::Triplet<Real> const TR2(e_index_i, start_index + j, Sum2);
 
 				triR1iD.push_back(TR1);
 				triR2iD.push_back(TR2);
@@ -2636,28 +2821,28 @@ void solver<QuadraturePrecision>::assemblePressureSystem() {
 				unsigned const e_index_j = K->edges[ej]->index;
 
 
-				real sum11 = 0.0;
-				real sum12 = 0.0;
-				real sum21 = 0.0;
-				real sum22 = 0.0;
+				Real sum11 = 0.0;
+				Real sum12 = 0.0;
+				Real sum21 = 0.0;
+				Real sum22 = 0.0;
 
 				// Number of degrees of freedom of internal pressure
 				for (unsigned m = 0; m < 3; m++) {
 
-					sum11 += R1_block(k_index, ei, m) * iDH1block(m, ej);
-					sum12 += R1_block(k_index, ei, m) * iDH2block(m, ej);
-					sum21 += R2_block(k_index, ei, m) * iDH1block(m, ej);
-					sum22 += R2_block(k_index, ei, m) * iDH2block(m, ej);
+					sum11 += R1_block(k_index, ei, m) * iDH1Block(m, ej);
+					sum12 += R1_block(k_index, ei, m) * iDH2Block(m, ej);
+					sum21 += R2_block(k_index, ei, m) * iDH1Block(m, ej);
+					sum22 += R2_block(k_index, ei, m) * iDH2Block(m, ej);
 
 				}
 
 				// Because diagonal elements were zeroed at the beginning, the += operator is needed only here (if there was any. Will be when migrate to linux and No Eigen will be used)
 				if (e_index_i == e_index_j) {
 
-					Eigen::Triplet<real> const T11(e_index_i,		e_index_i,		sum11);
-					Eigen::Triplet<real> const T12(e_index_i,		e_index_i + ne, sum12);
-					Eigen::Triplet<real> const T21(e_index_i + ne,	e_index_i,		sum21);
-					Eigen::Triplet<real> const T22(e_index_i + ne,	e_index_i + ne, sum22);
+					Eigen::Triplet<Real> const T11(e_index_i, e_index_i, sum11);
+					Eigen::Triplet<Real> const T12(e_index_i, e_index_i + ne, sum12);
+					Eigen::Triplet<Real> const T21(e_index_i + ne, e_index_i, sum21);
+					Eigen::Triplet<Real> const T22(e_index_i + ne, e_index_i + ne, sum22);
 
 					tri.push_back(T11);
 					tri.push_back(T12);
@@ -2668,15 +2853,15 @@ void solver<QuadraturePrecision>::assemblePressureSystem() {
 
 				}
 
-				real const M11 = sum11 + M_j1_s1.coeff(e_index_i, e_index_j);
-				real const M12 = sum12 + M_j1_s2.coeff(e_index_i, e_index_j);
-				real const M21 = sum21 + M_j2_s1.coeff(e_index_i, e_index_j);
-				real const M22 = sum22 + M_j2_s2.coeff(e_index_i, e_index_j);
+				Real const M11 = sum11 + M_j1_s1.coeff(e_index_i, e_index_j);
+				Real const M12 = sum12 + M_j1_s2.coeff(e_index_i, e_index_j);
+				Real const M21 = sum21 + M_j2_s1.coeff(e_index_i, e_index_j);
+				Real const M22 = sum22 + M_j2_s2.coeff(e_index_i, e_index_j);
 
-				Eigen::Triplet<real> const T11(e_index_i,		e_index_j,		M11);
-				Eigen::Triplet<real> const T12(e_index_i,		e_index_j + ne, M12);
-				Eigen::Triplet<real> const T21(e_index_i + ne,	e_index_j,		M21);
-				Eigen::Triplet<real> const T22(e_index_i + ne,	e_index_j + ne, M22);
+				Eigen::Triplet<Real> const T11(e_index_i, e_index_j, M11);
+				Eigen::Triplet<Real> const T12(e_index_i, e_index_j + ne, M12);
+				Eigen::Triplet<Real> const T21(e_index_i + ne, e_index_j, M21);
+				Eigen::Triplet<Real> const T22(e_index_i + ne, e_index_j + ne, M22);
 
 				tri.push_back(T11);
 				tri.push_back(T12);
@@ -2687,7 +2872,7 @@ void solver<QuadraturePrecision>::assemblePressureSystem() {
 		}
 	}
 
-	internalPressureSystem.setFromTriplets(tri.begin(), tri.end());
+	PressureSystem.setFromTriplets(tri.begin(), tri.end());
 
 	R1iD.setFromTriplets(triR1iD.begin(), triR1iD.end());
 	R2iD.setFromTriplets(triR2iD.begin(), triR2iD.end());
@@ -2696,35 +2881,33 @@ void solver<QuadraturePrecision>::assemblePressureSystem() {
 	//iDH2.setFromTriplets(triiDH2.begin(), triiDH2.end());
 
 };
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::assemblePressureSystem_NoTriplet() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem_NoTriplet() {
 
 
-	real const coefficient = θ * dt;
+	Real const TimeCoefficient = TimeSchemeParameter * dt;
 
-	Eigen::Matrix3d block;
-	Eigen::Matrix3d block1;
-	Eigen::Matrix3d block2;
+	Eigen::Matrix3d Block;
+	Eigen::Matrix3d Block1;
+	Eigen::Matrix3d Block2;
 
 
 	// It is sufficient to zero only diagonal elements. Therefore, there is no need for += in the sequel
 	for (unsigned e = 0; e < ne; e++) {
 
-		internalPressureSystem.coeffRef(e,			 e) = M_j1_s1.coeff(e, e);
-		internalPressureSystem.coeffRef(e,		e + ne) = M_j1_s2.coeff(e, e);
-		internalPressureSystem.coeffRef(e + ne,		 e) = M_j2_s1.coeff(e, e);
-		internalPressureSystem.coeffRef(e + ne, e + ne) = M_j2_s2.coeff(e, e);
+		PressureSystem.coeffRef(e, e) = M_j1_s1.coeff(e, e);
+		PressureSystem.coeffRef(e, e + ne) = M_j1_s2.coeff(e, e);
+		PressureSystem.coeffRef(e + ne, e) = M_j2_s1.coeff(e, e);
+		PressureSystem.coeffRef(e + ne, e + ne) = M_j2_s2.coeff(e, e);
 
 	}
 
 	for (unsigned k = 0; k < nk; k++) {
 
 
-
-		t_pointer const K = mesh->get_triangle(k);
-
-		unsigned const k_index		= K->index;
-		unsigned const start_index	= 3 * k_index;
+		tm_pointer const K = Elements[k];
+		unsigned const	 k_index = ElementIndeces[k];
+		unsigned const	 start_index = 3 * k_index;
 
 
 		/*****************************************************************************/
@@ -2732,12 +2915,11 @@ void solver<QuadraturePrecision>::assemblePressureSystem_NoTriplet() {
 		/*    - Inverse of the matrix D										         */
 		/*                                                                           */
 		/*****************************************************************************/
-
 		for (unsigned r = 0; r < 3; r++)
 			for (unsigned s = 0; s < 3; s++)
-				block(r, s) = δij(r, s) - coefficient * σ(k_index, r, s);
+				Block(r, s) = kroneckerDelta(r, s) - TimeCoefficient * Sigma(k_index, r, s);
 
-		Eigen::Matrix3d const InverseBlock = block.inverse();
+		Eigen::Matrix3d const InverseBlock = Block.inverse();
 
 		for (unsigned i = 0; i < 3; i++)
 			for (unsigned j = 0; j < 3; j++)
@@ -2750,19 +2932,14 @@ void solver<QuadraturePrecision>::assemblePressureSystem_NoTriplet() {
 		/*    - H1, H2														         */
 		/*                                                                           */
 		/*****************************************************************************/
-
 		for (unsigned m = 0; m < 3; m++) {
 			for (unsigned Ei = 0; Ei < 3; Ei++) {
 
-				block1(m, Ei) = λ(k_index, 0, m, Ei);
-				block2(m, Ei) = λ(k_index, 1, m, Ei);
+				Block1(m, Ei) = -TimeCoefficient * Lambda(k_index, 0, m, Ei);
+				Block2(m, Ei) = -TimeCoefficient * Lambda(k_index, 1, m, Ei);
 
 			}
 		}
-
-		block1 *= -coefficient;
-		block2 *= -coefficient;
-
 
 
 		/*****************************************************************************/
@@ -2770,47 +2947,52 @@ void solver<QuadraturePrecision>::assemblePressureSystem_NoTriplet() {
 		/*    - H1, H2 blocks multiplied by the blocks Inverse of D			         */
 		/*                                                                           */
 		/*****************************************************************************/
-
-		Eigen::Matrix3d const iDH1block = InverseBlock * block1;
-		Eigen::Matrix3d const iDH2block = InverseBlock * block2;
-
+		Eigen::Matrix3d const iDH1block = InverseBlock * Block1;
+		Eigen::Matrix3d const iDH2block = InverseBlock * Block2;
 
 
 		/*****************************************************************************/
 		/*                                                                           */
-		/*    - Assemble of the resulting matrix R1 * D.inverse * H1		         */
+		/*    - Assembly of the resulting matrix R1 * iD * H1					     */
 		/*                                                                           */
 		/*****************************************************************************/
-
 		for (unsigned ei = 0; ei < 3; ei++) {
 
 
-			e_pointer const Ei			= K->edges[ei];
-			unsigned const	e_index_i	= K->edges[ei]->index;
-
+			em_pointer const Ei = K->edges[ei];
+			unsigned const	 e_index_i = K->edges[ei]->index;
 
 
 			for (unsigned j = 0; j < 3; j++) {
 
+
+				unsigned const start_index_j = start_index + j;
 
 				/*****************************************************************************/
 				/*                                                                           */
 				/*    - Assemble Matrices H1, H2									         */
 				/*                                                                           */
 				/*****************************************************************************/
-
-				H1.coeffRef(start_index + j, e_index_i) = block1.coeff(j, ei);
-				H2.coeffRef(start_index + j, e_index_i) = block2.coeff(j, ei);
+				H1.coeffRef(start_index_j, e_index_i) = Block1.coeff(j, ei);
+				H2.coeffRef(start_index_j, e_index_i) = Block2.coeff(j, ei);
 
 
 				/*****************************************************************************/
 				/*                                                                           */
-				/*    - Assemble Matrices R1 * D.inverse, R2 * D.inverse			         */
+				/*    - Assembly of the Matrices iDH1, iDH2	: iD * H1, iD * H2			     */
 				/*                                                                           */
 				/*****************************************************************************/
+				iDH1.coeffRef(start_index_j, e_index_i) = iDH1block.coeff(j, ei);
+				iDH2.coeffRef(start_index_j, e_index_i) = iDH2block.coeff(j, ei);
 
-				real sum1 = 0.0;
-				real sum2 = 0.0;
+
+				/*****************************************************************************/
+				/*                                                                           */
+				/*    - Assembly of the Matrices R1 * iD, R2 * iD						     */
+				/*                                                                           */
+				/*****************************************************************************/
+				Real sum1 = 0.0;
+				Real sum2 = 0.0;
 
 				for (unsigned m = 0; m < 3; m++) {
 
@@ -2819,8 +3001,8 @@ void solver<QuadraturePrecision>::assemblePressureSystem_NoTriplet() {
 
 				}
 
-				R1iD.coeffRef(e_index_i, start_index + j) = sum1;
-				R2iD.coeffRef(e_index_i, start_index + j) = sum2;
+				R1iD.coeffRef(e_index_i, start_index_j) = sum1;
+				R2iD.coeffRef(e_index_i, start_index_j) = sum2;
 
 			}
 
@@ -2835,10 +3017,10 @@ void solver<QuadraturePrecision>::assemblePressureSystem_NoTriplet() {
 
 				unsigned const e_index_j = K->edges[ej]->index;
 
-				real sum11 = 0.0;
-				real sum12 = 0.0;
-				real sum21 = 0.0;
-				real sum22 = 0.0;
+				Real sum11 = 0.0;
+				Real sum12 = 0.0;
+				Real sum21 = 0.0;
+				Real sum22 = 0.0;
 
 				// Number of degrees of freedom of internal pressure
 				for (unsigned m = 0; m < 3; m++) {
@@ -2853,19 +3035,19 @@ void solver<QuadraturePrecision>::assemblePressureSystem_NoTriplet() {
 				// Because diagonal elements were zeroed at the beginning, the += operator is needed only here
 				if (e_index_i == e_index_j) {
 
-					internalPressureSystem.coeffRef(e_index_i,		e_index_i	  ) += sum11;
-					internalPressureSystem.coeffRef(e_index_i,		e_index_i + ne) += sum12;
-					internalPressureSystem.coeffRef(e_index_i + ne, e_index_i	  ) += sum21;
-					internalPressureSystem.coeffRef(e_index_i + ne, e_index_i + ne) += sum22;
+					PressureSystem.coeffRef(e_index_i, e_index_i) += sum11;
+					PressureSystem.coeffRef(e_index_i, e_index_i + ne) += sum12;
+					PressureSystem.coeffRef(e_index_i + ne, e_index_i) += sum21;
+					PressureSystem.coeffRef(e_index_i + ne, e_index_i + ne) += sum22;
 
 					continue;
 
 				}
 
-				internalPressureSystem.coeffRef(e_index_i,		e_index_j	  ) = sum11 + M_j1_s1.coeff(e_index_i, e_index_j);
-				internalPressureSystem.coeffRef(e_index_i,		e_index_j + ne) = sum12 + M_j1_s2.coeff(e_index_i, e_index_j);
-				internalPressureSystem.coeffRef(e_index_i + ne, e_index_j	  ) = sum21 + M_j2_s1.coeff(e_index_i, e_index_j);
-				internalPressureSystem.coeffRef(e_index_i + ne, e_index_j + ne) = sum22 + M_j2_s2.coeff(e_index_i, e_index_j);
+				PressureSystem.coeffRef(e_index_i, e_index_j) = sum11 + M_j1_s1.coeff(e_index_i, e_index_j);
+				PressureSystem.coeffRef(e_index_i, e_index_j + ne) = sum12 + M_j1_s2.coeff(e_index_i, e_index_j);
+				PressureSystem.coeffRef(e_index_i + ne, e_index_j) = sum21 + M_j2_s1.coeff(e_index_i, e_index_j);
+				PressureSystem.coeffRef(e_index_i + ne, e_index_j + ne) = sum22 + M_j2_s2.coeff(e_index_i, e_index_j);
 
 			}
 		}
@@ -2873,27 +3055,27 @@ void solver<QuadraturePrecision>::assemblePressureSystem_NoTriplet() {
 
 };
 
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::getSparsityPatternOfThePressureSystem() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::getSparsityPatternOfThePressureSystem() {
 
 
-	real const DummyFillIn = 1.0;
+	Real const DummyFillIn = 1.0;
 
-	std::vector<Eigen::Triplet<real>> tri;
+	std::vector<Eigen::Triplet<Real>> tri;
 
-	std::vector<Eigen::Triplet<real>> triR1iD;
-	std::vector<Eigen::Triplet<real>> triR2iD;
+	std::vector<Eigen::Triplet<Real>> triR1iD;
+	std::vector<Eigen::Triplet<Real>> triR2iD;
 
-	std::vector<Eigen::Triplet<real>> triiDH1;
-	std::vector<Eigen::Triplet<real>> triiDH2;
+	std::vector<Eigen::Triplet<Real>> triiDH1;
+	std::vector<Eigen::Triplet<Real>> triiDH2;
 
 
 	for (unsigned e = 0; e < ne; e++) {
 
-		Eigen::Triplet<real> const T11(e,		e,		DummyFillIn);
-		Eigen::Triplet<real> const T12(e,		e + ne, DummyFillIn);
-		Eigen::Triplet<real> const T21(e + ne,	e,		DummyFillIn);
-		Eigen::Triplet<real> const T22(e + ne,	e + ne, DummyFillIn);
+		Eigen::Triplet<Real> const T11(e, e, DummyFillIn);
+		Eigen::Triplet<Real> const T12(e, e + ne, DummyFillIn);
+		Eigen::Triplet<Real> const T21(e + ne, e, DummyFillIn);
+		Eigen::Triplet<Real> const T22(e + ne, e + ne, DummyFillIn);
 
 		tri.push_back(T11);
 		tri.push_back(T12);
@@ -2904,27 +3086,28 @@ void solver<QuadraturePrecision>::getSparsityPatternOfThePressureSystem() {
 
 	for (unsigned k = 0; k < nk; k++) {
 
-		t_pointer const	K			= Elements[k];
-		unsigned  const	k_index		= ElementIndeces[k];
-		unsigned  const	start_index = 3 * k_index;
+		tm_pointer const K = Elements[k];
+		unsigned const	 k_index = ElementIndeces[k];
+		unsigned const	 start_index = 3 * k_index;
 
 
 		for (unsigned ei = 0; ei < 3; ei++) {
 
 
-			e_pointer const	Ei			= K->edges[ei];
-			unsigned  const	e_index_i	= Ei->index;
+			em_pointer const Ei = K->edges[ei];
+			unsigned const	 e_index_i = Ei->index;
+
 
 			for (unsigned j = 0; j < 3; j++) {
 
 
 				/*****************************************************************************/
 				/*                                                                           */
-				/*    - Sparsity patter of the Matrices iD * H1, iD * H2				     */
+				/*    - Sparsity pattern of the Matrices iD * H1, iD * H2				     */
 				/*                                                                           */
 				/*****************************************************************************/
-				Eigen::Triplet<real> const TH1(start_index + j, e_index_i, DummyFillIn);
-				Eigen::Triplet<real> const TH2(start_index + j, e_index_i, DummyFillIn);
+				Eigen::Triplet<Real> const TH1(start_index + j, e_index_i, DummyFillIn);
+				Eigen::Triplet<Real> const TH2(start_index + j, e_index_i, DummyFillIn);
 
 				triiDH1.push_back(TH1);
 				triiDH2.push_back(TH2);
@@ -2932,11 +3115,11 @@ void solver<QuadraturePrecision>::getSparsityPatternOfThePressureSystem() {
 
 				/*****************************************************************************/
 				/*                                                                           */
-				/*    - Sparsity patter of the Matrices R1 * iD, R2 * iD			         */
+				/*    - Sparsity pattern of the Matrices R1 * iD, R2 * iD			         */
 				/*                                                                           */
 				/*****************************************************************************/
-				Eigen::Triplet<real> const TR1(e_index_i, start_index + j, DummyFillIn);
-				Eigen::Triplet<real> const TR2(e_index_i, start_index + j, DummyFillIn);
+				Eigen::Triplet<Real> const TR1(e_index_i, start_index + j, DummyFillIn);
+				Eigen::Triplet<Real> const TR2(e_index_i, start_index + j, DummyFillIn);
 
 				triR1iD.push_back(TR1);
 				triR2iD.push_back(TR2);
@@ -2949,10 +3132,10 @@ void solver<QuadraturePrecision>::getSparsityPatternOfThePressureSystem() {
 			if (Ei->marker == E_MARKER::DIRICHLET)
 				continue;
 
-	
+
 			/*****************************************************************************/
 			/*                                                                           */
-			/*    - Sparsity patter of the Matrix internalPressureSystem		         */
+			/*    - Sparsity patter of the Matrix PressureSystem						 */
 			/*                                                                           */
 			/*****************************************************************************/
 			for (unsigned ej = 0; ej < 3; ej++) {
@@ -2963,10 +3146,10 @@ void solver<QuadraturePrecision>::getSparsityPatternOfThePressureSystem() {
 				// Because diagonal elements were zeroed at the beginning, the += operator is needed only here (if there was any. Will be when migrate to linux and No Eigen will be used)
 				if (e_index_i == e_index_j) {
 
-					Eigen::Triplet<real> const T11(e_index_i,		e_index_i,		DummyFillIn);
-					Eigen::Triplet<real> const T12(e_index_i,		e_index_i + ne, DummyFillIn);
-					Eigen::Triplet<real> const T21(e_index_i + ne,	e_index_i,		DummyFillIn);
-					Eigen::Triplet<real> const T22(e_index_i + ne,	e_index_i + ne, DummyFillIn);
+					Eigen::Triplet<Real> const T11(e_index_i, e_index_i, DummyFillIn);
+					Eigen::Triplet<Real> const T12(e_index_i, e_index_i + ne, DummyFillIn);
+					Eigen::Triplet<Real> const T21(e_index_i + ne, e_index_i, DummyFillIn);
+					Eigen::Triplet<Real> const T22(e_index_i + ne, e_index_i + ne, DummyFillIn);
 
 					tri.push_back(T11);
 					tri.push_back(T12);
@@ -2978,10 +3161,10 @@ void solver<QuadraturePrecision>::getSparsityPatternOfThePressureSystem() {
 				}
 
 
-				Eigen::Triplet<real> const T11(e_index_i,		e_index_j,		DummyFillIn);
-				Eigen::Triplet<real> const T12(e_index_i,		e_index_j + ne, DummyFillIn);
-				Eigen::Triplet<real> const T21(e_index_i + ne,	e_index_j,		DummyFillIn);
-				Eigen::Triplet<real> const T22(e_index_i + ne,	e_index_j + ne, DummyFillIn);
+				Eigen::Triplet<Real> const T11(e_index_i, e_index_j, DummyFillIn);
+				Eigen::Triplet<Real> const T12(e_index_i, e_index_j + ne, DummyFillIn);
+				Eigen::Triplet<Real> const T21(e_index_i + ne, e_index_j, DummyFillIn);
+				Eigen::Triplet<Real> const T22(e_index_i + ne, e_index_j + ne, DummyFillIn);
 
 				tri.push_back(T11);
 				tri.push_back(T12);
@@ -2992,56 +3175,56 @@ void solver<QuadraturePrecision>::getSparsityPatternOfThePressureSystem() {
 		}
 	}
 
-	R1iD					.setFromTriplets(triR1iD.begin(), triR1iD.end());
-	R2iD					.setFromTriplets(triR2iD.begin(), triR2iD.end());
-	iDH1					.setFromTriplets(triiDH1.begin(), triiDH1.end());
-	iDH2					.setFromTriplets(triiDH2.begin(), triiDH2.end());
-	internalPressureSystem	.setFromTriplets(tri.begin(), tri.end());
+	R1iD.setFromTriplets(triR1iD.begin(), triR1iD.end());
+	R2iD.setFromTriplets(triR2iD.begin(), triR2iD.end());
+	iDH1.setFromTriplets(triiDH1.begin(), triiDH1.end());
+	iDH2.setFromTriplets(triiDH2.begin(), triiDH2.end());
 
-	//SparseOrdering(internalPressureSystem, PermutationMatrix);
+	PressureSystem.setFromTriplets(tri.begin(), tri.end());
 
-	sparseLUsolver_PressureSystem.analyzePattern(internalPressureSystem);
+	sparseLUsolver_PressureSystem.analyzePattern(PressureSystem);
 
-	R1iD					.setZero();
-	R2iD					.setZero();
-	iDH1					.setZero();
-	iDH2					.setZero();
-	internalPressureSystem	.setZero();
+	R1iD.setZero();
+	R2iD.setZero();
+	iDH1.setZero();
+	iDH2.setZero();
+
+	PressureSystem.setZero();
 
 };
 
 
 
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::assemble_α() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::assemble_Alpha() {
 
 
-	quadrature_triangle const QuadratureOnTriangle(QuadraturePrecision);
+	quadrature_triangle<Real> const QuadratureOnTriangle(QuadraturePrecision);
 
-	Eigen::MatrixXd Integral(8, 8);
-	Eigen::MatrixXd BasisRaviartThomas(2, 8);
-	Eigen::MatrixXd JF(2, 2);
+	Eigen::Matrix<Real, Eigen::Dynamic, Eigen::Dynamic> Integral(8, 8);
+	Eigen::Matrix<Real, 2, 8> BasisRaviartThomas;
+	Eigen::Matrix<Real, 2, 2> JF;
 
 	for (unsigned k = 0; k < nk; k++) {
 
 
-		t_pointer const K = mesh->get_triangle(k);
-		unsigned const k_index = K->index;
+		tm_pointer const K = Mesh->get_triangle(k);
+		unsigned const   k_index = K->index;
 
-		v_pointer const va = K->vertices[0];
-		v_pointer const vb = K->vertices[1];
-		v_pointer const vc = K->vertices[2];
+		vm_pointer const va = K->vertices[0];
+		vm_pointer const vb = K->vertices[1];
+		vm_pointer const vc = K->vertices[2];
 
-		real const x0 = (real)va->x;
-		real const y0 = (real)va->y;
+		Real const x0 = va->x;
+		Real const y0 = va->y;
 
-		real const x1 = (real)vb->x;
-		real const y1 = (real)vb->y;
+		Real const x1 = vb->x;
+		Real const y1 = vb->y;
 
-		real const x2 = (real)vc->x;
-		real const y2 = (real)vc->y;
+		Real const x2 = vc->x;
+		Real const y2 = vc->y;
 
-		real const detJF = (real)abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
+		Real const detJF = abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
 
 		JF.coeffRef(0, 0) = x1 - x0;
 		JF.coeffRef(0, 1) = x2 - x0;
@@ -3054,36 +3237,34 @@ void solver<QuadraturePrecision>::assemble_α() {
 		for (unsigned n = 0; n < NumberOfQuadraturePointsTriangle; n++) {
 
 
-			real const s = (real)QuadratureOnTriangle.points_x[n];
-			real const t = (real)QuadratureOnTriangle.points_y[n];
-			real const w = (real) 0.5 * QuadratureOnTriangle.weights[n];
+			Real const s = QuadratureOnTriangle.points_x[n];
+			Real const t = QuadratureOnTriangle.points_y[n];
+			Real const w = 0.5 * QuadratureOnTriangle.weights[n];
 
-			// Corresponding coordinates on the element K
-			real const x = x0 + JF(0, 0) * s + JF(0, 1) * t;
-			real const y = y0 + JF(1, 0) * s + JF(1, 1) * t;
+			Real const x = x0 + JF(0, 0) * s + JF(0, 1) * t;
+			Real const y = y0 + JF(1, 0) * s + JF(1, 1) * t;
 
-			// Get the inverse of the permeability tensor
-			Eigen::Matrix2d K(2, 2);
-
-			K.coeffRef(0, 0) = 1.0;
-			K.coeffRef(0, 1) = 0.0;
-			K.coeffRef(1, 0) = 0.0;
-			K.coeffRef(1, 1) = 1.0;
-
-			Eigen::Matrix2d const iK = K.inverse();
 
 			evaluate_raviartthomas_basis(s, t, BasisRaviartThomas);
+
+
+			// Get the inverse of the permeability tensor K
+			Eigen::Matrix<Real, 2, 2> K;
+
+			permeability(x, y, K);
+
+			Eigen::Matrix<Real, 2, 2> const iK = K.inverse();
 
 
 			for (unsigned i = 0; i < 8; i++) {
 
 
-				Eigen::Vector2d const JFWi = JF * BasisRaviartThomas.col(i);
+				Eigen::Matrix<Real, 2, 1> const JFWi = JF * BasisRaviartThomas.col(i);
 
 				for (unsigned j = 0; j < 8; j++) {
 
 
-					Eigen::Vector2d const JFWj = JF * BasisRaviartThomas.col(j);
+					Eigen::Matrix<Real, 2, 1> const JFWj = JF * BasisRaviartThomas.col(j);
 
 					Integral.coeffRef(i, j) += w * JFWi.dot(iK * JFWj);
 
@@ -3101,29 +3282,30 @@ void solver<QuadraturePrecision>::assemble_α() {
 
 		for (unsigned i = 0; i < 8; i++)
 			for (unsigned j = 0; j < 8; j++)
-				α.setCoeff(k_index, i, j) = abs(Integral(i, j)) < INTEGRAL_PRECISION ? 0.0 : Integral(i, j);
+				Alpha.setCoeff(k_index, i, j) = abs(Integral(i, j)) < INTEGRAL_PRECISION ? 0.0 : Integral(i, j);
 
 	}
 
 };
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::assemble_β() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::assemble_Beta() {
 
 
-	quadrature_triangle const QuadratureOnTriangle(QuadraturePrecision);
+	quadrature_triangle<Real> const QuadratureOnTriangle(QuadraturePrecision);
 
-	Eigen::MatrixXd Integral(8, 3);
-	Eigen::VectorXd BasisPolynomial(3);
-	Eigen::VectorXd BasisRaviartThomasDivergence(8);
+	Eigen::Matrix<Real, 8, 3> Integral;
+	Eigen::Matrix<Real, 3, 1> BasisPolynomial;
+	Eigen::Matrix<Real, 8, 1> BasisRaviartThomasDivergence;
+
 
 	Integral.setZero();
 
 	for (unsigned n = 0; n < NumberOfQuadraturePointsTriangle; n++) {
 
 
-		real const s = (real) QuadratureOnTriangle.points_x[n];
-		real const t = (real) QuadratureOnTriangle.points_y[n];
-		real const w = (real) 0.5 * QuadratureOnTriangle.weights[n];
+		Real const s = QuadratureOnTriangle.points_x[n];
+		Real const t = QuadratureOnTriangle.points_y[n];
+		Real const w = 0.5 * QuadratureOnTriangle.weights[n];
 
 
 		evaluate_raviartthomas_basis_divergence(s, t, BasisRaviartThomasDivergence);
@@ -3132,11 +3314,11 @@ void solver<QuadraturePrecision>::assemble_β() {
 
 		for (unsigned i = 0; i < 8; i++) {
 
-			real const dWi = BasisRaviartThomasDivergence(i);
+			Real const dWi = BasisRaviartThomasDivergence(i);
 
 			for (unsigned j = 0; j < 3; j++) {
 
-				real const Phij = BasisPolynomial(j);
+				Real const Phij = BasisPolynomial(j);
 
 				Integral.coeffRef(i, j) += w * dWi * Phij;
 
@@ -3146,69 +3328,69 @@ void solver<QuadraturePrecision>::assemble_β() {
 
 	for (unsigned m = 0; m < 8; m++)
 		for (unsigned j = 0; j < 3; j++)
-			β.setCoeff(m, j) = abs(Integral(m, j)) < INTEGRAL_PRECISION ? 0.0 : Integral(m, j);
+			Beta.setCoeff(m, j) = abs(Integral(m, j)) < INTEGRAL_PRECISION ? 0.0 : Integral(m, j);
 
 
 };
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::assemble_χ() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::assemble_Chi() {
 
 
-	gauss_quadrature_1D const QuadratureOnEdge(QuadraturePrecision);
+	gauss_quadrature_1D<Real> const QuadratureOnEdge(QuadraturePrecision);
 
 
-	Eigen::MatrixXd ReferenceNormals(2, 3);
-	Eigen::VectorXd Parametrization(2);
-	Eigen::MatrixXd BasisRaviartThomas(2, 8);
-	Eigen::VectorXd BasisEdgePolynomial(2);
+	Eigen::Matrix<Real, 2, 3> ReferenceNormals;
+	Eigen::Matrix<Real, 2, 1> Parametrization;
+	Eigen::Matrix<Real, 2, 8> BasisRaviartThomas;
+	Eigen::Matrix<Real, 2, 1> BasisEdgePolynomial;
 
 	evaluate_edge_normal(ReferenceNormals);
 
-	χ.setZero();
+	Chi.setZero();
 
 	for (unsigned e = 0; e < ne; e++) {
 
 
-		e_pointer const E			= mesh->get_edge(e);
-		unsigned const	e_index		= E->index;
+		em_pointer const E = Mesh->get_edge(e);
+		unsigned const	 e_index = E->index;
 
 
 		for (unsigned neighborElement = 0; neighborElement < 2; neighborElement++) {
 
 
-			t_pointer const K = E->neighbors[neighborElement];
+			tm_pointer const K = E->neighbors[neighborElement];
 
 			if (!K)
 				continue;
 
 
-			unsigned const k_index			= K->index;
-			unsigned const e_index_local	= K->get_edge_index(E);
+			unsigned const k_index = K->index;
+			unsigned const e_index_local = K->get_edge_index(E);
 
-			real const orientation = edgeOrientation(k_index, e_index_local);
+			Real const orientation = edgeOrientation(k_index, e_index_local);
 
-			real const a = (real) 0.0;
-			real const b = (real) e_index_local != 0 ? 1.0 : sqrt(2.0);
+			Real const a = 0.0;
+			Real const b = e_index_local != 0 ? 1.0 : sqrt(2.0);
 
-			real const c = (real) (b - a) / 2.0;
-			real const d = (real) (b + a) / 2.0;
+			Real const c = 0.5 * (b - a);
+			Real const d = 0.5 * (b + a);
 
 
-			Eigen::VectorXd const ReferenceNormal = ReferenceNormals.col(e_index_local);
+			Eigen::Matrix<Real, 2, 1> const ReferenceNormal = ReferenceNormals.col(e_index_local);
 
 
 			for (unsigned n = 0; n < NumberOfQuadraturePointsEdge; n++) {
 
 
-				real const x = (real) QuadratureOnEdge.points[n] * c + d;
-				real const w = (real) QuadratureOnEdge.weights[n] * c;
+				Real const x = QuadratureOnEdge.points[n] * c + d;
+				Real const w = QuadratureOnEdge.weights[n] * c;
 
 
 				evaluate_edge_parametrization(x, e_index_local, Parametrization);
 
-				real const s = Parametrization(0);
-				real const t = Parametrization(1);
-				real const drNorm = 1.0;
+				Real const s = Parametrization(0);
+				Real const t = Parametrization(1);
+				Real const drNorm = 1.0;
 
 
 				evaluate_raviartthomas_basis(s, t, BasisRaviartThomas);
@@ -3218,62 +3400,37 @@ void solver<QuadraturePrecision>::assemble_χ() {
 				for (unsigned m = 0; m < 8; m++) {
 
 
-					Eigen::VectorXd const Wm = BasisRaviartThomas.col(m);
-
-					real const dotProduct = Wm.dot(ReferenceNormal);
+					Eigen::Matrix<Real, 2, 1> const	Wm = BasisRaviartThomas.col(m);
+					Real const						dotProduct = Wm.dot(ReferenceNormal);
 
 
 					for (unsigned s = 0; s < 2; s++) {
 
-						real const varPhis = BasisEdgePolynomial(s);
+						Real const varPhis = BasisEdgePolynomial(s);
 
-						χ.setCoeff(k_index, m, e_index_local, s) = χ(k_index, m, e_index_local, s) + w * dotProduct * varPhis * drNorm;
+						Chi.setCoeff(k_index, m, e_index_local, s) = Chi(k_index, m, e_index_local, s) + w * dotProduct * varPhis * drNorm;
 
 					}
 				}
 			}
-			
+
 
 			for (unsigned m = 0; m < 8; m++)
 				for (unsigned s = 0; s < 2; s++)
-					χ.setCoeff(k_index, m, e_index_local, s) = abs(χ(k_index, m, e_index_local, s)) < INTEGRAL_PRECISION ? 0.0 : χ(k_index, m, e_index_local, s);
+					Chi.setCoeff(k_index, m, e_index_local, s) = abs(Chi(k_index, m, e_index_local, s)) < INTEGRAL_PRECISION ? 0.0 : Chi(k_index, m, e_index_local, s);
 
-
-
-
-		}	
+		}
 	}
 
-
-	//for (unsigned k = 0; k < nk; k++) {
-	//
-	//
-	//	t_pointer const K = mesh->get_triangle(k);
-	//	unsigned const k_index = K->index;
-	//
-	//	for (unsigned m = 0; m < 8; m++) {
-	//		//
-	//		Matrix<real> integral(3, 2);
-	//		integral.setZero();
-	//		//
-	//		for (unsigned El = 0; El < 3; El++)
-	//			for (unsigned j = 0; j < 2; j++)
-	//				integral(El, j) = χ(k_index, m, El, j);
-	//		//
-	//		std::cout << integral << std::endl;
-	//		//
-	//	}
-	//}
-
 };
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::assemble_η() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::assemble_Eta() {
 
 
-	quadrature_triangle const QuadratureOnTriangle(QuadraturePrecision);
+	quadrature_triangle<Real> const QuadratureOnTriangle(QuadraturePrecision);
 
-	Eigen::MatrixXd Integral(3, 3);
-	Eigen::VectorXd BasisPolynomial(3);
+	Eigen::Matrix<Real, Eigen::Dynamic, Eigen::Dynamic> Integral(3, 3);
+	Eigen::Matrix<Real, 3, 1>							BasisPolynomial;
 
 
 	Integral.setZero();
@@ -3281,9 +3438,9 @@ void solver<QuadraturePrecision>::assemble_η() {
 	for (unsigned n = 0; n < NumberOfQuadraturePointsTriangle; n++) {
 
 
-		real const s = (real)QuadratureOnTriangle.points_x[n];
-		real const t = (real)QuadratureOnTriangle.points_y[n];
-		real const w = (real) 0.5 * QuadratureOnTriangle.weights[n];
+		Real const s = QuadratureOnTriangle.points_x[n];
+		Real const t = QuadratureOnTriangle.points_y[n];
+		Real const w = 0.5 * QuadratureOnTriangle.weights[n];
 
 		evaluate_polynomial_basis(s, t, BasisPolynomial);
 
@@ -3291,12 +3448,12 @@ void solver<QuadraturePrecision>::assemble_η() {
 		for (unsigned m = 0; m < 3; m++) {
 
 
-			real const Phim = BasisPolynomial(m);
+			Real const Phim = BasisPolynomial(m);
 
 			for (unsigned j = 0; j < 3; j++) {
 
 
-				real const Phij = BasisPolynomial(j);
+				Real const Phij = BasisPolynomial(j);
 
 				Integral.coeffRef(m, j) += w * Phim * Phij;
 
@@ -3312,26 +3469,26 @@ void solver<QuadraturePrecision>::assemble_η() {
 
 	for (unsigned i = 0; i < 3; i++)
 		for (unsigned j = 0; j < 3; j++)
-			η.setCoeff(i, j) = abs(Integral(i, j)) < INTEGRAL_PRECISION ? 0.0 : Integral(i, j);
+			Eta.setCoeff(i, j) = abs(Integral(i, j)) < INTEGRAL_PRECISION ? 0.0 : Integral(i, j);
 
 };
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::assemble_τ() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::assemble_Tau() {
 
 
-	quadrature_triangle const QuadratureOnTriangle(QuadraturePrecision);
+	quadrature_triangle<Real> const QuadratureOnTriangle(QuadraturePrecision);
 
-	Eigen::MatrixXd BasisRaviartThomas(2, 8);
-	Eigen::VectorXd BasisPolynomial(3);
-	Eigen::MatrixXd BasisPolynomialGradient(2, 3);
+	Eigen::Matrix<Real, 2, 8> BasisRaviartThomas;
+	Eigen::Matrix<Real, 3, 1> BasisPolynomial;
+	Eigen::Matrix<Real, 2, 3> BasisPolynomialGradient;
 
 
 	for (unsigned n = 0; n < NumberOfQuadraturePointsTriangle; n++) {
 
 
-		real const s = (real)QuadratureOnTriangle.points_x[n];
-		real const t = (real)QuadratureOnTriangle.points_y[n];
-		real const w = (real) 0.5 * QuadratureOnTriangle.weights[n];
+		Real const s = QuadratureOnTriangle.points_x[n];
+		Real const t = QuadratureOnTriangle.points_y[n];
+		Real const w = 0.5 * QuadratureOnTriangle.weights[n];
 
 
 		evaluate_raviartthomas_basis(s, t, BasisRaviartThomas);
@@ -3342,19 +3499,19 @@ void solver<QuadraturePrecision>::assemble_τ() {
 		for (unsigned m = 0; m < 3; m++) {
 
 
-			Eigen::VectorXd const dPhim = BasisPolynomialGradient.col(m);
+			Eigen::Matrix<Real, 2, 1> const dPhim = BasisPolynomialGradient.col(m);
 
 			for (unsigned j = 0; j < 8; j++) {
 
 
-				Eigen::VectorXd const	Wj			= BasisRaviartThomas.col(j);
-				real const				dotProduct	= Wj.dot(dPhim);
+				Eigen::Matrix<Real, 2, 1> const	Wj = BasisRaviartThomas.col(j);
+				Real const						dotProduct = Wj.dot(dPhim);
 
 				for (unsigned l = 0; l < 3; l++) {
 
-					real const Phil = BasisPolynomial(l);
+					Real const Phil = BasisPolynomial(l);
 
-					τ.setCoeff(m, j, l) = τ(m, j, l) + w * dotProduct * Phil;
+					Tau.setCoeff(m, j, l) = Tau(m, j, l) + w * dotProduct * Phil;
 
 				}
 			}
@@ -3364,22 +3521,20 @@ void solver<QuadraturePrecision>::assemble_τ() {
 	for (unsigned m = 0; m < 3; m++)
 		for (unsigned i = 0; i < 8; i++)
 			for (unsigned j = 0; j < 3; j++)
-				τ.setCoeff(m, i, j) = abs(τ(m, i, j)) < INTEGRAL_PRECISION ? 0.0 : τ(m, i, j);
+				Tau.setCoeff(m, i, j) = abs(Tau(m, i, j)) < INTEGRAL_PRECISION ? 0.0 : Tau(m, i, j);
 
 };
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::assemble_δ() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::assemble_Delta() {
 
-	
-	δ.setZero();
+
+	Delta.setZero();
 
 	for (unsigned k = 0; k < nk; k++) {
 
-		//t_pointer const K			= mesh->get_triangle(k);
-		//unsigned const  k_index   = K->index;
 
-		t_pointer const K		= Elements[k];
-		unsigned const	k_index = ElementIndeces[k];
+		tm_pointer const K = Elements[k];
+		unsigned const	 k_index = ElementIndeces[k];
 
 
 		for (unsigned El = 0; El < 3; El++) {
@@ -3387,11 +3542,11 @@ void solver<QuadraturePrecision>::assemble_δ() {
 			for (unsigned n = 0; n < NumberOfQuadraturePointsEdge; n++) {
 
 
-				real const tC = upwindConcentration(K, El, n);
+				Real const tC = upwindConcentration(K, El, n);
 
 				for (unsigned m = 0; m < 3; m++)
 					for (unsigned j = 0; j < 8; j++)
-						δ.setCoeff(k_index, m, El, j) = δ(k_index, m, El, j) + tC * QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis(n, j, El, m);
+						Delta.setCoeff(k_index, m, El, j) = Delta(k_index, m, El, j) + tC * QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis(n, j, El, m);
 
 			}
 		}
@@ -3404,7 +3559,7 @@ void solver<QuadraturePrecision>::assemble_δ() {
 		//				real const tC = upwindConcentration8(K, El, n);
 		//				integral += tC * QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis(n, j, El, m);
 		//			}
-		//			δ.setCoeff(k_index, m, El, j) = abs(integral) < INTEGRAL_PRECISION ? 0.0 : integral;
+		//			Delta.setCoeff(k_index, m, El, j) = abs(integral) < INTEGRAL_PRECISION ? 0.0 : integral;
 		//		}
 		//	}
 		//}
@@ -3412,13 +3567,13 @@ void solver<QuadraturePrecision>::assemble_δ() {
 		//for (unsigned m = 0; m < 3; m++)
 		//	for (unsigned El = 0; El < 3; El++)
 		//		for (unsigned j = 0; j < 8; j++)
-		//			δ.setCoeff(k_index, m, El, j) = abs(δ(k_index, m, El, j)) < INTEGRAL_PRECISION ? 0.0 : δ(k_index, m, El, j);
+		//			Delta.setCoeff(k_index, m, El, j) = abs(Delta(k_index, m, El, j)) < INTEGRAL_PRECISION ? 0.0 : Delta(k_index, m, El, j);
 
 	}
 
 };
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::assemble_γ() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::assemble_Gamma() {
 
 
 	for (unsigned k = 0; k < nk; k++) {
@@ -3431,16 +3586,16 @@ void solver<QuadraturePrecision>::assemble_γ() {
 			for (unsigned j = 0; j < 8; j++) {
 
 
-				real Value1 = 0.0;
-				real Value2 = 0.0;
+				Real Value1 = 0.0;
+				Real Value2 = 0.0;
 
 				for (unsigned El = 0; El < 3; El++)
-					Value1 += δ(k_index, m, El, j);
+					Value1 += Delta(k_index, m, El, j);
 
 				for (unsigned l = 0; l < 3; l++)
-					Value2 += τ(m, j, l) * ξ_prev(k_index, l);
+					Value2 += Tau(m, j, l) * Xi_prev(k_index, l);
 
-				γ.setCoeff(k_index, m, j) = Value1 - Value2;
+				Gamma.setCoeff(k_index, m, j) = Value1 - Value2;
 
 			}
 		}
@@ -3450,69 +3605,70 @@ void solver<QuadraturePrecision>::assemble_γ() {
 
 
 
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::assemble_σ() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::assemble_Sigma() {
 
 
 	for (unsigned k = 0; k < nk; k++) {
 
+
 		unsigned const	k_index = ElementIndeces[k];
-		real const		coeff	= -betas_prev[k_index] * PorosityViscosityDeterminant[k_index];
+		Real const		Coefficient = -Thetas_prev[k_index] * PorosityViscosityDeterminant[k_index];
 
 
 		for (unsigned m = 0; m < 3; m++) {
 			for (unsigned l = 0; l < 3; l++) {
 
-				real Value = 0.0;
+				Real Value = 0.0;
 
 				for (unsigned q = 0; q < 3; q++) {
 
-					real GammaAlphaBeta = 0.0;
+					Real GammaAlphaBeta = 0.0;
 
 					for (unsigned j = 0; j < 8; j++)
-						GammaAlphaBeta += γ(k_index, q, j) * AlphaTimesBeta(k_index, j, l);
+						GammaAlphaBeta += Gamma(k_index, q, j) * AlphaTimesBeta(k_index, j, l);
 
-					Value += η(m, q) * GammaAlphaBeta;
+					Value += Eta(m, q) * GammaAlphaBeta;
 
 				}
 
 				// In the computation of Eta, there is coefficient detJF. When inverting, the coefficient is inverted
-				σ.setCoeff(k_index, m, l) = coeff * Value;
+				Sigma.setCoeff(k_index, m, l) = Coefficient * Value;
 
 			}
 		}
 	}
 
 };
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::assemble_λ() {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::assemble_Lambda() {
 
 
 	for (unsigned k = 0; k < nk; k++) {
 
-		unsigned const	k_index	= ElementIndeces[k];
-		real const		coeff	= betas_prev[k_index] * PorosityViscosityDeterminant[k_index];
+		unsigned const	k_index = ElementIndeces[k];
+		Real const		Coefficient = Thetas_prev[k_index] * PorosityViscosityDeterminant[k_index];
 
 
 		for (unsigned s = 0; s < 2; s++) {
 			for (unsigned m = 0; m < 3; m++) {
 				for (unsigned El = 0; El < 3; El++) {
 
-					real Value = 0.0;
+					Real Value = 0.0;
 
 					for (unsigned q = 0; q < 3; q++) {
 
-						real GammaAlphaChi = 0.0;
+						Real GammaAlphaChi = 0.0;
 
 						for (unsigned j = 0; j < 8; j++)
-							GammaAlphaChi += γ(k_index, q, j) * AlphaTimesChi(k_index, j, El, s);
+							GammaAlphaChi += Gamma(k_index, q, j) * AlphaTimesChi(k_index, j, El, s);
 
-						Value += η(m, q) * GammaAlphaChi;
+						Value += Eta(m, q) * GammaAlphaChi;
 
 					}
 
 					// In the computation of Eta, there is coefficient detJF. When inverting, the coefficient is inverted
-					λ.setCoeff(k_index, s, m, El) = coeff * Value;
+					Lambda.setCoeff(k_index, s, m, El) = Coefficient * Value;
 
 				}
 			}
@@ -3520,48 +3676,47 @@ void solver<QuadraturePrecision>::assemble_λ() {
 	}
 
 };
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::assemble_φ() {};
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::assemble_ψ() {};
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::assemble_BigPhi() {};
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::assemble_BigPsi() {};
 
 
 
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::getSolution() {
 
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::getSolution() {
 
-	
 
 	/*****************************************************************************/
 	/*                                                                           */
 	/*    - Compute initial trace pressures from known inner pressures and	     */
-	/*      velocity field and coefficients betas							     */
+	/*      velocity field and coefficients Thetas							     */
 	/*                                                                           */
 	/*****************************************************************************/
 	computeTracePressures();
 	computeVelocities();
-	computeBetas();
+	computeThetas();
 
 
 	/*****************************************************************************/
 	/*                                                                           */
 	/*    - Set unknowns for inner iterations. Set iteration number: l = 0	     */
-	/*			: π_n	     - pressures on the n-th time level				 	 */
-	/*			: π_prev     - pressures on the (n+1),(l-1)-th time level		 */
-	/*			: ξ_n	     - concentrations on the n-th time level		 	 */
-	/*			: ξ_prev     - concentrations on the (n+1),(l-1)-th time level	 */
-	/*			: betas      - betas on the n-th time level		 				 */
-	/*			: betas_prev - betas on the (n+1),(l-1)-th time level			 */
+	/*			: Pi_n	     - pressures on the n-th time level				 	 */
+	/*			: Pi_prev     - pressures on the (n+1),(l-1)-th time level		 */
+	/*			: Xi_n	     - concentrations on the n-th time level		 	 */
+	/*			: Xi_prev     - concentrations on the (n+1),(l-1)-th time level	 */
+	/*			: Thetas      - Thetas on the n-th time level		 			 */
+	/*			: Thetas_prev - Thetas on the (n+1),(l-1)-th time level			 */
 	/*                                                                           */
 	/*****************************************************************************/
-	π_n = π;
-	π_prev = π;
+	Pi_n = Pi;
+	Pi_prev = Pi;
 
-	ξ_n = ξ;
-	ξ_prev = ξ;
+	Xi_n = Xi;
+	Xi_prev = Xi;
 
-	HardCopy(betas_prev, betas, nk);
+	hardCopy(Thetas_prev, Thetas, nk);
 
 
 	/*****************************************************************************/
@@ -3579,14 +3734,14 @@ void solver<QuadraturePrecision>::getSolution() {
 
 	unsigned counter = 0;
 
-	while (counter < MAX_IT) {
+	while (counter < MAX_ITERATIONS) {
 
 
-		assemble_δ();
-		assemble_γ();
+		assemble_Delta();
+		assemble_Gamma();
 
-		assemble_σ();
-		assemble_λ();
+		assemble_Sigma();
+		assemble_Lambda();
 
 
 		//omp_set_num_threads(2);
@@ -3596,11 +3751,11 @@ void solver<QuadraturePrecision>::getSolution() {
 		//	{
 		//		#pragma omp section
 		//		{
-		//			assemble_σ();
+		//			assemble_Sigma();
 		//		}
 		//		#pragma omp section
 		//		{
-		//			assemble_λ();
+		//			assemble_Lambda();
 		//		}
 		//	}
 		//}
@@ -3612,67 +3767,67 @@ void solver<QuadraturePrecision>::getSolution() {
 		updateConcentrations();
 
 		//concentrationCorrection();
-		//computeBetas();
+		//computeThetas();
 
 		if (stopCriterion())
 			break;
-			
+
 		/*****************************************************************************/
 		/*                                                                           */
 		/*    - Set next iteration number: l = l + 1								 */
 		/*                                                                           */
 		/*****************************************************************************/
-		π_prev = π;
-		ξ_prev = ξ;
+		Pi_prev = Pi;
+		Xi_prev = Xi;
 
-		//HardCopy(betas_prev, betas, nk);
+		//HardCopy(Thetas_prev, Thetas, nk);
 
 		counter++;
 
 	}
-	
-	
+
+
 	/*****************************************************************************/
 	/*                                                                           */
 	/*    - This is needed for the next time level as the part of the			 */
 	/*      Right-Hand Side of the pressure system - Crank-Nicolson              */
 	/*                                                                           */
 	/*****************************************************************************/
-	ξ_prev = ξ;
+	Xi_prev = Xi;
 
-	assemble_δ();
-	assemble_γ();
+	assemble_Delta();
+	assemble_Gamma();
 
-	assemble_λ();
-	assemble_σ();
+	assemble_Lambda();
+	assemble_Sigma();
 
 	for (unsigned k = 0; k < nk; k++) {
 
-		
+
 		unsigned const k_index = ElementIndeces[k];
 
 		for (unsigned m = 0; m < 3; m++) {
 
-			real Value1 = 0.0;
-			real Value2 = 0.0;
+			Real Value1 = 0.0;
+			Real Value2 = 0.0;
 
 			for (unsigned j = 0; j < 3; j++)
-				Value1 += σ(k_index, m, j) * π(k_index, j);
+				Value1 += Sigma(k_index, m, j) * Pi(k_index, j);
 
 			for (unsigned El = 0; El < 3; El++)
 				for (unsigned s = 0; s < 2; s++)
-					Value2 += λ(k_index, s, m, El) * tπ(k_index, El, s);
+					Value2 += Lambda(k_index, s, m, El) * TPi(k_index, El, s);
 
 			rkFp_n.setCoeff(k_index, m) = Value1 + Value2;
 
 		}
 	}
 
-	
+
 	//std::cout << counter << std::endl;
 
 	//if (nt % 1000 == 0)
-		std::cout << nt << " - Iterations : " << counter << std::endl;
+	//std::cout << nt << " - Iterations : " << counter << std::endl;
 
 };
 
@@ -3681,148 +3836,178 @@ void solver<QuadraturePrecision>::getSolution() {
 
 
 
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::exportSolution(std::ofstream & txtFile) {
+
+/*****************************************************************************/
+/*                                                                           */
+/*    - Export computed quantites into .txt file							 */
+/*                                                                           */
+/*****************************************************************************/
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::exportPressures(std::string const & fileName) {
 
 
-	double const t = nt * dt;
-
+	std::ofstream OFSTxtFile(fileName);
 
 	for (unsigned k = 0; k < nk; k++) {
 
 
-		t_pointer const	K		= Elements[k];
-		unsigned const	k_index = ElementIndeces[k];
+		tm_pointer const K = Elements[k];
+		unsigned const	 k_index = ElementIndeces[k];
 
-		v_pointer const a = K->vertices[0];
-		v_pointer const b = K->vertices[1];
-		v_pointer const c = K->vertices[2];
+		vm_pointer const a = K->vertices[0];
+		vm_pointer const b = K->vertices[1];
+		vm_pointer const c = K->vertices[2];
 
-		double const x0 = a->x;
-		double const y0 = a->y;
+		Real const x0 = a->x;
+		Real const y0 = a->y;
 
-		double const x1 = b->x;
-		double const y1 = b->y;
+		Real const x1 = b->x;
+		Real const y1 = b->y;
 
-		double const x2 = c->x;
-		double const y2 = c->y;
+		Real const x2 = c->x;
+		Real const y2 = c->y;
 
-		double const x[3] = { x0, x1, x2 };
-		double const y[3] = { y0, y1, y2 };
+		Real const x[3] = { x0, x1, x2 };
+		Real const y[3] = { y0, y1, y2 };
 
-		/*
-		Eigen::MatrixXd iJF(2, 2);
+		Real const S[3] = { 0.0, 1.0, 0.0 };
+		Real const T[3] = { 0.0, 0.0, 1.0 };
 
-		iJF(0, 0) = x1 - x0;
-		iJF(0, 1) = x2 - x0;
-		iJF(1, 0) = y1 - y0;
-		iJF(1, 1) = y2 - y0;
+		//Real const S[4] = { 0.0, 1.0, 0.0, 0.0 };
+		//Real const T[4] = { 0.0, 0.0, 1.0, 0.0 };
 
-		iJF = iJF.inverse();
+		for (unsigned i = 0; i < 3; i++)
+			OFSTxtFile << std::setprecision(20) << x[i] << "\t" << y[i] << "\t" << Pi(k_index, 0) * phi0(S[i], T[i]) + Pi(k_index, 1) * phi1(S[i], T[i]) + Pi(k_index, 2) * phi2(S[i], T[i]) << std::endl;
 
-		Eigen::Vector2d P0;
-		Eigen::Vector2d P1;
-		Eigen::Vector2d P2;
-
-		P0.coeffRef(0) = x0 - x0;
-		P0.coeffRef(1) = y0 - y0;
-
-		P1.coeffRef(0) = x1 - x0;
-		P1.coeffRef(1) = y1 - y0;
-
-		P2.coeffRef(0) = x2 - x0;
-		P2.coeffRef(1) = y2 - y0;
-
-		real const S0 = (iJF*P0)(0);
-		real const T0 = (iJF*P0)(1);
-
-		real const S1 = (iJF*P1)(0);
-		real const T1 = (iJF*P1)(1);
-
-		real const S2 = (iJF*P2)(0);
-		real const T2 = (iJF*P2)(1);
-
-		double const S[3] = { S0, S1, S2 };
-		double const T[3] = { T0, T1, T2 };
-		*/
-
-		double const S[3] = { 0.0, 1.0, 0.0 };
-		double const T[3] = { 0.0, 0.0, 1.0 };
-
-		//double const S[4] = { S0, S1, S2, S0 };
-		//double const T[4] = { T0, T1, T2, T0 };
-
-
-		for (unsigned i = 0; i < 3; i++) {
-
-			//// Pressures
-			real const value = π(k_index, 0) * phi1(S[i], T[i]) + π(k_index, 1) * phi2(S[i], T[i]) + π(k_index, 2) * phi3(S[i], T[i]);
-			//// Concentrations
-			//real const value = ξ(k_index, 0) * phi1(S[i], T[i]) + ξ(k_index, 1) * phi2(S[i], T[i]) + ξ(k_index, 2) * phi3(S[i], T[i]);
-
-			txtFile << std::setprecision(20) << x[i] << "\t" << y[i] << "\t" << value << std::endl;
-			//txtFile << std::setprecision(20) << x[i] << "	" << y[i] << "	" << value << "	" << index << std::endl;
-
-		}
-
-
-		txtFile << std::endl;
+		OFSTxtFile << std::endl;
 
 	}
 
+	OFSTxtFile.close();
+
 };
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::exportVelocityField(std::ofstream & txtFile) {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::exportConcentrations(std::string const & fileName) {
 
 
-
-	quadrature_triangle const QuadratureOnTriangle(4);
-	unsigned const NumberOfQuadraturePoints = QuadratureOnTriangle.NumberOfPoints;
-
-	Eigen::MatrixXd BasisRaviartThomas(2, 8);
-	Eigen::MatrixXd JF(2, 2);
-
+	std::ofstream OFSTxtFile(fileName);
 
 	for (unsigned k = 0; k < nk; k++) {
 
 
-		t_pointer const	K = mesh->get_triangle(k);
+		tm_pointer const K = Elements[k];
+		unsigned const	 k_index = ElementIndeces[k];
 
-		unsigned const k_index = K->index;
+		vm_pointer const a = K->vertices[0];
+		vm_pointer const b = K->vertices[1];
+		vm_pointer const c = K->vertices[2];
 
-		v_pointer const a = K->vertices[0];
-		v_pointer const b = K->vertices[1];
-		v_pointer const c = K->vertices[2];
+		Real const x0 = a->x;
+		Real const y0 = a->y;
 
-		double const x0 = a->x;
-		double const y0 = a->y;
+		Real const x1 = b->x;
+		Real const y1 = b->y;
 
-		double const x1 = b->x;
-		double const y1 = b->y;
+		Real const x2 = c->x;
+		Real const y2 = c->y;
 
-		double const x2 = c->x;
-		double const y2 = c->y;
+		Real const x[3] = { x0, x1, x2 };
+		Real const y[3] = { y0, y1, y2 };
 
-		real const detJF = abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
+		Real const S[3] = { 0.0, 1.0, 0.0 };
+		Real const T[3] = { 0.0, 0.0, 1.0 };
+
+		//Real const S[4] = { 0.0, 1.0, 0.0, 0.0 };
+		//Real const T[4] = { 0.0, 0.0, 1.0, 0.0 };
+
+		for (unsigned i = 0; i < 3; i++)
+			OFSTxtFile << std::setprecision(20) << x[i] << "\t" << y[i] << "\t" << Xi(k_index, 0) * phi0(S[i], T[i]) + Xi(k_index, 1) * phi1(S[i], T[i]) + Xi(k_index, 2) * phi2(S[i], T[i]) << std::endl;
+
+		OFSTxtFile << std::endl;
+
+	}
+
+	OFSTxtFile.close();
+
+};
+
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::exportTracePressures(std::string const & fileName) {
+
+
+	//std::ofstream OFSTxtFile(fileName);
+	//
+	//for (unsigned e = 0; e < ne; e++) {
+	//
+	//
+	//	e_pointer const E = mesh->get_edge(e);
+	//
+	//	v_pointer const va = E->a;
+	//	v_pointer const vb = E->b;
+	//
+	//	real const x0 = (real)va->x;
+	//	real const y0 = (real)va->y;
+	//
+	//	real const x1 = (real)vb->x;
+	//	real const y1 = (real)vb->y;
+	//
+	//	OFSTxtFile << x0 << " " << y0 << " " << std::setprecision(20) << tp[e] << std::endl;
+	//	OFSTxtFile << x1 << " " << y1 << " " << std::setprecision(20) << tp[e] << std::endl;
+	//	OFSTxtFile << std::endl;
+	//}
+	//
+	//OFSTxtFile.close();
+
+};
+
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::exportVelocityField(std::string const & fileName) {
+
+
+
+	quadrature_triangle<Real> const QuadratureOnTriangle(4);
+	unsigned const					NumberOfQuadraturePoints = QuadratureOnTriangle.NumberOfPoints;
+
+	Eigen::MatrixXd BasisRaviartThomas(2, 8);
+	Eigen::Matrix2d JF;
+
+	std::ofstream OFSTxtFile(fileName);
+
+	for (unsigned k = 0; k < nk; k++) {
+
+
+		tm_pointer const K = Elements[k];
+		unsigned const	 k_index = ElementIndeces[k];
+
+		vm_pointer const a = K->vertices[0];
+		vm_pointer const b = K->vertices[1];
+		vm_pointer const c = K->vertices[2];
+
+		Real const x0 = a->x;
+		Real const y0 = a->y;
+
+		Real const x1 = b->x;
+		Real const y1 = b->y;
+
+		Real const x2 = c->x;
+		Real const y2 = c->y;
+
+		Real const detJF = abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
 
 		JF(0, 0) = x1 - x0;
 		JF(0, 1) = x2 - x0;
 		JF(1, 0) = y1 - y0;
 		JF(1, 1) = y2 - y0;
 
-		//JF = matrixJF[k_index];
-
 
 		for (unsigned n = 0; n < NumberOfQuadraturePoints; n++) {
 
 
-			real const s = (real)QuadratureOnTriangle.points_x[n];
-			real const t = (real)QuadratureOnTriangle.points_y[n];
+			Real const s = QuadratureOnTriangle.points_x[n];
+			Real const t = QuadratureOnTriangle.points_y[n];
 
-
-			// Corresponding coordinates on the element K
-			real const x = x0 + JF(0, 0) * s + JF(0, 1) * t;
-			real const y = y0 + JF(1, 0) * s + JF(1, 1) * t;
+			Real const x = x0 + JF(0, 0) * s + JF(0, 1) * t;
+			Real const y = y0 + JF(1, 0) * s + JF(1, 1) * t;
 
 			evaluate_raviartthomas_basis(s, t, BasisRaviartThomas);
 
@@ -3830,62 +4015,37 @@ void solver<QuadraturePrecision>::exportVelocityField(std::ofstream & txtFile) {
 			Eigen::Vector2d Velocity(0.0, 0.0);
 
 			for (unsigned i = 0; i < 8; i++)
-				Velocity += υ(k_index, i) * JF * BasisRaviartThomas.col(i) / detJF;
+				Velocity += Velocity(k_index, i) * JF * BasisRaviartThomas.col(i) / detJF;
 
 
-			txtFile << std::setprecision(20) << x << "\t" << y << "\t" << Velocity(0) << "\t" << Velocity(1) << std::endl;
+			OFSTxtFile << std::setprecision(20) << x << "\t" << y << "\t" << Velocity(0) << "\t" << Velocity(1) << std::endl;
 
 		}
-
 	}
 
-
+	OFSTxtFile.close();
 
 };
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::exportVelocities(std::ofstream & txtFile) {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::exportVelocities(std::string const & fileName) {
+
+
+	std::ofstream OFSTxtFile(fileName);
 
 	for (unsigned k = 0; k < nk; k++) {
-	
+
 		for (unsigned j = 0; j < 8; j++)
-			txtFile << υ(mesh->get_triangle(k)->index, j) << " ";
-	
-		txtFile << std::endl;
+			OFSTxtFile << Velocity(Mesh->get_triangle(k)->index, j) << " ";
+
+		OFSTxtFile << std::endl;
 	}
 
-};
-
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::exportTracePressures(std::ofstream & txtFile) {
-
-		
-		//txtFile.open("C:\\Users\\pgali\\Desktop\\flow2d\\tp.txt");
-		//
-		//for (unsigned e = 0; e < ne; e++) {
-		//
-		//
-		//	e_pointer const E = mesh->get_edge(e);
-		//
-		//	v_pointer const va = E->a;
-		//	v_pointer const vb = E->b;
-		//
-		//	real const x0 = (real)va->x;
-		//	real const y0 = (real)va->y;
-		//
-		//	real const x1 = (real)vb->x;
-		//	real const y1 = (real)vb->y;
-		//
-		//	txtFile << x0 << " " << y0 << " " << std::setprecision(20) << tp[e] << std::endl;
-		//	txtFile << x1 << " " << y1 << " " << std::setprecision(20) << tp[e] << std::endl;
-		//	txtFile << std::endl;
-		//}
-		//
-		//txtFile.close();
+	OFSTxtFile.close();
 
 };
 
-template<unsigned QuadraturePrecision>
-void solver<QuadraturePrecision>::compute_error(std::ofstream & txtFile) {
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::computeError(std::string const & fileName) {
 
 
 	/*****************************************************************************/
@@ -3894,39 +4054,39 @@ void solver<QuadraturePrecision>::compute_error(std::ofstream & txtFile) {
 	/*      but the solution is already on (NT+1)-th level						 */
 	/*                                                                           */
 	/*****************************************************************************/
-	real const time = (nt + 1) * dt;
+	Real const time = (nt + 1) * dt;
 
 
-	quadrature_triangle const	QuadratureOnTriangle(quadrature_order);
-	unsigned const				NumberOfQuadraturePoints = QuadratureOnTriangle.NumberOfPoints;
+	quadrature_triangle<Real> const	QuadratureOnTriangle(QuadraturePrecision);
+	unsigned const					NumberOfQuadraturePoints = QuadratureOnTriangle.NumberOfPoints;
 
-	Eigen::VectorXd BasisPolynomial(3);
-	Eigen::MatrixXd JF(2, 2);
+	Eigen::Vector3d BasisPolynomial(3);
+	Eigen::Matrix2d JF;
 
-	real ErrorL1 = 0.0;
-	real ErrorL2 = 0.0;
-	real ErrorMax = 0.0;
+	Real ErrorL1 = 0.0;
+	Real ErrorL2 = 0.0;
+	Real ErrorMax = 0.0;
 
 	for (unsigned k = 0; k < nk; k++) {
 
 
-		t_pointer const	K		= Elements[k];
-		unsigned const	k_index = ElementIndeces[k];
+		tm_pointer const K = Elements[k];
+		unsigned const	 k_index = ElementIndeces[k];
 
-		v_pointer const va = K->vertices[0];
-		v_pointer const vb = K->vertices[1];
-		v_pointer const vc = K->vertices[2];
+		vm_pointer const va = K->vertices[0];
+		vm_pointer const vb = K->vertices[1];
+		vm_pointer const vc = K->vertices[2];
 
-		real const x0 = (real) va->x;
-		real const y0 = (real) va->y;
+		Real const x0 = va->x;
+		Real const y0 = va->y;
 
-		real const x1 = (real) vb->x;
-		real const y1 = (real) vb->y;
+		Real const x1 = vb->x;
+		Real const y1 = vb->y;
 
-		real const x2 = (real) vc->x;
-		real const y2 = (real) vc->y;
+		Real const x2 = vc->x;
+		Real const y2 = vc->y;
 
-		real const detJF = (real) abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
+		Real const HalfDetJF = 0.5 * abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
 
 		JF.coeffRef(0, 0) = x1 - x0;
 		JF.coeffRef(0, 1) = x2 - x0;
@@ -3934,68 +4094,531 @@ void solver<QuadraturePrecision>::compute_error(std::ofstream & txtFile) {
 		JF.coeffRef(1, 1) = y2 - y0;
 
 
-		real const B0 = barenblatt(x0, y0, time);
-		real const B1 = barenblatt(x1, y1, time);
-		real const B2 = barenblatt(x2, y2, time);
+		Real const B0 = barenblatt(x0, y0, time);
+		Real const B1 = barenblatt(x1, y1, time);
+		Real const B2 = barenblatt(x2, y2, time);
 
 		Eigen::Vector3d const B(B0, B1, B2);
 		Eigen::Matrix3d M;
 		M << 1.0, -1.0, -1.0,
-			 1.0, +1.0, -1.0,
-			 1.0, -1.0, +1.0;
+			1.0, +1.0, -1.0,
+			1.0, -1.0, +1.0;
 		Eigen::Vector3d const Solution = M.inverse() * B;
 
 
-		real L1NormOnElement	= 0.0;
-		real L2NormOnElement	= 0.0;
-		real MaxNormOnElement	= 0.0;
+		Real L1NormOnElement = 0.0;
+		Real L2NormOnElement = 0.0;
+		Real MaxNormOnElement = 0.0;
 
 		for (unsigned n = 0; n < NumberOfQuadraturePoints; n++) {
 
 
-			real const s = (real) QuadratureOnTriangle.points_x[n];
-			real const t = (real) QuadratureOnTriangle.points_y[n];
-			real const w = (real) 0.5 * QuadratureOnTriangle.weights[n];
+			//for (unsigned n = 0; n < NumberOfQuadraturePointsTriangle; n++) {
 
-			real const X = x0 + JF(0, 0) * s + JF(0, 1) * t;
-			real const Y = y0 + JF(1, 0) * s + JF(1, 1) * t;
+			//Real const s = QuadraturePointsAndWeightsOnReferenceTriangle(n, 0);
+			//Real const t = QuadraturePointsAndWeightsOnReferenceTriangle(n, 1);
+			//Real const w = QuadraturePointsAndWeightsOnReferenceTriangle(n, 2);
+
+
+			Real const s = QuadratureOnTriangle.points_x[n];
+			Real const t = QuadratureOnTriangle.points_y[n];
+			Real const w = QuadratureOnTriangle.weights[n];
+
+			Real const X = x0 + JF(0, 0) * s + JF(0, 1) * t;
+			Real const Y = y0 + JF(1, 0) * s + JF(1, 1) * t;
 
 			evaluate_polynomial_basis(s, t, BasisPolynomial);
 
-			real PressureK = 0.0;
+			Real PressureK = 0.0;
 
 			for (unsigned j = 0; j < 3; j++)
-				PressureK += π(k_index, j) * BasisPolynomial(j);
+				PressureK += Pi(k_index, j) * BasisPolynomial(j);
 
-			real const Difference = abs(PressureK - barenblatt(X, Y, time));
+			Real const Difference = abs(PressureK - barenblatt(X, Y, time));
 
 
-			L1NormOnElement		+= w * Difference;
-			L2NormOnElement		+= w * sqr(Difference);
-			MaxNormOnElement	= Difference > MaxNormOnElement ? Difference : MaxNormOnElement;
+			L1NormOnElement += w * Difference;
+			L2NormOnElement += w * square(Difference);
+			MaxNormOnElement = Difference > MaxNormOnElement ? Difference : MaxNormOnElement;
 
 
 			//real BarenblattK = 0.0;
 			//for (unsigned j = 0; j < 3; j++)
 			//	BarenblattK += Solution(j) * BasisPolynomial(j);
 			//
-			//Integral += w * sqr(PressureK - BarenblattK);
+			//Integral += w * square(PressureK - BarenblattK);
 
 		}
 
-		ErrorL1		+= detJF * L1NormOnElement;
-		ErrorL2		+= detJF * L2NormOnElement;
-		ErrorMax	= MaxNormOnElement;
+		ErrorL1 += HalfDetJF * L1NormOnElement;
+		ErrorL2 += HalfDetJF * L2NormOnElement;
+		ErrorMax = MaxNormOnElement;
 
 	}
 
-	txtFile << "#L1 L2 MAX" << std::endl;
+	std::ofstream OFSTxtFile(fileName);
 
-	txtFile << std::setprecision(20) << ErrorL1		  << std::endl;
-	txtFile << std::setprecision(20) << sqrt(ErrorL2) << std::endl;
-	txtFile << std::setprecision(20) << ErrorMax	  << std::endl;
+	OFSTxtFile << "#L1 L2 MAX" << std::endl;
+
+	OFSTxtFile << std::setprecision(20) << ErrorL1 << std::endl;
+	OFSTxtFile << std::setprecision(20) << sqrt(ErrorL2) << std::endl;
+	OFSTxtFile << std::setprecision(20) << ErrorMax << std::endl;
+
+	OFSTxtFile.close();
 
 	std::cout << "Error L1	: " << ErrorL1 << std::endl;
 	std::cout << "Error L2	: " << sqrt(ErrorL2) << std::endl;
 	std::cout << "Error Max	: " << ErrorMax << std::endl;
+
 };
+
+
+
+
+
+/*****************************************************************************/
+/*                                                                           */
+/*    - Evaluation of Raviart-Thomas and P1 basis function, normal vectors,  */
+/*      edges parametrization, Edge basis P1(E)							     */
+/*                                                                           */
+/*****************************************************************************/
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+inline void solver<QuadraturePrecision, TimeScheme>::evaluate_raviartthomas_basis(Real const s, Real const t, Eigen::Matrix<Real, 2, 8> & out) {
+
+
+	out.coeffRef(0, 0) = -3.0*s + 4.0*s*t + 4.0*s * s;
+	out.coeffRef(1, 0) = -3.0*t + 4.0*s*t + 4.0*t * t;
+
+	out.coeffRef(0, 1) = -1.0 + 5.0*s - 4.0*s * s;
+	out.coeffRef(1, 1) = t - 4.0*s * t;
+
+	out.coeffRef(0, 2) = s - 4.0*s * t;
+	out.coeffRef(1, 2) = -1.0 + 5.0*t - 4.0*t * t;
+
+	out.coeffRef(0, 3) = s + 4.0*t * s - 4.0*s * s;
+	out.coeffRef(1, 3) = -t - 4.0*s * t + 4.0*t * t;
+
+	out.coeffRef(0, 4) = -3.0 + 7.0*s + 6.0*t - 8.0*t * s - 4.0*s * s;
+	out.coeffRef(1, 4) = 5.0*t - 4.0*s * t - 8.0*t * t;
+
+	out.coeffRef(0, 5) = -5.0*s + 4.0*t * s + 8.0*s * s;
+	out.coeffRef(1, 5) = 3.0 - 6.0*s - 7.0*t + 8.0*s * t + 4.0*t * t;
+
+	out.coeffRef(0, 6) = 16.0*s - 8.0*s * t - 16.0*s * s;
+	out.coeffRef(1, 6) = 8.0*t - 16.0*s * t - 8.0*t * t;
+
+	out.coeffRef(0, 7) = 8.0*s - 16.0*s * t - 8.0*s * s;
+	out.coeffRef(1, 7) = 16.0*t - 8.0*s * t - 16.0*t * t;
+
+};
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+inline void solver<QuadraturePrecision, TimeScheme>::evaluate_raviartthomas_basis_divergence(Real const s, Real const t, Eigen::Matrix<Real, 8, 1> & out) {
+
+	out.coeffRef(0) = -3.0 + 4.0*t + 8.0*s - 3.0 + 4.0*s + 8.0*t;
+	out.coeffRef(1) = 5.0 - 8.0*s + 1.0 - 4.0*s;
+	out.coeffRef(2) = 1.0 - 4.0*t + 5.0 - 8.0*t;
+	out.coeffRef(3) = 1.0 + 4.0 * t - 8.0*s - 1.0 - 4.0*s + 8.0*t;
+	out.coeffRef(4) = 7.0 - 8.0*t - 8.0*s + 5.0 - 4.0*s - 16.0*t;
+	out.coeffRef(5) = -5.0 + 16.0*s + 4.0*t - 7.0 + 8.0*s + 8.0*t;
+	out.coeffRef(6) = 16.0 - 8.0*t - 32.0*s + 8.0 - 16.0*s - 16.0*t;
+	out.coeffRef(7) = 8.0 - 16.0*s - 16.0*t + 16.0 - 8.0*s - 32.0*t;
+
+};
+
+
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+inline void solver<QuadraturePrecision, TimeScheme>::evaluate_polynomial_basis(Real const s, Real const t, Eigen::Matrix<Real, 3, 1> & out) {
+
+	out.coeffRef(0) = +1.0;
+	out.coeffRef(1) = -1.0 + 2.0*s;
+	out.coeffRef(2) = -1.0 + 2.0*t;
+
+};
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+inline void solver<QuadraturePrecision, TimeScheme>::evaluate_polynomial_basis_gradient(Real const s, Real const t, Eigen::Matrix<Real, 2, 3> & out) {
+
+	out.coeffRef(0, 0) = 0.0;
+	out.coeffRef(1, 0) = 0.0;
+
+	out.coeffRef(0, 1) = 2.0;
+	out.coeffRef(1, 1) = 0.0;
+
+	out.coeffRef(0, 2) = 0.0;
+	out.coeffRef(1, 2) = 2.0;
+
+};
+
+
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+inline void solver<QuadraturePrecision, TimeScheme>::evaluate_edge_polynomial_basis(Real const ksi, unsigned const El, Eigen::Matrix<Real, 2, 1> & out, Real const & orientation) {
+
+
+	switch (El) {
+
+	case 0:
+		out.coeffRef(0) = 1.0;
+		out.coeffRef(1) = orientation * (2.0 / sqrt(2.0)) * (ksi - sqrt(2.0) / 2.0);
+		return;
+	case 1:
+		out.coeffRef(0) = 1.0;
+		out.coeffRef(1) = orientation * 2.0 * (ksi - 0.5);
+		return;
+	case 2:
+		out.coeffRef(0) = 1.0;
+		out.coeffRef(1) = orientation * 2.0 * (ksi - 0.5);
+		return;
+
+	}
+
+};
+
+
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+inline void solver<QuadraturePrecision, TimeScheme>::evaluate_edge_parametrization(Real const ksi, unsigned const El, Eigen::Matrix<Real, 2, 1> & out) {
+
+
+	switch (El) {
+
+	case 0:
+
+		out.coeffRef(0) = 1.0 - ksi / sqrt(2.0);
+		out.coeffRef(1) = ksi / sqrt(2.0);
+		return;
+
+	case 1:
+
+		out.coeffRef(0) = 0.0;
+		out.coeffRef(1) = 1.0 - ksi;
+		return;
+
+	case 2:
+
+		out.coeffRef(0) = ksi;
+		out.coeffRef(1) = 0.0;
+		return;
+
+
+	}
+
+};
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+inline void solver<QuadraturePrecision, TimeScheme>::evaluate_edge_parametrization_derivative(Real const ksi, unsigned const El, Eigen::Matrix<Real, 2, 1> & out) {
+
+
+	switch (El) {
+
+	case 0:
+
+		out.coeffRef(0) = -1.0 / sqrt(2.0);
+		out.coeffRef(1) = 1.0 / sqrt(2.0);
+		return;
+
+	case 1:
+
+		out.coeffRef(0) = 0.0;
+		out.coeffRef(1) = -1.0;
+		return;
+
+	case 2:
+
+		out.coeffRef(0) = 1.0;
+		out.coeffRef(1) = 0.0;
+		return;
+
+	}
+
+};
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+inline void solver<QuadraturePrecision, TimeScheme>::evaluate_edge_parametrization_opposite(Real const ksi, unsigned const El, Eigen::Matrix<Real, 2, 1> & out) {
+
+
+	switch (El) {
+
+	case 0:
+
+		out.coeffRef(0) = ksi / sqrt(2.0);
+		out.coeffRef(1) = 1.0 - ksi / sqrt(2.0);
+		return;
+
+	case 1:
+
+		out.coeffRef(0) = 0.0;
+		out.coeffRef(1) = ksi;
+		return;
+
+	case 2:
+
+		out.coeffRef(0) = 1.0 - ksi;
+		out.coeffRef(1) = 0.0;
+		return;
+
+	}
+
+};
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+inline void solver<QuadraturePrecision, TimeScheme>::evaluate_edge_parametrization_opposite_derivative(Real const ksi, unsigned const El, Eigen::Matrix<Real, 2, 1> & out) {
+
+
+	switch (El) {
+
+	case 0:
+
+		out.coeffRef(0) = 1.0 / sqrt(2.0);
+		out.coeffRef(1) = -1.0 / sqrt(2.0);
+		return;
+
+	case 1:
+
+		out.coeffRef(0) = 0.0;
+		out.coeffRef(1) = 1.0;
+		return;
+
+	case 2:
+
+		out.coeffRef(0) = -1.0;
+		out.coeffRef(1) = 0.0;
+		return;
+
+	}
+
+};
+
+
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+inline void solver<QuadraturePrecision, TimeScheme>::evaluate_edge_normal(Eigen::Matrix<Real, 2, 3> & out) {
+
+	out.coeffRef(0, 0) = 1.0 / sqrt(2.0);
+	out.coeffRef(1, 0) = 1.0 / sqrt(2.0);
+
+	out.coeffRef(0, 1) = -1.0;
+	out.coeffRef(1, 1) = 0.0;
+
+	out.coeffRef(0, 2) = 0.0;
+	out.coeffRef(1, 2) = -1.0;
+
+};
+
+
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+inline Real solver<QuadraturePrecision, TimeScheme>::phi0(Real const s, Real const t) {
+
+	return 1.0;
+
+};
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+inline Real solver<QuadraturePrecision, TimeScheme>::phi1(Real const s, Real const t) {
+
+	return -1.0 + 2.0*s;
+
+};
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+inline Real solver<QuadraturePrecision, TimeScheme>::phi2(Real const s, Real const t) {
+
+	return -1.0 + 2.0*t;
+
+};
+
+
+
+/*****************************************************************************/
+/*                                                                           */
+/*    - Integral of Source * P1 basis function phi_m						 */
+/*                                                                           */
+/*****************************************************************************/
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+Real solver<QuadraturePrecision, TimeScheme>::F0(tm_pointer K, Real const time) {
+
+
+	vm_pointer const a = K->vertices[0];
+	vm_pointer const b = K->vertices[1];
+	vm_pointer const c = K->vertices[2];
+
+	Real const x0 = a->x;
+	Real const y0 = a->y;
+
+	Real const x1 = b->x;
+	Real const y1 = b->y;
+
+	Real const x2 = c->x;
+	Real const y2 = c->y;
+
+	Real const detJF = abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
+
+	//quadrature_triangle<Real> quad(quadrature_order);
+	//unsigned const num_quad_points = quad.NumberOfPoints;
+
+	Real integral = 0.0;
+
+	for (unsigned i = 0; i < NumberOfQuadraturePointsTriangle; i++) {
+
+		Real const s = QuadraturePointsAndWeightsOnReferenceTriangle(i, 0);
+		Real const t = QuadraturePointsAndWeightsOnReferenceTriangle(i, 1);
+		Real const w = QuadraturePointsAndWeightsOnReferenceTriangle(i, 2);
+
+		//Real const s = quad.points_x[i];
+		//Real const t = quad.points_y[i];
+		//Real const w = 0.5 * quad.weights[i];
+
+		Real const x = x0 + (x1 - x0)*s + (x2 - x0)*t;
+		Real const y = y0 + (y1 - y0)*s + (y2 - y0)*t;
+
+		integral += w * source(x, y, time) * phi0(s, t);
+
+	}
+
+	return 0.5 * detJF * integral;
+
+};
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+Real solver<QuadraturePrecision, TimeScheme>::F1(tm_pointer K, Real const time) {
+
+
+	vm_pointer const a = K->vertices[0];
+	vm_pointer const b = K->vertices[1];
+	vm_pointer const c = K->vertices[2];
+
+	Real const x0 = a->x;
+	Real const y0 = a->y;
+
+	Real const x1 = b->x;
+	Real const y1 = b->y;
+
+	Real const x2 = c->x;
+	Real const y2 = c->y;
+
+	Real const detJF = abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
+
+	//quadrature_triangle<Real> quad(quadrature_order);
+	//unsigned const num_quad_points = quad.NumberOfPoints;
+
+	Real integral = 0.0;
+
+	for (unsigned i = 0; i < NumberOfQuadraturePointsTriangle; i++) {
+
+		Real const s = QuadraturePointsAndWeightsOnReferenceTriangle(i, 0);
+		Real const t = QuadraturePointsAndWeightsOnReferenceTriangle(i, 1);
+		Real const w = QuadraturePointsAndWeightsOnReferenceTriangle(i, 2);
+
+		//Real const s = quad.points_x[i];
+		//Real const t = quad.points_y[i];
+		//Real const w = 0.5 * quad.weights[i];
+
+		Real const x = x0 + (x1 - x0)*s + (x2 - x0)*t;
+		Real const y = y0 + (y1 - y0)*s + (y2 - y0)*t;
+
+		integral += w * source(x, y, time) * phi1(s, t);
+
+	}
+
+	return 0.5 * detJF * integral;
+
+};
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+Real solver<QuadraturePrecision, TimeScheme>::F2(tm_pointer K, Real const time) {
+
+
+	vm_pointer const a = K->vertices[0];
+	vm_pointer const b = K->vertices[1];
+	vm_pointer const c = K->vertices[2];
+
+	Real const x0 = a->x;
+	Real const y0 = a->y;
+
+	Real const x1 = b->x;
+	Real const y1 = b->y;
+
+	Real const x2 = c->x;
+	Real const y2 = c->y;
+
+	Real const detJF = abs((x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0));
+
+	//quadrature_triangle<Real> quad(quadrature_order);
+	//unsigned const num_quad_points = quad.NumberOfPoints;
+
+	Real integral = 0.0;
+
+	for (unsigned i = 0; i < NumberOfQuadraturePointsTriangle; i++) {
+
+		Real const s = QuadraturePointsAndWeightsOnReferenceTriangle(i, 0);
+		Real const t = QuadraturePointsAndWeightsOnReferenceTriangle(i, 1);
+		Real const w = QuadraturePointsAndWeightsOnReferenceTriangle(i, 2);
+
+		//Real const s = quad.points_x[i];
+		//Real const t = quad.points_y[i];
+		//Real const w = 0.5 * quad.weights[i];
+
+		Real const x = x0 + (x1 - x0)*s + (x2 - x0)*t;
+		Real const y = y0 + (y1 - y0)*s + (y2 - y0)*t;
+
+		integral += w * source(x, y, time) * phi2(s, t);
+
+	}
+
+	return 0.5 * detJF * integral;
+
+};
+
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::evaluate_source_integrals() {
+
+
+	Real const time = nt * dt;
+
+	for (unsigned k = 0; k < nk; k++) {
+
+
+		tm_pointer const K = Mesh->get_triangle(k);
+		unsigned const   k_index = K->index;
+
+		vm_pointer const va = K->vertices[0];
+		vm_pointer const vb = K->vertices[1];
+		vm_pointer const vc = K->vertices[2];
+
+		Real const x0 = va->x;
+		Real const y0 = va->y;
+
+		Real const x1 = vb->x;
+		Real const y1 = vb->y;
+
+		Real const x2 = vc->x;
+		Real const y2 = vc->y;
+
+		Real const x10 = x1 - x0;
+		Real const x20 = x2 - x0;
+		Real const y10 = y1 - y0;
+		Real const y20 = y2 - y0;
+
+		Real const HalfDetJF = 0.5 * abs(x10 * y20 - x20 * y10);
+
+
+		Real Integral0 = 0.0;
+		Real Integral1 = 0.0;
+		Real Integral2 = 0.0;
+
+		for (unsigned n = 0; n < NumberOfQuadraturePointsTriangle; n++) {
+
+
+			Real const s = QuadraturePointsAndWeightsOnReferenceTriangle(n, 0);
+			Real const t = QuadraturePointsAndWeightsOnReferenceTriangle(n, 1);
+			Real const w = QuadraturePointsAndWeightsOnReferenceTriangle(n, 2);
+
+			Real const x = x0 + (x1 - x0)*s + (x2 - x0)*t;
+			Real const y = y0 + (y1 - y0)*s + (y2 - y0)*t;
+
+
+			Real const SourceValueTimesWeight = w * source(x, y, time);
+
+			Integral0 += SourceValueTimesWeight * phi0(s, t);
+			Integral1 += SourceValueTimesWeight * phi1(s, t);
+			Integral2 += SourceValueTimesWeight * phi2(s, t);
+
+		}
+
+		Sources.setCoeff(k_index, 0) = HalfDetJF * Integral0;
+		Sources.setCoeff(k_index, 1) = HalfDetJF * Integral1;
+		Sources.setCoeff(k_index, 2) = HalfDetJF * Integral2;
+
+	}
+
+};
+
