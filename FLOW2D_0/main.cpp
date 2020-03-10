@@ -51,8 +51,7 @@
 #include <iomanip>
 
 void generate_vertices();
-void exportMesh(std::ofstream & txtFile, MESH const & m);
-
+void exportMesh(std::string const & fileName, MESH const & m);
 
 
 //const double a_x = 0.0;
@@ -89,12 +88,12 @@ double const dt = 300.0 / (refinement);
 
 
 
-std::string fileName_mesh		= "C:\\Users\\pgali\\Desktop\\eoc\\mesh.txt";
-std::string fileName_velocity	= "C:\\Users\\pgali\\Desktop\\eoc\\velocity";
+std::string fileName_mesh		= "C:\\Users\\pgali\\Desktop\\eoc\\mesh.txt_";
+std::string fileName_velocity	= "C:\\Users\\pgali\\Desktop\\eoc\\velocity_";
 
-std::string fileName_pressure		= "C:\\Users\\pgali\\Desktop\\eoc\\pressure";
-std::string fileName_concentration	= "C:\\Users\\pgali\\Desktop\\eoc\\concentration";
-std::string fileName_error			= "C:\\Users\\pgali\\Desktop\\eoc\\error";
+std::string fileName_pressure		= "C:\\Users\\pgali\\Desktop\\eoc\\pressure_";
+std::string fileName_concentration	= "C:\\Users\\pgali\\Desktop\\eoc\\concentration_";
+std::string fileName_error			= "C:\\Users\\pgali\\Desktop\\eoc\\error2_";
 
 
 
@@ -243,8 +242,8 @@ int main() {
 		/*    - Create text file of the solution on the (n+1)-th time level			 */
 		/*                                                                           */
 		/*****************************************************************************/
-		//solution.exportPressures(fileName_pressure + "_" + std::to_string(nt) + ".txt");
-		//solution.exportConcentrations(fileName_concentration + "_" + std::to_string(nt) + ".txt");
+		//solution.exportPressures(fileName_pressure + std::to_string(nt) + ".txt");
+		//solution.exportConcentrations(fileName_concentration + std::to_string(nt) + ".txt");
 
 
 		/*****************************************************************************/
@@ -252,7 +251,7 @@ int main() {
 		/*    - Create text file of the velocities on the (n+1)-th time level		 */
 		/*                                                                           */
 		/*****************************************************************************/
-		//solution.exportVelocities(fileName_velocity + "_" + std::to_string(nt) + ".txt");
+		//solution.exportVelocities(fileName_velocity + std::to_string(nt) + ".txt");
 
 
 	}
@@ -262,7 +261,7 @@ int main() {
 
 
 
-	//solution.computeError(fileName_error + std::to_string(refinement));
+	//solution.computeError(fileName_error + std::to_string(refinement) + ".txt");
 
 
 

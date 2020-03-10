@@ -184,8 +184,6 @@ public:
 
 	unsigned index;
 
-	//CoeffMatrix1D<2> QuadraturePoints_Edge[3];
-
 
 	/*****************************************************************************/
 	/*                                                                           */

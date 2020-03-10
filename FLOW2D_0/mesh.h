@@ -1,9 +1,6 @@
 #pragma once
 
 
-#pragma once
-
-
 #include "triangulation.h"
 #include "enumerators.h"
 #include "shapes.h"
