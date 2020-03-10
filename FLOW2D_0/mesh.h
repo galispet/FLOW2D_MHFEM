@@ -254,8 +254,8 @@ void MESH::allocate_new_primitives(Triangulation<GK> & triangulation) {
 
 		em_pointer const new_edge = new MESHEdge(a, b);
 
-		new_edge->index = e->index;
-		new_edge->marker = e->marker;
+		new_edge->index		= e->index;
+		new_edge->marker	= e->marker;
 
 		edges.push_back(new_edge);
 

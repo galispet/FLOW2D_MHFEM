@@ -3,6 +3,7 @@
 
 
 #include "enumerators.h"
+#include "coefficient_matrix.h"
 
 #include <cassert>
 #include <algorithm>
@@ -105,7 +106,14 @@ public:
 	unsigned index;
 	E_MARKER marker;
 
-	tm_pointer neighbors[2] = { NULL,NULL };
+	tm_pointer neighbors[2] = { NULL , NULL };
+
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Phzsical quadrature points (x,y) on this edge						 */
+	/*                                                                           */
+	/*****************************************************************************/
+	//CoeffMatrix1D<2> QuadraturePoints_Edge;
 
 
 	/*****************************************************************************/
@@ -170,11 +178,13 @@ public:
 	/*    - Class members														 */
 	/*                                                                           */
 	/*****************************************************************************/
-	vm_pointer vertices[3] = { NULL,NULL,NULL };
-	em_pointer edges[3] = { NULL,NULL,NULL };
+	vm_pointer vertices[3]	= { NULL,NULL,NULL };
+	em_pointer edges[3]		= { NULL,NULL,NULL };
 	tm_pointer neighbors[3] = { NULL,NULL,NULL };
 
 	unsigned index;
+
+	//CoeffMatrix1D<2> QuadraturePoints_Edge[3];
 
 
 	/*****************************************************************************/

@@ -169,7 +169,22 @@ private:
 	/*    - Mesh created from the triangulation of given vertices		         */
 	/*                                                                           */
 	/*****************************************************************************/
-	Mesh * Mesh;
+	MESH * Mesh;
+
+	//tm_pointer * MeshElements		= NULL;
+	em_pointer * MeshEdges			= NULL;
+
+	em_pointer * MeshEdgesInner		= NULL;
+	em_pointer * MeshEdgesDirichlet = NULL;
+	em_pointer * MeshEdgesNeumann	= NULL;
+
+	unsigned * MeshEdgesInner_Indeces		= NULL;
+	unsigned * MeshEdgesDirichlet_Indeces	= NULL;
+	unsigned * MeshEdgesNeumann_Indeces		= NULL;
+
+	unsigned const NumberOfDirichletEdges;
+	unsigned const NumberOfNeumannEdges;
+	
 
 
 	/*****************************************************************************/
@@ -309,43 +324,7 @@ private:
 	Real * AffineMappingMatrixDeterminant = NULL;
 	Real * PorosityViscosityDeterminant = NULL;
 
-	/*
-	em_pointer * EdgesDirichlet = NULL;
-	em_pointer * EdgesNeumann	= NULL;
-
-	unsigned * EdgesDirichlet_Indeces	= NULL;
-	unsigned * EdgesNeumann_Indeces		= NULL;
-
-	unsigned DirichletCount = 0;
-	unsigned NeumannCount	= 0;
-
-	for (unsigned e = 0; e < ne; e++){
-
-		em_pointer const E = Mesh->get_edge(e);
-
-		E_MARKER const e_marker = E->marker;
-		unsigned const e_index = E->index;
-
-		if (e_marker == E_MARKER::DIRICHLET){
-
-			EdgesDirichlet[DirichletCount]			= E;
-			EdgesDirichlet_Indeces[DirichletCount]	= e_index;
-
-			DirichletCount++;
-
-		}
-		else if (e_marker == E_MARKER::NEUMANN){
-
-			EdgesNeumann[NeumannCount]			= E;
-			EdgesNeumann_Indeces[NeumannCount]	= e_index;
-
-			NeumannCount++;
-
-		}
-	}
-	*/
-
-
+	
 	/*****************************************************************************/
 	/*                                                                           */
 	/*    - Porous medium physical quantities and coefficients Thetas, which	 */
@@ -529,7 +508,14 @@ private:
 
 
 template<unsigned QuadraturePrecision, scheme TimeScheme>
-solver<QuadraturePrecision, TimeScheme>::solver(MESH & mesh, int const nt0, Real const dt0) : nk(mesh.get_number_of_triangles()), ne(mesh.get_number_of_edges()), Mesh(&mesh), nt(nt0), dt(dt0) {
+solver<QuadraturePrecision, TimeScheme>::solver(MESH & mesh, int const nt0, Real const dt0) : nk(mesh.get_number_of_triangles()), 
+																							  ne(mesh.get_number_of_edges()), 
+																							  NumberOfDirichletEdges(Mesh->get_number_of_dirichlet_edges()),
+																							  NumberOfNeumannEdges(Mesh->get_number_of_neumann_edges()),
+																							  Mesh(&mesh), 
+																							  nt(nt0), 
+																							  dt(dt0) 
+{
 
 
 	/*****************************************************************************/
@@ -730,10 +716,68 @@ solver<QuadraturePrecision, TimeScheme>::solver(MESH & mesh, int const nt0, Real
 	/*    - Some auxilary and test things					   			         */
 	/*                                                                           */
 	/*****************************************************************************/
-	Elements = new tm_pointer[nk];
-	ElementIndeces = new unsigned[nk];
-	AffineMappingMatrixDeterminant = new Real[nk];
-	PorosityViscosityDeterminant = new Real[nk];
+	Elements						= new tm_pointer[nk];
+	ElementIndeces					= new unsigned[nk];
+	AffineMappingMatrixDeterminant	= new Real[nk];
+	PorosityViscosityDeterminant	= new Real[nk];
+
+
+
+	////MeshElements		= new tm_pointer[nk];
+	//MeshEdges			= new em_pointer[ne];
+
+	//MeshEdgesInner		= new em_pointer[ne - NumberOfDirichletEdges - NumberOfNeumannEdges];
+	//MeshEdgesDirichlet	= new em_pointer[NumberOfDirichletEdges];
+	//MeshEdgesNeumann	= new em_pointer[NumberOfNeumannEdges];
+
+	//MeshEdgesInner_Indeces		= new unsigned[ne - NumberOfDirichletEdges - NumberOfNeumannEdges];
+	//MeshEdgesDirichlet_Indeces	= new unsigned[NumberOfDirichletEdges];
+	//MeshEdgesNeumann_Indeces	= new unsigned[NumberOfNeumannEdges];
+
+	//unsigned CountInner		= 0;
+	//unsigned CountDirichlet = 0;
+	//unsigned CountNeumann	= 0;
+
+	//for (unsigned e = 0; e < ne; e++){
+
+	//	em_pointer const E		 = Mesh->get_edge(e);
+
+	//	MeshEdges[e] = E;
+
+	//	E_MARKER const e_marker = E->marker;
+	//	unsigned const e_index	= E->index;
+
+	//	if (e_marker == E_MARKER::DIRICHLET){
+
+	//		MeshEdgesDirichlet[CountDirichlet]			= E;
+	//		MeshEdgesDirichlet_Indeces[CountDirichlet]	= e_index;
+
+	//		CountDirichlet++;
+
+	//	}
+	//	else if (e_marker == E_MARKER::NEUMANN){
+
+	//		MeshEdgesNeumann[CountNeumann]			= E;
+	//		MeshEdgesNeumann_Indeces[CountNeumann]	= e_index;
+
+	//		CountNeumann++;
+
+	//	}
+	//	else {
+
+	//		MeshEdgesInner[CountInner]			= E;
+	//		MeshEdgesInner_Indeces[CountInner]	= e_index;
+
+	//		CountInner++;
+
+	//	}
+	//}
+
+
+
+
+
+
 
 
 	quadrature_triangle<Real> const GaussQuadratureOnTriangle(QuadraturePrecision);
@@ -782,6 +826,54 @@ solver<QuadraturePrecision, TimeScheme>::solver(MESH & mesh, int const nt0, Real
 	}
 
 
+
+	/*
+	for (unsigned e = 0; e < ne; e++) {
+
+		em_pointer const E		  = Mesh->get_edge(e);
+		E_MARKER const	 e_marker = E->marker;
+
+		//if (e_marker != E_MARKER::NONE) {
+		if (e_marker == E_MARKER::DIRICHLET || e_marker == E_MARKER::NEUMANN) {
+			
+
+			Real const x0 = E->a->x;
+			Real const y0 = E->a->y;
+
+			Real const x1 = E->b->x;
+			Real const y1 = E->b->y;
+
+
+			E->QuadraturePoints_Edge.setNumberOfElements(NumberOfQuadraturePointsEdge);
+			E->QuadraturePoints_Edge.setZero();
+
+
+			for (unsigned n = 0; n < NumberOfQuadraturePointsEdge; n++) {
+
+				Real const x = GaussQuadratureOnEdge.points[n];
+				Real const w = 0.5 * (1.0 + x);
+
+				//Real const X = x0 + w * (x1 - x0);
+				//Real const Y = y0 + w * (y1 - y0);
+
+				Real const X = x1 + w * (x0 - x1);
+				Real const Y = y1 + w * (y0 - y1);
+
+				E->QuadraturePoints_Edge.setCoeff(n, 0) = abs(X) < INTEGRAL_PRECISION ? 0.0 : X;
+				E->QuadraturePoints_Edge.setCoeff(n, 1) = abs(Y) < INTEGRAL_PRECISION ? 0.0 : Y;
+
+			}
+		}
+	}
+	*/
+
+
+
+
+
+
+
+
 	/*****************************************************************************/
 	/*                                                                           */
 	/*    - Precomputation of values defined on the elements				     */
@@ -790,11 +882,11 @@ solver<QuadraturePrecision, TimeScheme>::solver(MESH & mesh, int const nt0, Real
 	for (unsigned k = 0; k < nk; k++) {
 
 
-		tm_pointer const	K = Mesh->get_triangle(k);
+		tm_pointer const	K		= Mesh->get_triangle(k);
 		unsigned const		k_index = K->index;
 
-		Elements[k] = K;
-		ElementIndeces[k] = k_index;
+		Elements[k]			= K;
+		ElementIndeces[k]	= k_index;
 
 
 		vm_pointer const va = K->vertices[0];
@@ -872,6 +964,12 @@ solver<QuadraturePrecision, TimeScheme>::solver(MESH & mesh, int const nt0, Real
 			Eigen::Matrix<Real, 2, 1> const PhysicalNormal = (itJF * ReferenceNormals.col(El)) / (itJF * ReferenceNormals.col(El)).norm();
 
 
+			//if (e_marker != E_MARKER::NONE) {
+
+			//	K->QuadraturePoints_Edge[El].setNumberOfElements(NumberOfQuadraturePointsEdge);
+
+			//}
+				
 
 			/*****************************************************************************/
 			/*                                                                           */
@@ -899,6 +997,15 @@ solver<QuadraturePrecision, TimeScheme>::solver(MESH & mesh, int const nt0, Real
 				Real const Y = y0 + JF(1, 0) * s + JF(1, 1) * t;
 
 				evaluate_raviartthomas_basis(s, t, BasisRaviartThomas);
+
+				
+				//if (e_marker != E_MARKER::NONE) {
+
+				//	K->QuadraturePoints_Edge[El].setCoeff(n, 0) = X;
+				//	K->QuadraturePoints_Edge[El].setCoeff(n, 1) = Y;
+
+				//}
+
 
 
 				QuadraturePoints_Edge_x.setCoeff(k_index, El, n) = abs(X) < INTEGRAL_PRECISION ? 0.0 : X;
@@ -1057,13 +1164,13 @@ solver<QuadraturePrecision, TimeScheme>::solver(MESH & mesh, int const nt0, Real
 				for (unsigned m = 0; m < 3; m++) {
 
 
-					Real const Phim = BasisPolynomial(m);
-					Real const Phim_opposite = BasisPolynomialOpposite(m);
-					Real const Value = w * DotProduct * Phim;
+					Real const Phim				= BasisPolynomial(m);
+					Real const Phim_opposite	= BasisPolynomialOpposite(m);
+					Real const Value			= w * DotProduct * Phim;
 
-					QuadraturePoints_PolynomialBasis.setCoeff(n, El, m) = Phim;
-					QuadraturePoints_PolynomialBasisOpposite.setCoeff(n, El, m) = Phim_opposite;
-					QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis.setCoeff(n, j, El, m) = abs(Value) < INTEGRAL_PRECISION ? 0.0 : Value;
+					QuadraturePoints_PolynomialBasis								.setCoeff(n, El, m)		= Phim;
+					QuadraturePoints_PolynomialBasisOpposite						.setCoeff(n, El, m)		= Phim_opposite;
+					QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis.setCoeff(n, j, El, m)  = abs(Value) < INTEGRAL_PRECISION ? 0.0 : Value;
 
 				}
 			}
@@ -1113,6 +1220,19 @@ solver<QuadraturePrecision, TimeScheme>::~solver() {
 	delete[] ElementIndeces;
 	delete[] AffineMappingMatrixDeterminant;
 	delete[] PorosityViscosityDeterminant;
+
+
+
+	//delete[] MeshElements;
+	delete[] MeshEdges;
+
+	delete[] MeshEdgesInner;
+	delete[] MeshEdgesDirichlet;
+	delete[] MeshEdgesNeumann;
+
+	delete[] MeshEdgesInner_Indeces;
+	delete[] MeshEdgesDirichlet_Indeces;
+	delete[] MeshEdgesNeumann_Indeces;
 
 };
 
@@ -1630,10 +1750,11 @@ void solver<QuadraturePrecision, TimeScheme>::computeTracePressures() {
 	for (unsigned e = 0; e < ne; e++) {
 
 
-		em_pointer const E = Mesh->get_edge(e);
+		em_pointer const E		 = Mesh->get_edge(e);
+		unsigned const	 e_index = E->index;
 
-		Real const TpValue1 = Tp1[E->index];
-		Real const TpValue2 = Tp2[E->index];
+		Real const TpValue1 = Tp1[e_index];
+		Real const TpValue2 = Tp2[e_index];
 
 		for (unsigned neighbor = 0; neighbor < 2; neighbor++) {
 
@@ -1642,7 +1763,7 @@ void solver<QuadraturePrecision, TimeScheme>::computeTracePressures() {
 			if (!K)
 				continue;
 
-			unsigned const k_index = K->index;
+			unsigned const k_index		 = K->index;
 			unsigned const e_index_local = K->get_edge_index(E);
 
 			TPi.setCoeff(k_index, e_index_local, 0) = TpValue1;
@@ -1705,10 +1826,11 @@ void solver<QuadraturePrecision, TimeScheme>::computePressureEquation() {
 	for (unsigned e = 0; e < ne; e++) {
 
 
-		em_pointer const E = Mesh->get_edge(e);
+		em_pointer const E		 = Mesh->get_edge(e);
+		unsigned const   e_index = E->index;
 
-		Real const TpValue1 = Tp1[E->index];
-		Real const TpValue2 = Tp2[E->index];
+		Real const TpValue1 = Tp1[e_index];
+		Real const TpValue2 = Tp2[e_index];
 
 		for (unsigned neighbor = 0; neighbor < 2; neighbor++) {
 
@@ -1729,45 +1851,57 @@ void solver<QuadraturePrecision, TimeScheme>::computePressureEquation() {
 };
 
 
-
+/*
 template<unsigned QuadraturePrecision, scheme TimeScheme>
 void solver<QuadraturePrecision, TimeScheme>::computeVelocities() {
 
 
 	Real const time = (nt + 1) * dt;
 
-	for (unsigned k = 0; k < nk; k++) {
+	//    - Loop over Neumann edges	
+
+	for (unsigned e = 0; e < NumberOfNeumannEdges; e++) {
 
 
-		tm_pointer const K = Elements[k];
-		unsigned const	 k_index = ElementIndeces[k];
+		em_pointer const E = MeshEdgesNeumann[e];
 
+		for (unsigned neighbor = 0; neighbor < 2; neighbor++) {
 
-		/*****************************************************************************/
-		/*                                                                           */
-		/*    - Loop over edges of the element										 */
-		/*                                                                           */
-		/*****************************************************************************/
-		for (unsigned El = 0; El < 3; El++) {
+			tm_pointer const K = E->neighbors[neighbor];
 
-
-			em_pointer const E = K->edges[El];
-
-
-			if (E->marker == E_MARKER::NEUMANN) {
-
-				Velocity.setCoeff(k_index, LI(K, E, 0)) = NEUMANN_GAMMA_Q_velocity(E, time);
-				Velocity.setCoeff(k_index, LI(K, E, 1)) = 0.0;
-
+			if (!K)
 				continue;
 
-			}
+			unsigned const k_index		 = K->index;
+			unsigned const e_index_local = K->get_edge_index(E);
 
-			/*****************************************************************************/
-			/*                                                                           */
-			/*    - Loop over the two degrees of freedom on each edge					 */
-			/*                                                                           */
-			/*****************************************************************************/
+			unsigned const dof0 = LI(K, E, 0);
+			unsigned const dof1 = dof0 + 3;
+
+			Velocity.setCoeff(k_index, dof0) = NEUMANN_GAMMA_Q_velocity(E, time);
+			Velocity.setCoeff(k_index, dof1) = 0.0;
+
+		}
+	}
+
+
+
+	//    - Loop over edges but Neumann edges
+	for (unsigned e = 0; e < NumberOfDirichletEdges; e++) {
+
+
+		em_pointer const E = MeshEdgesDirichlet[e];
+
+		for (unsigned neighbor = 0; neighbor < 2; neighbor++) {
+
+			tm_pointer const K = E->neighbors[neighbor];
+
+			if (!K)
+				continue;
+
+			unsigned const k_index		 = K->index;
+			unsigned const e_index_local = K->get_edge_index(E);
+
 			for (unsigned dof = 0; dof < 2; dof++) {
 
 
@@ -1801,40 +1935,236 @@ void solver<QuadraturePrecision, TimeScheme>::computeVelocities() {
 				Velocity.setCoeff(k_index, j) = (Value1 - Value2) / Viscosities[k_index];
 
 			}
+
+			for (unsigned dof = 6; dof < 8; dof++) {
+
+
+				Real Value1 = 0.0;
+				Real Value2 = 0.0;
+
+				for (unsigned m = 0; m < 8; m++) {
+
+
+					Real const AlphaTemp = Alpha(k_index, dof, m);
+
+					Real BetaPi = 0.0;
+					Real ChiTracePi = 0.0;
+
+					for (unsigned i = 0; i < 3; i++)
+						BetaPi += Beta(m, i) * Pi(k_index, i);
+
+					Value1 += AlphaTemp * BetaPi;
+
+
+					for (unsigned l = 0; l < 3; l++)
+						for (unsigned s = 0; s < 2; s++)
+							ChiTracePi += Chi(k_index, m, l, s) * TPi(k_index, l, s);
+
+					Value2 += AlphaTemp * ChiTracePi;
+
+				}
+
+				Velocity.setCoeff(k_index, dof) = (Value1 - Value2) / Viscosities[k_index];
+
+			}
+
 		}
 
+	}
+	for (unsigned e = 0; e < ne - NumberOfDirichletEdges - NumberOfNeumannEdges; e++) {
 
+
+		em_pointer const E = MeshEdgesInner[e];
+
+		for (unsigned neighbor = 0; neighbor < 2; neighbor++) {
+
+			tm_pointer const K = E->neighbors[neighbor];
+
+			if (!K)
+				continue;
+
+			unsigned const k_index = K->index;
+			unsigned const e_index_local = K->get_edge_index(E);
+
+			for (unsigned dof = 0; dof < 2; dof++) {
+
+
+				unsigned const j = LI(K, E, dof);
+
+				Real Value1 = 0.0;
+				Real Value2 = 0.0;
+
+				for (unsigned m = 0; m < 8; m++) {
+
+
+					Real const AlphaTemp = Alpha(k_index, m, j);
+
+					Real BetaPi = 0.0;
+					Real ChiTracePi = 0.0;
+
+					for (unsigned i = 0; i < 3; i++)
+						BetaPi += Beta(m, i) * Pi(k_index, i);
+
+					Value1 += AlphaTemp * BetaPi;
+
+
+					for (unsigned l = 0; l < 3; l++)
+						for (unsigned s = 0; s < 2; s++)
+							ChiTracePi += Chi(k_index, m, l, s) * TPi(k_index, l, s);
+
+					Value2 += AlphaTemp * ChiTracePi;
+
+				}
+
+				Velocity.setCoeff(k_index, j) = (Value1 - Value2) / Viscosities[k_index];
+
+			}
+
+			for (unsigned dof = 6; dof < 8; dof++) {
+
+
+				Real Value1 = 0.0;
+				Real Value2 = 0.0;
+
+				for (unsigned m = 0; m < 8; m++) {
+
+
+					Real const AlphaTemp = Alpha(k_index, dof, m);
+
+					Real BetaPi = 0.0;
+					Real ChiTracePi = 0.0;
+
+					for (unsigned i = 0; i < 3; i++)
+						BetaPi += Beta(m, i) * Pi(k_index, i);
+
+					Value1 += AlphaTemp * BetaPi;
+
+
+					for (unsigned l = 0; l < 3; l++)
+						for (unsigned s = 0; s < 2; s++)
+							ChiTracePi += Chi(k_index, m, l, s) * TPi(k_index, l, s);
+
+					Value2 += AlphaTemp * ChiTracePi;
+
+				}
+
+				Velocity.setCoeff(k_index, dof) = (Value1 - Value2) / Viscosities[k_index];
+
+			}
+
+		}
+
+	}
+
+};
+*/
+
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::computeVelocities() {
+
+
+	Real const time = (nt + 1) * dt;
+
+
+	for (unsigned k = 0; k < nk; k++) {
+	
+	
+		tm_pointer const K = Elements[k];
+		unsigned const	 k_index = ElementIndeces[k];
+	
+	
+		/*****************************************************************************/
+		/*                                                                           */
+		/*    - Loop over edges of the element										 */
+		/*                                                                           */
+		/*****************************************************************************/
+		for (unsigned El = 0; El < 3; El++) {
+	
+	
+			em_pointer const E = K->edges[El];
+	
+	
+			if (E->marker == E_MARKER::NEUMANN) {
+	
+				Velocity.setCoeff(k_index, LI(K, E, 0)) = NEUMANN_GAMMA_Q_velocity(E, time);
+				Velocity.setCoeff(k_index, LI(K, E, 1)) = 0.0;
+	
+				continue;
+	
+			}
+	
+			/*****************************************************************************/
+			/*                                                                           */
+			/*    - Loop over the two degrees of freedom on each edge					 */
+			/*                                                                           */
+			/*****************************************************************************/
+			for (unsigned dof = 0; dof < 2; dof++) {
+	
+	
+				unsigned const j = LI(K, E, dof);
+	
+				Real Value1 = 0.0;
+				Real Value2 = 0.0;
+	
+				for (unsigned m = 0; m < 8; m++) {
+	
+	
+					Real const AlphaTemp = Alpha(k_index, m, j);
+	
+					Real BetaPi = 0.0;
+					Real ChiTracePi = 0.0;
+	
+					for (unsigned i = 0; i < 3; i++)
+						BetaPi += Beta(m, i) * Pi(k_index, i);
+	
+					Value1 += AlphaTemp * BetaPi;
+	
+	
+					for (unsigned l = 0; l < 3; l++)
+						for (unsigned s = 0; s < 2; s++)
+							ChiTracePi += Chi(k_index, m, l, s) * TPi(k_index, l, s);
+	
+					Value2 += AlphaTemp * ChiTracePi;
+	
+				}
+	
+				Velocity.setCoeff(k_index, j) = (Value1 - Value2) / Viscosities[k_index];
+	
+			}
+		}
+	
+	
 		/*****************************************************************************/
 		/*                                                                           */
 		/*    - Compute Bubble velocities inside element							 */
 		/*                                                                           */
 		/*****************************************************************************/
 		for (unsigned dof = 6; dof < 8; dof++) {
-
-
+	
+	
 			Real Value1 = 0.0;
 			Real Value2 = 0.0;
-
+	
 			for (unsigned m = 0; m < 8; m++) {
-
-
+	
+	
 				Real const AlphaTemp = Alpha(k_index, dof, m);
-
+	
 				Real BetaPi = 0.0;
 				Real ChiTracePi = 0.0;
-
+	
 				for (unsigned i = 0; i < 3; i++)
 					BetaPi += Beta(m, i) * Pi(k_index, i);
-
+	
 				Value1 += AlphaTemp * BetaPi;
-
-
+	
+	
 				for (unsigned l = 0; l < 3; l++)
 					for (unsigned s = 0; s < 2; s++)
 						ChiTracePi += Chi(k_index, m, l, s) * TPi(k_index, l, s);
-
+	
 				Value2 += AlphaTemp * ChiTracePi;
-
+	
 			}
 
 			Velocity.setCoeff(k_index, dof) = (Value1 - Value2) / Viscosities[k_index];
@@ -1842,8 +2172,10 @@ void solver<QuadraturePrecision, TimeScheme>::computeVelocities() {
 		}
 
 	}
+	
 
 };
+
 template<unsigned QuadraturePrecision, scheme TimeScheme>
 void solver<QuadraturePrecision, TimeScheme>::updateConcentrations() {
 
@@ -1926,6 +2258,12 @@ Real solver<QuadraturePrecision, TimeScheme>::upwindConcentration(tm_pointer con
 			Real const X = QuadraturePoints_Edge_x(k_index, El, n);
 			Real const Y = QuadraturePoints_Edge_y(k_index, El, n);
 
+			//Real const XX = K->QuadraturePoints_Edge[El](n, 0);
+			//Real const YY = K->QuadraturePoints_Edge[El](n, 1);
+
+			//Real const XX = E->QuadraturePoints_Edge(n, 0);
+			//Real const YY = E->QuadraturePoints_Edge(n, 1);
+
 			return DIRICHLET_GAMMA_Q_concentration(X, Y, time);
 
 		}
@@ -1955,6 +2293,12 @@ Real solver<QuadraturePrecision, TimeScheme>::upwindConcentration(tm_pointer con
 
 			Real const X = QuadraturePoints_Edge_x(k_index, El, n);
 			Real const Y = QuadraturePoints_Edge_y(k_index, El, n);
+
+			//Real const XX = K->QuadraturePoints_Edge[El](n, 0);
+			//Real const YY = K->QuadraturePoints_Edge[El](n, 1);
+
+			//Real const XX = E->QuadraturePoints_Edge(n, 0);
+			//Real const YY = E->QuadraturePoints_Edge(n, 1);
 
 			return DIRICHLET_GAMMA_P_concentration(X, Y, time);
 
@@ -2465,57 +2809,125 @@ void solver<QuadraturePrecision, TimeScheme>::assembleV() {
 
 	Real const time = (nt + 1) * dt;
 
+	//for (unsigned e = 0; e < NumberOfNeumannEdges; e++) {
+
+	//	em_pointer const E = MeshEdgesNeumann[e];
+	//	unsigned const	 e_index = E->index;
+
+	//	Real ChiCoeff0 = 1.0;
+	//	Real ChiCoeff1 = 1.0;
+
+	//	for (unsigned neighborElement = 0; neighborElement < 2; neighborElement++) {
+
+	//		tm_pointer const K = E->neighbors[neighborElement];
+
+	//		if (!K)
+	//			continue;
+
+	//		unsigned const k_index = K->index;
+
+	//		unsigned const dof0 = LI(K, E, 0);
+	//		unsigned const dof1 = LI(K, E, 1);
+
+	//		ChiCoeff0 = Chi(k_index, dof0, K->get_edge_index(E), 0);
+	//		ChiCoeff1 = Chi(k_index, dof1, K->get_edge_index(E), 1);
+
+	//		break;
+
+	//	}
+
+	//	V1[e_index] = ChiCoeff0 * NEUMANN_GAMMA_Q_velocity(E, time);
+	//	V2[e_index] = ChiCoeff1 * 0.0;
+
+	//}
+	//for (unsigned e = 0; e < NumberOfDirichletEdges; e++) {
+
+	//	em_pointer const E = MeshEdgesDirichlet[e];
+	//	unsigned const	 e_index = E->index;
+
+	//	Real const x0 = E->a->x;
+	//	Real const y0 = E->a->y;
+
+	//	Real const x1 = E->b->x;
+	//	Real const y1 = E->b->y;
+
+	//	/*****************************************************************************/
+	//	/*                                                                           */
+	//	/*    - Interpolant of the Barenblatt solution for the Dirichlet Edge	     */
+	//	/*    - Optimized : System matrix is known, so we can write the solution     */
+	//	/*					immediately using inverse matrix (which is also known)   */
+	//	/*                                                                           */
+	//	/*                : M = [1, -1 ; 1, 1]    M^(-1) = 0.5*[1, 1; -1, 1]         */
+	//	/*                                                                           */
+	//	/*****************************************************************************/
+	//	Real const B0 = DIRICHLET_GAMMA_P_pressure(x0, y0, time);
+	//	Real const B1 = DIRICHLET_GAMMA_P_pressure(x1, y1, time);
+
+	//	V1[e_index] = 0.5 * (+B0 + B1);
+	//	V2[e_index] = 0.5 * (-B0 + B1);
+
+	//}
+	//for (unsigned e = 0; e < ne - NumberOfDirichletEdges - NumberOfNeumannEdges; e++) {
+
+	//	unsigned const e_index = MeshEdgesInner_Indeces[e];
+
+	//	V1[e_index] = 0.0;
+	//	V2[e_index] = 0.0;
+
+	//}
+
+
 	for (unsigned e = 0; e < ne; e++) {
-
-
+	
+	
 		em_pointer const E = Mesh->get_edge(e);
 		unsigned const	 e_index = E->index;
 		E_MARKER const	 e_marker = E->marker;
-
-
+	
+	
 		V1[e_index] = 0.0;
 		V2[e_index] = 0.0;
-
-
+	
+	
 		if (e_marker == E_MARKER::NEUMANN) {
-
-
+	
+	
 			Real ChiCoeff0 = 1.0;
 			Real ChiCoeff1 = 1.0;
-
+	
 			for (unsigned neighborElement = 0; neighborElement < 2; neighborElement++) {
-
+	
 				tm_pointer const K = E->neighbors[neighborElement];
-
+	
 				if (!K)
 					continue;
-
+	
 				unsigned const k_index = K->index;
-
+	
 				unsigned const dof0 = LI(K, E, 0);
 				unsigned const dof1 = LI(K, E, 1);
-
+	
 				ChiCoeff0 = Chi(k_index, dof0, K->get_edge_index(E), 0);
 				ChiCoeff1 = Chi(k_index, dof1, K->get_edge_index(E), 1);
-
+	
 				break;
-
+	
 			}
-
+	
 			V1[e_index] = ChiCoeff0 * NEUMANN_GAMMA_Q_velocity(E, time);
 			V2[e_index] = ChiCoeff1 * 0.0;
-
+	
 		}
-
+	
 		else if (e_marker == E_MARKER::DIRICHLET) {
-
+	
 			Real const x0 = E->a->x;
 			Real const y0 = E->a->y;
-
+	
 			Real const x1 = E->b->x;
 			Real const y1 = E->b->y;
-
-
+	
+	
 			/*****************************************************************************/
 			/*                                                                           */
 			/*    - Interpolant of the Barenblatt solution for the Dirichlet Edge	     */
@@ -2527,10 +2939,10 @@ void solver<QuadraturePrecision, TimeScheme>::assembleV() {
 			/*****************************************************************************/
 			Real const B0 = DIRICHLET_GAMMA_P_pressure(x0, y0, time);
 			Real const B1 = DIRICHLET_GAMMA_P_pressure(x1, y1, time);
-
+	
 			V1[e_index] = 0.5 * (+B0 + B1);
 			V2[e_index] = 0.5 * (-B0 + B1);
-
+	
 			//Eigen::Vector2d const Solution = [] { Eigen::Matrix2d Temp; Temp << 0.5, 0.5, -0.5, 0.5; return Temp; }() * Eigen::Vector2d (B0, B1);
 			//
 			//Eigen::Vector2d const B(B0, B1);
@@ -2543,7 +2955,7 @@ void solver<QuadraturePrecision, TimeScheme>::assembleV() {
 			//
 			//V1[e_index] = Solution(0);
 			//V2[e_index] = Solution(1);
-
+	
 		}
 	}
 
@@ -2755,8 +3167,6 @@ void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem() {
 			for (unsigned j = 0; j < 3; j++) {
 
 
-				unsigned const start_index_j = start_index + j;
-
 				/*****************************************************************************/
 				/*                                                                           */
 				/*    - Assemble Matrices H1, H2									         */
@@ -2777,10 +3187,9 @@ void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem() {
 				//triiDH1.push_back(TH1);
 				//triiDH2.push_back(TH2);
 
-				iDH1.coeffRef(start_index_j, e_index_i) = iDH1Block.coeff(j, ei);
-				iDH2.coeffRef(start_index_j, e_index_i) = iDH2Block.coeff(j, ei);
-				//iDH1.coeffRef(start_index + j, e_index_i) = iDH1block.coeff(j, ei);
-				//iDH2.coeffRef(start_index + j, e_index_i) = iDH2block.coeff(j, ei);
+
+				iDH1.coeffRef(start_index + j, e_index_i) = iDH1Block.coeff(j, ei);
+				iDH2.coeffRef(start_index + j, e_index_i) = iDH2Block.coeff(j, ei);
 
 
 				/*****************************************************************************/
@@ -2798,10 +3207,8 @@ void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem() {
 
 				}
 
-				Eigen::Triplet<Real> const TR1(e_index_i, start_index_j, Sum1);
-				Eigen::Triplet<Real> const TR2(e_index_i, start_index_j, Sum2);
-				//Eigen::Triplet<Real> const TR1(e_index_i, start_index + j, Sum1);
-				//Eigen::Triplet<Real> const TR2(e_index_i, start_index + j, Sum2);
+				Eigen::Triplet<Real> const TR1(e_index_i, start_index + j, Sum1);
+				Eigen::Triplet<Real> const TR2(e_index_i, start_index + j, Sum2);
 
 				triR1iD.push_back(TR1);
 				triR2iD.push_back(TR2);
