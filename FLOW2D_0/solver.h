@@ -157,7 +157,7 @@ public:
 	void computeError(std::string const & fileName);
 
 
-	solver(Mesh & mesh, int const nt0, Real const dt0);
+	solver(MESH & mesh, int const nt0, Real const dt0);
 	~solver();
 
 
@@ -169,7 +169,7 @@ private:
 	/*    - Mesh created from the triangulation of given vertices		         */
 	/*                                                                           */
 	/*****************************************************************************/
-	Mesh * Mesh;
+	MESH * Mesh;
 
 
 	/*****************************************************************************/
@@ -529,7 +529,7 @@ private:
 
 
 template<unsigned QuadraturePrecision, scheme TimeScheme>
-solver<QuadraturePrecision, TimeScheme>::solver(Mesh & mesh, int const nt0, Real const dt0) : nk(mesh.get_number_of_triangles()), ne(mesh.get_number_of_edges()), Mesh(&mesh), nt(nt0), dt(dt0) {
+solver<QuadraturePrecision, TimeScheme>::solver(MESH & mesh, int const nt0, Real const dt0) : nk(mesh.get_number_of_triangles()), ne(mesh.get_number_of_edges()), Mesh(&mesh), nt(nt0), dt(dt0) {
 
 
 	/*****************************************************************************/
@@ -1424,9 +1424,6 @@ template<unsigned QuadraturePrecision, scheme TimeScheme>
 bool solver<QuadraturePrecision, TimeScheme>::stopCriterion() {
 
 
-	quadrature_triangle<Real> const QuadratureOnTriangle(QuadraturePrecision);
-	unsigned const			  NumberOfQuadraturePoints = QuadratureOnTriangle.NumberOfPoints;
-
 	Eigen::Vector3d BasisPolynomial(3);
 
 	Real ErrorPressure = 0.0;
@@ -1448,17 +1445,13 @@ bool solver<QuadraturePrecision, TimeScheme>::stopCriterion() {
 		Real IntegralError = 0.0;
 		Real IntegralNorm = 0.0;
 
-		for (unsigned n = 0; n < NumberOfQuadraturePoints; n++) {
+
+		for (unsigned n = 0; n < NumberOfQuadraturePointsTriangle; n++) {
 
 
-			Real const s = QuadratureOnTriangle.points_x[n];
-			Real const t = QuadratureOnTriangle.points_y[n];
-			Real const w = QuadratureOnTriangle.weights[n];
-
-			//for (unsigned n = 0; n < NumberOfQuadraturePointsTriangle; n++) {
-			//Real const s = QuadraturePointsAndWeightsOnReferenceTriangle(n, 0);
-			//Real const t = QuadraturePointsAndWeightsOnReferenceTriangle(n, 1);
-			//Real const w = QuadraturePointsAndWeightsOnReferenceTriangle(n, 2);
+			Real const s = QuadraturePointsAndWeightsOnReferenceTriangle(n, 0);
+			Real const t = QuadraturePointsAndWeightsOnReferenceTriangle(n, 1);
+			Real const w = QuadraturePointsAndWeightsOnReferenceTriangle(n, 2);
 
 			evaluate_polynomial_basis(s, t, BasisPolynomial);
 

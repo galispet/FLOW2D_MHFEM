@@ -48,6 +48,7 @@ template <GEOMETRIC_KERNEL GK>
 class Triangulation{
 
 	friend class Mesh;
+	friend class MESH;
 	friend class Mesh2;
 
 private:

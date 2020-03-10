@@ -7,7 +7,7 @@
 #include "triangulation.h"
 #include "enumerators.h"
 #include "shapes.h"
-#include "mesh_primitives.h"
+#include "MESH_primitives.h"
 
 #include <vector>
 #include <iostream>
@@ -30,7 +30,7 @@ bool mmarker_compare_dirichlet(em_pointer const e1, em_pointer const e2);
 
 
 
-class Mesh {
+class MESH {
 
 
 	std::vector<vm_pointer> vertices;
@@ -59,8 +59,8 @@ public:
 
 
 	template < GEOMETRIC_KERNEL GK>
-	Mesh(Triangulation<GK> & triangulation);
-	~Mesh();
+	MESH(Triangulation<GK> & triangulation);
+	~MESH();
 
 
 	vm_pointer const & get_vertex(unsigned const i)		const;
@@ -84,7 +84,7 @@ public:
 
 
 template < GEOMETRIC_KERNEL GK>
-Mesh::Mesh(Triangulation<GK> & triangulation) {
+MESH::MESH(Triangulation<GK> & triangulation) {
 
 
 	NumberOf_Vertices = triangulation.get_number_of_vertices();
@@ -97,7 +97,7 @@ Mesh::Mesh(Triangulation<GK> & triangulation) {
 
 	/*****************************************************************************/
 	/*                                                                           */
-	/*    - Alocate new Mesh vertices, edges, triangles							 */
+	/*    - Alocate new MESH vertices, edges, triangles							 */
 	/*                                                                           */
 	/*****************************************************************************/
 	allocate_new_primitives(triangulation);
@@ -187,7 +187,7 @@ Mesh::Mesh(Triangulation<GK> & triangulation) {
 	std::cout << std::endl;
 	std::cout << "/*****************/" << std::endl;
 	std::cout << "/*               */" << std::endl;
-	std::cout << "/*      Mesh     */" << std::endl;
+	std::cout << "/*      MESH     */" << std::endl;
 	std::cout << "/*               */" << std::endl;
 	std::cout << "/*****************/" << std::endl;
 	std::cout << std::endl;
@@ -205,7 +205,7 @@ Mesh::Mesh(Triangulation<GK> & triangulation) {
 
 
 };
-Mesh::~Mesh() {
+MESH::~MESH() {
 
 	clear();
 
@@ -213,7 +213,7 @@ Mesh::~Mesh() {
 
 
 template < GEOMETRIC_KERNEL GK >
-void Mesh::allocate_new_primitives(Triangulation<GK> & triangulation) {
+void MESH::allocate_new_primitives(Triangulation<GK> & triangulation) {
 
 
 
@@ -294,7 +294,7 @@ void Mesh::allocate_new_primitives(Triangulation<GK> & triangulation) {
 
 };
 template < GEOMETRIC_KERNEL GK >
-void Mesh::set_adjacencies(Triangulation<GK> & triangulation) {
+void MESH::set_adjacencies(Triangulation<GK> & triangulation) {
 
 
 	/*****************************************************************************/
@@ -352,17 +352,17 @@ void Mesh::set_adjacencies(Triangulation<GK> & triangulation) {
 
 
 
-vm_pointer const & Mesh::get_vertex(unsigned const i) const {
+vm_pointer const & MESH::get_vertex(unsigned const i) const {
 
 	return vertices[i];
 
 }
-em_pointer const & Mesh::get_edge(unsigned const i) const {
+em_pointer const & MESH::get_edge(unsigned const i) const {
 
 	return edges[i];
 
 }
-tm_pointer const & Mesh::get_triangle(unsigned const i) const {
+tm_pointer const & MESH::get_triangle(unsigned const i) const {
 
 	return triangles[i];
 
@@ -370,36 +370,36 @@ tm_pointer const & Mesh::get_triangle(unsigned const i) const {
 
 
 
-unsigned const Mesh::get_number_of_vertices() const {
+unsigned const MESH::get_number_of_vertices() const {
 
 	return NumberOf_Vertices;
 
 };
-unsigned const Mesh::get_number_of_edges() const {
+unsigned const MESH::get_number_of_edges() const {
 
 	return NumberOf_Edges;
 
 };
-unsigned const Mesh::get_number_of_triangles() const {
+unsigned const MESH::get_number_of_triangles() const {
 
 	return NumberOf_Triangles;
 
 };
 
 
-unsigned const Mesh::get_number_of_dirichlet_edges() const {
+unsigned const MESH::get_number_of_dirichlet_edges() const {
 
 	return NumberOf_Dirichlet;
 
 };
-unsigned const Mesh::get_number_of_neumann_edges() const {
+unsigned const MESH::get_number_of_neumann_edges() const {
 
 	return NumberOf_Neumann;
 
 };
 
 
-void Mesh::export_vertices(std::ofstream & stream) const {
+void MESH::export_vertices(std::ofstream & stream) const {
 
 
 	for (size_t i = 0; i < vertices.size(); i++) {
@@ -412,7 +412,7 @@ void Mesh::export_vertices(std::ofstream & stream) const {
 	}
 
 };
-void Mesh::export_edges(std::ofstream & stream) const {
+void MESH::export_edges(std::ofstream & stream) const {
 
 
 	/*****************************************************************************/
@@ -452,7 +452,7 @@ void Mesh::export_edges(std::ofstream & stream) const {
 	}
 
 };
-void Mesh::export_triangles(std::ofstream & stream) const {
+void MESH::export_triangles(std::ofstream & stream) const {
 
 
 	for (size_t i = 0; i < triangles.size(); i++) {
@@ -478,7 +478,7 @@ void Mesh::export_triangles(std::ofstream & stream) const {
 };
 
 
-void Mesh::clear() {
+void MESH::clear() {
 
 
 	for (size_t i = 0; i < vertices.size(); i++)
