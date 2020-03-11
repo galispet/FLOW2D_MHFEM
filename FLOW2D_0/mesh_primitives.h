@@ -148,7 +148,7 @@ Real const MESHEdge::length() const {
 	double const x1 = b->x;
 	double const y1 = b->y;
 
-	return sqrt(sqr(x1 - x0) + sqr(y1 - y0));
+	return sqrt((x1 - x0)*(x1 - x0) + (y1 - y0)*(y1 - y0));
 
 };
 

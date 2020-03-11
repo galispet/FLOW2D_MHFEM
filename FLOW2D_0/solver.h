@@ -22,7 +22,7 @@
 #include <Eigen/Sparse>
 #include <omp.h>
 
-#include <armadillo>
+//#include <armadillo>
 
 
 enum scheme { CRANK_NICOLSON, EULER_BACKWARD };
@@ -391,9 +391,9 @@ private:
 	SparseMatrix	iDH1;
 	SparseMatrix	iDH2;
 
-	//DenseVector		iDG;
-	//DenseVector		R1iDG;
-	//DenseVector		R2iDG;
+//DenseVector		iDG;
+//DenseVector		R1iDG;
+//DenseVector		R2iDG;
 
 
 
