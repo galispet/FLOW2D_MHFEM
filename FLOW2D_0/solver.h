@@ -11,6 +11,7 @@
 /*                                                                           */
 /*****************************************************************************/
 #define NDEBUG 
+#define ARMA_NO_DEBUG
 
 
 #include "miscellaneous.h"
@@ -390,6 +391,12 @@ private:
 	SparseMatrix	iDH1;
 	SparseMatrix	iDH2;
 
+	//DenseVector		iDG;
+	//DenseVector		R1iDG;
+	//DenseVector		R2iDG;
+
+
+
 	CoeffMatrix2D<3, 3> R1_block;
 	CoeffMatrix2D<3, 3> R2_block;
 
@@ -462,8 +469,15 @@ private:
 
 
 	void assemblePressureSystem_armadillo();
-	arma::sp_mat PressureSystem_armadillo;
-	arma::vec	 PressureSystemRHS_armadillo;
+	//arma::sp_mat PressureSystem_armadillo;
+	//arma::vec	 PressureSystemRHS_armadillo;
+	//arma::sp_mat R1iD_armadillo;
+	//arma::sp_mat R2iD_armadillo;
+	//arma::sp_mat iDH1_armadillo;
+	//arma::sp_mat iDH2_armadillo;
+	//arma::vec G_armadillo;
+	//arma::vec V1_armadillo;
+	//arma::vec V2_armadillo;
 
 
 	/*****************************************************************************/
@@ -640,8 +654,8 @@ solver<QuadraturePrecision, TimeScheme>::solver(MESH & mesh, int const nt0, Real
 
 
 
-	PressureSystem_armadillo.set_size(2 * ne, 2 * ne);
-	PressureSystemRHS_armadillo.set_size(2 * ne);
+	//PressureSystem_armadillo.set_size(2 * ne, 2 * ne);
+	//PressureSystemRHS_armadillo.set_size(2 * ne);
 
 	/*****************************************************************************/
 	/*                                                                           */
@@ -679,6 +693,9 @@ solver<QuadraturePrecision, TimeScheme>::solver(MESH & mesh, int const nt0, Real
 	R1_block.setNumberOfElements(nk);
 	R2_block.setNumberOfElements(nk);
 
+	//iDG.resize(3 * nk);
+	//R1iDG.resize(ne);
+	//R2iDG.resize(ne);
 
 	/*****************************************************************************/
 	/*                                                                           */
@@ -1667,9 +1684,14 @@ void solver<QuadraturePrecision, TimeScheme>::computePressureEquation() {
 	pressureSystemRhs.head(ne) = R1iD * G - V1;
 	pressureSystemRhs.tail(ne) = R2iD * G - V2;
 
+	//pressureSystemRhs.head(ne) = R1iDG - V1;
+	//pressureSystemRhs.tail(ne) = R2iDG - V2;
 
-	PressureSystem_armadillo;
-	PressureSystemRHS_armadillo.head(ne) = 
+	//std::cout << R1iDG - R1iD * G << std::endl;
+
+
+	//PressureSystem_armadillo;
+	//PressureSystemRHS_armadillo.head(ne) = 
 
 	/*****************************************************************************/
 	/*                                                                           */
@@ -1685,6 +1707,9 @@ void solver<QuadraturePrecision, TimeScheme>::computePressureEquation() {
 	Tp2 = solution.tail(ne);
 
 	Pi_eigen = iD * G - (iDH1 * Tp1 + iDH2 * Tp2);
+	//Pi_eigen = iDG - (iDH1 * Tp1 + iDH2 * Tp2);
+
+	//std::cout << iDG - iD * G << std::endl;
 
 
 	/*****************************************************************************/
@@ -2672,10 +2697,10 @@ void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem_armadillo()
 	// It is sufficient to zero only diagonal elements. Therefore, there is no need for += in the sequel
 	for (unsigned e = 0; e < ne; e++) {
 
-		PressureSystem_armadillo.coeffRef(e, e) = M_j1_s1.coeff(e, e);
-		PressureSystem_armadillo.coeffRef(e, e + ne) = M_j1_s2.coeff(e, e);
-		PressureSystem_armadillo.coeffRef(e + ne, e) = M_j2_s1.coeff(e, e);
-		PressureSystem_armadillo.coeffRef(e + ne, e + ne) = M_j2_s2.coeff(e, e);
+		//PressureSystem_armadillo.coeffRef(e, e) = M_j1_s1.coeff(e, e);
+		//PressureSystem_armadillo.coeffRef(e, e + ne) = M_j1_s2.coeff(e, e);
+		//PressureSystem_armadillo.coeffRef(e + ne, e) = M_j2_s1.coeff(e, e);
+		//PressureSystem_armadillo.coeffRef(e + ne, e + ne) = M_j2_s2.coeff(e, e);
 
 	}
 
@@ -2812,19 +2837,19 @@ void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem_armadillo()
 				// Because diagonal elements were zeroed at the beginning, the += operator is needed only here
 				if (e_index_i == e_index_j) {
 
-					PressureSystem_armadillo.coeffRef(e_index_i, e_index_i) += sum11;
-					PressureSystem_armadillo.coeffRef(e_index_i, e_index_i + ne) += sum12;
-					PressureSystem_armadillo.coeffRef(e_index_i + ne, e_index_i) += sum21;
-					PressureSystem_armadillo.coeffRef(e_index_i + ne, e_index_i + ne) += sum22;
+					//PressureSystem_armadillo.coeffRef(e_index_i, e_index_i) += sum11;
+					//PressureSystem_armadillo.coeffRef(e_index_i, e_index_i + ne) += sum12;
+					//PressureSystem_armadillo.coeffRef(e_index_i + ne, e_index_i) += sum21;
+					//PressureSystem_armadillo.coeffRef(e_index_i + ne, e_index_i + ne) += sum22;
 
 					continue;
 
 				}
 
-				PressureSystem_armadillo.coeffRef(e_index_i, e_index_j) = sum11 + M_j1_s1.coeff(e_index_i, e_index_j);
-				PressureSystem_armadillo.coeffRef(e_index_i, e_index_j + ne) = sum12 + M_j1_s2.coeff(e_index_i, e_index_j);
-				PressureSystem_armadillo.coeffRef(e_index_i + ne, e_index_j) = sum21 + M_j2_s1.coeff(e_index_i, e_index_j);
-				PressureSystem_armadillo.coeffRef(e_index_i + ne, e_index_j + ne) = sum22 + M_j2_s2.coeff(e_index_i, e_index_j);
+				//PressureSystem_armadillo.coeffRef(e_index_i, e_index_j) = sum11 + M_j1_s1.coeff(e_index_i, e_index_j);
+				//PressureSystem_armadillo.coeffRef(e_index_i, e_index_j + ne) = sum12 + M_j1_s2.coeff(e_index_i, e_index_j);
+				//PressureSystem_armadillo.coeffRef(e_index_i + ne, e_index_j) = sum21 + M_j2_s1.coeff(e_index_i, e_index_j);
+				//PressureSystem_armadillo.coeffRef(e_index_i + ne, e_index_j + ne) = sum22 + M_j2_s2.coeff(e_index_i, e_index_j);
 
 			}
 		}
@@ -2894,7 +2919,22 @@ void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem() {
 			for (unsigned j = 0; j < 3; j++)
 				iD.coeffRef(start_index + i, start_index + j) = InverseBlock(i, j);
 
-
+		//for (unsigned i = 0; i < 3; i++) {
+		//
+		//	Real Sum = 0.0;
+		//
+		//	for (unsigned j = 0; j < 3; j++) {
+		//
+		//		iD.coeffRef(start_index + i, start_index + j) = InverseBlock(i, j);
+		//		Sum += InverseBlock(i, j) * G(start_index + j);
+		//
+		//	}
+		//
+		//	iDG.coeffRef(start_index + i) = Sum;
+		//		
+		//}
+		
+			
 		/*****************************************************************************/
 		/*                                                                           */
 		/*    - H1, H2														         */
@@ -2958,6 +2998,7 @@ void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem() {
 
 				iDH1.coeffRef(start_index_j, e_index_i) = iDH1Block.coeff(j, ei);
 				iDH2.coeffRef(start_index_j, e_index_i) = iDH2Block.coeff(j, ei);
+
 				//iDH1.coeffRef(start_index + j, e_index_i) = iDH1block.coeff(j, ei);
 				//iDH2.coeffRef(start_index + j, e_index_i) = iDH2block.coeff(j, ei);
 
@@ -2979,11 +3020,13 @@ void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem() {
 
 				Eigen::Triplet<Real> const TR1(e_index_i, start_index_j, Sum1);
 				Eigen::Triplet<Real> const TR2(e_index_i, start_index_j, Sum2);
+
 				//Eigen::Triplet<Real> const TR1(e_index_i, start_index + j, Sum1);
 				//Eigen::Triplet<Real> const TR2(e_index_i, start_index + j, Sum2);
 
 				triR1iD.push_back(TR1);
 				triR2iD.push_back(TR2);
+
 
 			}
 
@@ -3055,6 +3098,45 @@ void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem() {
 
 	R1iD.setFromTriplets(triR1iD.begin(), triR1iD.end());
 	R2iD.setFromTriplets(triR2iD.begin(), triR2iD.end());
+
+
+	//for (unsigned e = 0; e < ne; e++) {
+	//
+	//
+	//	em_pointer const E = Mesh->get_edge(e);
+	//	unsigned const	 e_index = E->index;
+	//	E_MARKER const	 e_marker = E->marker;
+	//
+	//	//if (e_marker == E_MARKER::DIRICHLET)
+	//	//	continue;
+	//
+	//
+	//	for (unsigned neighborElement = 0; neighborElement < 2; neighborElement++) {
+	//
+	//		tm_pointer const K = E->neighbors[neighborElement];
+	//
+	//		if (!K)
+	//			continue;
+	//
+	//		unsigned const k_index = K->index;
+	//
+	//
+	//		Real Sum1 = 0.0;
+	//		Real Sum2 = 0.0;
+	//
+	//		for (unsigned k = 0; k < 3; k++) {
+	//
+	//			Sum1 += R1iD.coeff(e_index, 3 * k_index + k) * G(3 * k_index + k);
+	//			Sum2 += R2iD.coeff(e_index, 3 * k_index + k) * G(3 * k_index + k);
+	//
+	//		}
+	//
+	//		R1iDG.coeffRef(e_index) = Sum1;
+	//		R2iDG.coeffRef(e_index) = Sum2;
+	//
+	//	}
+	//}
+
 
 	//iDH1.setFromTriplets(triiDH1.begin(), triiDH1.end());
 	//iDH2.setFromTriplets(triiDH2.begin(), triiDH2.end());
