@@ -21,6 +21,8 @@
 #include <Eigen/Sparse>
 #include <omp.h>
 
+#include <armadillo>
+
 
 enum scheme { CRANK_NICOLSON, EULER_BACKWARD };
 
@@ -458,6 +460,12 @@ private:
 
 
 
+
+	void assemblePressureSystem_armadillo();
+	arma::sp_mat PressureSystem_armadillo;
+	arma::vec	 PressureSystemRHS_armadillo;
+
+
 	/*****************************************************************************/
 	/*                                                                           */
 	/*    - Evaluation of Raviart-Thomas, P1 basis function, Edge basis P1(E),	 */
@@ -632,7 +640,8 @@ solver<QuadraturePrecision, TimeScheme>::solver(MESH & mesh, int const nt0, Real
 
 
 
-
+	PressureSystem_armadillo.set_size(2 * ne, 2 * ne);
+	PressureSystemRHS_armadillo.set_size(2 * ne);
 
 	/*****************************************************************************/
 	/*                                                                           */
@@ -1659,6 +1668,9 @@ void solver<QuadraturePrecision, TimeScheme>::computePressureEquation() {
 	pressureSystemRhs.tail(ne) = R2iD * G - V2;
 
 
+	PressureSystem_armadillo;
+	PressureSystemRHS_armadillo.head(ne) = 
+
 	/*****************************************************************************/
 	/*                                                                           */
 	/*    - Sparsity pattern is already known. Method factorize() is enough		 */
@@ -2645,6 +2657,180 @@ void solver<QuadraturePrecision, TimeScheme>::assembleG() {
 };
 
 
+
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem_armadillo() {
+
+
+	Real const TimeCoefficient = TimeSchemeParameter * dt;
+
+	Eigen::Matrix3d Block;
+	Eigen::Matrix3d Block1;
+	Eigen::Matrix3d Block2;
+
+
+	// It is sufficient to zero only diagonal elements. Therefore, there is no need for += in the sequel
+	for (unsigned e = 0; e < ne; e++) {
+
+		PressureSystem_armadillo.coeffRef(e, e) = M_j1_s1.coeff(e, e);
+		PressureSystem_armadillo.coeffRef(e, e + ne) = M_j1_s2.coeff(e, e);
+		PressureSystem_armadillo.coeffRef(e + ne, e) = M_j2_s1.coeff(e, e);
+		PressureSystem_armadillo.coeffRef(e + ne, e + ne) = M_j2_s2.coeff(e, e);
+
+	}
+
+	for (unsigned k = 0; k < nk; k++) {
+
+
+		tm_pointer const K = Elements[k];
+		unsigned const	 k_index = ElementIndeces[k];
+		unsigned const	 start_index = 3 * k_index;
+
+
+		/*****************************************************************************/
+		/*                                                                           */
+		/*    - Inverse of the matrix D										         */
+		/*                                                                           */
+		/*****************************************************************************/
+		for (unsigned r = 0; r < 3; r++)
+			for (unsigned s = 0; s < 3; s++)
+				Block(r, s) = kroneckerDelta(r, s) - TimeCoefficient * Sigma(k_index, r, s);
+
+		Eigen::Matrix3d const InverseBlock = Block.inverse();
+
+		for (unsigned i = 0; i < 3; i++)
+			for (unsigned j = 0; j < 3; j++)
+				iD.coeffRef(start_index + i, start_index + j) = InverseBlock(i, j);
+
+
+
+		/*****************************************************************************/
+		/*                                                                           */
+		/*    - H1, H2														         */
+		/*                                                                           */
+		/*****************************************************************************/
+		for (unsigned m = 0; m < 3; m++) {
+			for (unsigned Ei = 0; Ei < 3; Ei++) {
+
+				Block1(m, Ei) = -TimeCoefficient * Lambda(k_index, 0, m, Ei);
+				Block2(m, Ei) = -TimeCoefficient * Lambda(k_index, 1, m, Ei);
+
+			}
+		}
+
+
+		/*****************************************************************************/
+		/*                                                                           */
+		/*    - H1, H2 blocks multiplied by the blocks Inverse of D			         */
+		/*                                                                           */
+		/*****************************************************************************/
+		Eigen::Matrix3d const iDH1block = InverseBlock * Block1;
+		Eigen::Matrix3d const iDH2block = InverseBlock * Block2;
+
+
+		/*****************************************************************************/
+		/*                                                                           */
+		/*    - Assembly of the resulting matrix R1 * iD * H1					     */
+		/*                                                                           */
+		/*****************************************************************************/
+		for (unsigned ei = 0; ei < 3; ei++) {
+
+
+			em_pointer const Ei = K->edges[ei];
+			unsigned const	 e_index_i = K->edges[ei]->index;
+
+
+			for (unsigned j = 0; j < 3; j++) {
+
+
+				unsigned const start_index_j = start_index + j;
+
+				/*****************************************************************************/
+				/*                                                                           */
+				/*    - Assemble Matrices H1, H2									         */
+				/*                                                                           */
+				/*****************************************************************************/
+				H1.coeffRef(start_index_j, e_index_i) = Block1.coeff(j, ei);
+				H2.coeffRef(start_index_j, e_index_i) = Block2.coeff(j, ei);
+
+
+				/*****************************************************************************/
+				/*                                                                           */
+				/*    - Assembly of the Matrices iDH1, iDH2	: iD * H1, iD * H2			     */
+				/*                                                                           */
+				/*****************************************************************************/
+				iDH1.coeffRef(start_index_j, e_index_i) = iDH1block.coeff(j, ei);
+				iDH2.coeffRef(start_index_j, e_index_i) = iDH2block.coeff(j, ei);
+
+
+				/*****************************************************************************/
+				/*                                                                           */
+				/*    - Assembly of the Matrices R1 * iD, R2 * iD						     */
+				/*                                                                           */
+				/*****************************************************************************/
+				Real sum1 = 0.0;
+				Real sum2 = 0.0;
+
+				for (unsigned m = 0; m < 3; m++) {
+
+					sum1 += R1_block(k_index, ei, m) * InverseBlock(m, j);
+					sum2 += R2_block(k_index, ei, m) * InverseBlock(m, j);
+
+				}
+
+				R1iD.coeffRef(e_index_i, start_index_j) = sum1;
+				R2iD.coeffRef(e_index_i, start_index_j) = sum2;
+
+			}
+
+
+			// Diagonal elements are already set
+			if (Ei->marker == E_MARKER::DIRICHLET)
+				continue;
+
+
+			for (unsigned ej = 0; ej < 3; ej++) {
+
+
+				unsigned const e_index_j = K->edges[ej]->index;
+
+				Real sum11 = 0.0;
+				Real sum12 = 0.0;
+				Real sum21 = 0.0;
+				Real sum22 = 0.0;
+
+				// Number of degrees of freedom of internal pressure
+				for (unsigned m = 0; m < 3; m++) {
+
+					sum11 += R1_block(k_index, ei, m) * iDH1block(m, ej);
+					sum12 += R1_block(k_index, ei, m) * iDH2block(m, ej);
+					sum21 += R2_block(k_index, ei, m) * iDH1block(m, ej);
+					sum22 += R2_block(k_index, ei, m) * iDH2block(m, ej);
+
+				}
+
+				// Because diagonal elements were zeroed at the beginning, the += operator is needed only here
+				if (e_index_i == e_index_j) {
+
+					PressureSystem_armadillo.coeffRef(e_index_i, e_index_i) += sum11;
+					PressureSystem_armadillo.coeffRef(e_index_i, e_index_i + ne) += sum12;
+					PressureSystem_armadillo.coeffRef(e_index_i + ne, e_index_i) += sum21;
+					PressureSystem_armadillo.coeffRef(e_index_i + ne, e_index_i + ne) += sum22;
+
+					continue;
+
+				}
+
+				PressureSystem_armadillo.coeffRef(e_index_i, e_index_j) = sum11 + M_j1_s1.coeff(e_index_i, e_index_j);
+				PressureSystem_armadillo.coeffRef(e_index_i, e_index_j + ne) = sum12 + M_j1_s2.coeff(e_index_i, e_index_j);
+				PressureSystem_armadillo.coeffRef(e_index_i + ne, e_index_j) = sum21 + M_j2_s1.coeff(e_index_i, e_index_j);
+				PressureSystem_armadillo.coeffRef(e_index_i + ne, e_index_j + ne) = sum22 + M_j2_s2.coeff(e_index_i, e_index_j);
+
+			}
+		}
+	}
+
+};
 
 template<unsigned QuadraturePrecision, scheme TimeScheme>
 void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem() {
