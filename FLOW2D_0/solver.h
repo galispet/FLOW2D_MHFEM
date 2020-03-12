@@ -11,7 +11,7 @@
 /*                                                                           */
 /*****************************************************************************/
 #define NDEBUG 
-//#define ARMA_NO_DEBUG
+#define ARMA_NO_DEBUG
 //#define ARMA_USE_SUPERLU
 //#define ARMA_USE_LAPACK
 //#define EIGEN_USE_MKL_ALL
@@ -918,7 +918,7 @@ void solver<QuadraturePrecision, TimeScheme>::computePressureEquation_armadillo(
 	PressureSystemRHS_armadillo.tail(ne) = R2iD_armadillo * G_armadillo - V2_armadillo;
 
 
-	arma::vec const solution = arma::spsolve(PressureSystem_armadillo, PressureSystemRHS_armadillo,"superlu");
+	arma::vec const solution = arma::spsolve(PressureSystem_armadillo, PressureSystemRHS_armadillo,"lapack");
 
 	Tp1_armadillo = solution.head(ne);
 	Tp2_armadillo = solution.tail(ne);
