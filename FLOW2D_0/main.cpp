@@ -7,12 +7,15 @@
 //					  Maybe do the same as for prescribed pressures on Dirichlet edges (Interpolant)
 // Check the values at initializeValues() for rkFp, rkFc ... maybe I should compute it also from the initial condition? -> CN scheme will have 2nd order?
 
-
+// !!!!!!!!!!!!!!!!!!!!
+//When solving trace pressure system->should the be time = nt*dt and not time=(nt+1)*dt ??????????????? Immidiately look into papers
 /*****************************************************************************/
 /*                                                                           */
 /*    - Speed up recommendations						 			         */
 /*                                                                           */
 /*****************************************************************************/
+// Get rid of copying pressures etc. to Numerical libary containers ... So much time waste
+// MKL numerical library for Intel's proccessor -> optimization for openMP etc. ....
 // Mesh primitives : in solver, create only arrays of pointers to triangles and edges (inner, dirichlet, neumann). We dont need mesh
 // quadrature_points_x/y calculate only for dirihlet edges/neuman somehow (hash table?)
 // Allocate memory in the beginning of the assemble function (typically those Eigen::triplet make only once, not in the loop as const)->will it be faster?

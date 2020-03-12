@@ -11,7 +11,10 @@
 /*                                                                           */
 /*****************************************************************************/
 #define NDEBUG 
-#define ARMA_NO_DEBUG
+//#define ARMA_NO_DEBUG
+//#define ARMA_USE_SUPERLU
+//#define ARMA_USE_LAPACK
+//#define EIGEN_USE_MKL_ALL
 
 
 #include "miscellaneous.h"
@@ -19,11 +22,12 @@
 #include "matrix.h"
 #include "mesh.h"
 
+
 #include <Eigen/Sparse>
 #include <omp.h>
-#include <immintrin.h>
+//#include <immintrin.h>
 
-//#include <armadillo>
+#include <armadillo>
 
 
 enum scheme { CRANK_NICOLSON, EULER_BACKWARD };
@@ -468,17 +472,45 @@ private:
 
 
 
-
+	void assembleR_armadillo();
+	void assembleM_armadillo();
+	void assembleV_armadillo();
+	void assembleG_armadillo();
 	void assemblePressureSystem_armadillo();
-	//arma::sp_mat PressureSystem_armadillo;
-	//arma::vec	 PressureSystemRHS_armadillo;
-	//arma::sp_mat R1iD_armadillo;
-	//arma::sp_mat R2iD_armadillo;
-	//arma::sp_mat iDH1_armadillo;
-	//arma::sp_mat iDH2_armadillo;
-	//arma::vec G_armadillo;
-	//arma::vec V1_armadillo;
-	//arma::vec V2_armadillo;
+	void computeTracePressures_armadillo();
+	void computePressureEquation_armadillo();
+
+	arma::sp_mat PressureSystem_armadillo;
+	arma::vec	 PressureSystemRHS_armadillo;
+	arma::vec	 TracePressureSystemRHS_armadillo;
+
+	arma::sp_mat TracePressureSystem_armadillo;
+	arma::sp_mat TraceL_armadillo;
+	arma::sp_mat TraceU_armadillo;
+	arma::sp_mat TraceP_armadillo;
+
+	arma::vec Tp1_armadillo;
+	arma::vec Tp2_armadillo;
+
+	arma::sp_mat	iD_armadillo;
+	arma::sp_mat	H1_armadillo;
+	arma::sp_mat	H2_armadillo;
+
+	arma::sp_mat R1iD_armadillo;
+	arma::sp_mat R2iD_armadillo;
+	arma::sp_mat iDH1_armadillo;
+	arma::sp_mat iDH2_armadillo;
+	arma::vec G_armadillo;
+	arma::vec V1_armadillo;
+	arma::vec V2_armadillo;
+	arma::vec Pi_armadillo;
+
+	arma::sp_mat R1_armadillo;
+	arma::sp_mat R2_armadillo;
+	arma::sp_mat M_j1_s1_armadillo;
+	arma::sp_mat M_j1_s2_armadillo;
+	arma::sp_mat M_j2_s1_armadillo;
+	arma::sp_mat M_j2_s2_armadillo;
 
 
 	/*****************************************************************************/
@@ -547,6 +579,576 @@ private:
 
 
 };
+
+
+
+
+
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::assembleR_armadillo() {
+
+
+
+	for (unsigned e = 0; e < ne; e++) {
+
+
+		em_pointer const E = Mesh->get_edge(e);
+		unsigned const	 e_index = E->index;
+		E_MARKER const	 e_marker = E->marker;
+
+
+		if (e_marker == E_MARKER::DIRICHLET)
+			continue;
+
+
+		for (unsigned neighborElement = 0; neighborElement < 2; neighborElement++) {
+
+			tm_pointer const K = E->neighbors[neighborElement];
+
+			if (!K)
+				continue;
+
+
+			unsigned const k_index = K->index;
+
+			unsigned const dof0 = LI(K, E, 0);
+			unsigned const dof1 = LI(K, E, 1);
+
+			Real const ChiCoeff0 = Chi(k_index, dof0, K->get_edge_index(E), 0);
+			Real const ChiCoeff1 = Chi(k_index, dof1, K->get_edge_index(E), 1);
+
+
+			for (unsigned l = 0; l < 3; l++) {
+
+				Real Value1 = 0.0;
+				Real Value2 = 0.0;
+
+				for (unsigned j = 0; j < 8; j++) {
+
+					Value1 += Alpha(k_index, dof0, j) * Beta(j, l);
+					Value2 += Alpha(k_index, dof1, j) * Beta(j, l);
+
+				}
+
+				Value1 *= ChiCoeff0 / Viscosities[k_index];
+				Value2 *= ChiCoeff1 / Viscosities[k_index];
+
+				R1_armadillo(e_index, 3 * k_index + l) = abs(Value1) < INTEGRAL_PRECISION ? 0.0 : Value1;
+				R2_armadillo(e_index, 3 * k_index + l) = abs(Value2) < INTEGRAL_PRECISION ? 0.0 : Value2;
+
+			}
+		}
+
+	}
+
+};
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::assembleM_armadillo() {
+
+
+	unsigned const NumberOfDirichletEdges = Mesh->get_number_of_dirichlet_edges();
+	unsigned const NumberOfNeumannEdges = Mesh->get_number_of_neumann_edges();
+	unsigned const NumberOfBoundaryEdges = NumberOfDirichletEdges + NumberOfNeumannEdges;
+
+	unsigned const NumberOfElements = 4 * (NumberOfDirichletEdges + (NumberOfBoundaryEdges - NumberOfDirichletEdges) * 3 + (ne - NumberOfBoundaryEdges) * 5 + ne - NumberOfBoundaryEdges);
+
+
+
+	for (unsigned e = 0; e < ne; e++) {
+
+
+		em_pointer const E = Mesh->get_edge(e);
+		unsigned const	 e_index = E->index;
+		E_MARKER const	 e_marker = E->marker;
+
+
+
+		if (e_marker == E_MARKER::DIRICHLET) {
+
+			M_j1_s1_armadillo(e_index, e_index) = -1.0;
+			M_j1_s2_armadillo(e_index, e_index) = +0.0;
+
+			M_j2_s1_armadillo(e_index, e_index) = +0.0;
+			M_j2_s2_armadillo(e_index, e_index) = -1.0;
+
+			TracePressureSystem_armadillo(e_index, e_index) = -1.0;
+			TracePressureSystem_armadillo(e_index, e_index + ne) = 0.0;
+			TracePressureSystem_armadillo(e_index + ne, e_index) = 0.0;
+			TracePressureSystem_armadillo(e_index + ne, e_index + ne) = -1.0;
+
+			continue;
+
+		}
+
+
+		for (unsigned neighborElement = 0; neighborElement < 2; neighborElement++) {
+
+
+			tm_pointer const K = E->neighbors[neighborElement];
+
+			if (!K)
+				continue;
+
+
+			unsigned const k_index = K->index;
+
+			unsigned const dof0 = LI(K, E, 0);
+			unsigned const dof1 = LI(K, E, 1);
+
+			Real const ChiCoeff0 = Chi(k_index, dof0, K->get_edge_index(E), 0);
+			Real const ChiCoeff1 = Chi(k_index, dof1, K->get_edge_index(E), 1);
+
+
+			for (unsigned El = 0; El < 3; El++) {
+
+
+				em_pointer const E_local = K->edges[El];
+				unsigned const	 e_local_index_global = E_local->index;
+
+				Real ACHI_j1_s1 = 0.0;
+				Real ACHI_j1_s2 = 0.0;
+				Real ACHI_j2_s1 = 0.0;
+				Real ACHI_j2_s2 = 0.0;
+
+				for (unsigned j = 0; j < 8; j++) {
+
+					ACHI_j1_s1 += Alpha(k_index, dof0, j) * Chi(k_index, j, El, 0);
+					ACHI_j1_s2 += Alpha(k_index, dof0, j) * Chi(k_index, j, El, 1);
+
+					ACHI_j2_s1 += Alpha(k_index, dof1, j) * Chi(k_index, j, El, 0);
+					ACHI_j2_s2 += Alpha(k_index, dof1, j) * Chi(k_index, j, El, 1);
+
+				}
+
+				Real const Value11 = ChiCoeff0 * ACHI_j1_s1 / Viscosities[k_index];
+				Real const Value12 = ChiCoeff0 * ACHI_j1_s2 / Viscosities[k_index];
+				Real const Value21 = ChiCoeff1 * ACHI_j2_s1 / Viscosities[k_index];
+				Real const Value22 = ChiCoeff1 * ACHI_j2_s2 / Viscosities[k_index];
+
+
+				M_j1_s1_armadillo(e_index, e_local_index_global) += Value11;
+				M_j1_s2_armadillo(e_index, e_local_index_global) += Value12;
+				M_j2_s1_armadillo(e_index, e_local_index_global) += Value21;
+				M_j2_s2_armadillo(e_index, e_local_index_global) += Value22;
+
+
+				TracePressureSystem_armadillo(e_index, e_index) += Value11;
+				TracePressureSystem_armadillo(e_index, e_index + ne) += Value12;
+				TracePressureSystem_armadillo(e_index + ne, e_index) += Value21;
+				TracePressureSystem_armadillo(e_index + ne, e_index + ne) += Value22;
+
+			}
+		}
+
+
+
+	}
+
+	//arma::lu(TraceL_armadillo, TraceU_armadillo, TraceP_armadillo, TracePressureSystem_armadillo);
+
+};
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::assembleV_armadillo() {
+
+
+	Real const time = (nt + 1) * dt;
+
+	for (unsigned e = 0; e < ne; e++) {
+
+
+		em_pointer const E = Mesh->get_edge(e);
+		unsigned const	 e_index = E->index;
+		E_MARKER const	 e_marker = E->marker;
+
+
+		V1_armadillo[e_index] = 0.0;
+		V2_armadillo[e_index] = 0.0;
+
+
+		if (e_marker == E_MARKER::NEUMANN) {
+
+
+			Real ChiCoeff0 = 1.0;
+			Real ChiCoeff1 = 1.0;
+
+			for (unsigned neighborElement = 0; neighborElement < 2; neighborElement++) {
+
+				tm_pointer const K = E->neighbors[neighborElement];
+
+				if (!K)
+					continue;
+
+				unsigned const k_index = K->index;
+
+				unsigned const dof0 = LI(K, E, 0);
+				unsigned const dof1 = LI(K, E, 1);
+
+				ChiCoeff0 = Chi(k_index, dof0, K->get_edge_index(E), 0);
+				ChiCoeff1 = Chi(k_index, dof1, K->get_edge_index(E), 1);
+
+				break;
+
+			}
+
+			V1_armadillo[e_index] = ChiCoeff0 * NEUMANN_GAMMA_Q_velocity(E, time);
+			V2_armadillo[e_index] = ChiCoeff1 * 0.0;
+
+		}
+
+		else if (e_marker == E_MARKER::DIRICHLET) {
+
+			Real const x0 = E->a->x;
+			Real const y0 = E->a->y;
+
+			Real const x1 = E->b->x;
+			Real const y1 = E->b->y;
+
+
+			/*****************************************************************************/
+			/*                                                                           */
+			/*    - Interpolant of the Barenblatt solution for the Dirichlet Edge	     */
+			/*    - Optimized : System matrix is known, so we can write the solution     */
+			/*					immediately using inverse matrix (which is also known)   */
+			/*                                                                           */
+			/*                : M = [1, -1 ; 1, 1]    M^(-1) = 0.5*[1, 1; -1, 1]         */
+			/*                                                                           */
+			/*****************************************************************************/
+			Real const B0 = DIRICHLET_GAMMA_P_pressure(x0, y0, time);
+			Real const B1 = DIRICHLET_GAMMA_P_pressure(x1, y1, time);
+
+			V1_armadillo[e_index] = 0.5 * (+B0 + B1);
+			V2_armadillo[e_index] = 0.5 * (-B0 + B1);
+
+		}
+	}
+
+};
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::assembleG_armadillo() {
+
+
+	Real const TimeCoefficient = dt * (1.0 - TimeSchemeParameter);
+
+	for (unsigned k = 0; k < nk; k++) {
+
+		unsigned const k_index = ElementIndeces[k];
+
+		for (unsigned m = 0; m < 3; m++)
+			G_armadillo[3 * k_index + m] = Pi_n(k_index, m) + TimeCoefficient * rkFp_n(k_index, m);
+
+	}
+
+};
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::computeTracePressures_armadillo() {
+
+
+
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Copy Internal Pressures into Eigen container						 */
+	/*                                                                           */
+	/*****************************************************************************/
+	for (unsigned k = 0; k < nk; k++) {
+
+		unsigned const k_index = ElementIndeces[k];
+
+		for (unsigned m = 0; m < 3; m++)
+			Pi_armadillo[3 * k_index + m] = Pi(k_index, m);
+
+	}
+
+	assembleV_armadillo();
+
+
+	TracePressureSystemRHS_armadillo.head(ne) = R1_armadillo * Pi_armadillo - V1_armadillo;
+	TracePressureSystemRHS_armadillo.tail(ne) = R2_armadillo * Pi_armadillo - V2_armadillo;
+
+	//arma::vec const solution = arma::solve(arma::trimatu(TraceU_armadillo), arma::solve(arma::trimatl(TraceL_armadillo), TraceP_armadillo * TracePressureSystemRHS_armadillo));
+	arma::vec const solution = arma::spsolve(TracePressureSystem_armadillo, TracePressureSystemRHS_armadillo,"lapack");
+
+	Tp1_armadillo = solution.head(ne);
+	Tp2_armadillo = solution.tail(ne);
+
+
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Copy Trace Pressure solution to each elements's edges from			 */
+	/*      the Eigen container                                                  */
+	/*                                                                           */
+	/*****************************************************************************/
+	for (unsigned e = 0; e < ne; e++) {
+
+
+		em_pointer const E = Mesh->get_edge(e);
+
+		Real const TpValue1 = Tp1_armadillo[E->index];
+		Real const TpValue2 = Tp2_armadillo[E->index];
+
+		for (unsigned neighbor = 0; neighbor < 2; neighbor++) {
+
+			tm_pointer const K = E->neighbors[neighbor];
+
+			if (!K)
+				continue;
+
+			unsigned const k_index = K->index;
+			unsigned const e_index_local = K->get_edge_index(E);
+
+			TPi.setCoeff(k_index, e_index_local, 0) = TpValue1;
+			TPi.setCoeff(k_index, e_index_local, 1) = TpValue2;
+
+		}
+	}
+
+};
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::computePressureEquation_armadillo() {
+
+
+
+
+	assembleG_armadillo();
+	assembleV_armadillo();
+
+	assemblePressureSystem_armadillo();
+
+
+	PressureSystemRHS_armadillo.head(ne) = R1iD_armadillo * G_armadillo - V1_armadillo;
+	PressureSystemRHS_armadillo.tail(ne) = R2iD_armadillo * G_armadillo - V2_armadillo;
+
+
+	arma::vec const solution = arma::spsolve(PressureSystem_armadillo, PressureSystemRHS_armadillo,"superlu");
+
+	Tp1_armadillo = solution.head(ne);
+	Tp2_armadillo = solution.tail(ne);
+
+	Pi_armadillo = iD_armadillo * G_armadillo - (iDH1_armadillo * Tp1_armadillo + iDH2_armadillo * Tp2_armadillo);
+
+
+
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Copy Internal Pressures from Eigen container						 */
+	/*                                                                           */
+	/*****************************************************************************/
+	for (unsigned k = 0; k < nk; k++) {
+
+		unsigned const k_index = ElementIndeces[k];
+
+		for (unsigned m = 0; m < 3; m++)
+			Pi.setCoeff(k_index, m) = Pi_armadillo[3 * k_index + m];
+
+	}
+
+	/*****************************************************************************/
+	/*                                                                           */
+	/*    - Copy Trace Pressure solution to each elements's edges from			 */
+	/*      the Eigen container                                                  */
+	/*                                                                           */
+	/*****************************************************************************/
+	for (unsigned e = 0; e < ne; e++) {
+
+
+		em_pointer const E = Mesh->get_edge(e);
+
+		Real const TpValue1 = Tp1_armadillo[E->index];
+		Real const TpValue2 = Tp2_armadillo[E->index];
+
+		for (unsigned neighbor = 0; neighbor < 2; neighbor++) {
+
+			tm_pointer const K = E->neighbors[neighbor];
+
+			if (!K)
+				continue;
+
+			unsigned const k_index = K->index;
+			unsigned const e_index_local = K->get_edge_index(E);
+
+			TPi.setCoeff(k_index, e_index_local, 0) = TpValue1;
+			TPi.setCoeff(k_index, e_index_local, 1) = TpValue2;
+
+		}
+	}
+
+};
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem_armadillo() {
+
+
+	Real const TimeCoefficient = TimeSchemeParameter * dt;
+
+	arma::dmat33 Block;
+	arma::dmat33 Block1;
+	arma::dmat33 Block2;
+
+
+	// It is sufficient to zero only diagonal elements. Therefore, there is no need for += in the sequel
+	for (unsigned e = 0; e < ne; e++) {
+
+		PressureSystem_armadillo(e, e) = M_j1_s1_armadillo(e, e);
+		PressureSystem_armadillo(e, e + ne) = M_j1_s2_armadillo(e, e);
+		PressureSystem_armadillo(e + ne, e) = M_j2_s1_armadillo(e, e);
+		PressureSystem_armadillo(e + ne, e + ne) = M_j2_s2_armadillo(e, e);
+
+	}
+
+	for (unsigned k = 0; k < nk; k++) {
+
+
+		tm_pointer const K = Elements[k];
+		unsigned const	 k_index = ElementIndeces[k];
+		unsigned const	 start_index = 3 * k_index;
+
+
+		/*****************************************************************************/
+		/*                                                                           */
+		/*    - Inverse of the matrix D										         */
+		/*                                                                           */
+		/*****************************************************************************/
+		for (unsigned r = 0; r < 3; r++)
+			for (unsigned s = 0; s < 3; s++)
+				Block(r, s) = kroneckerDelta(r, s) - TimeCoefficient * Sigma(k_index, r, s);
+
+		arma::dmat33 const InverseBlock = arma::inv(Block);
+
+		for (unsigned i = 0; i < 3; i++)
+			for (unsigned j = 0; j < 3; j++)
+				iD_armadillo(start_index + i, start_index + j) = InverseBlock(i, j);
+
+
+
+		/*****************************************************************************/
+		/*                                                                           */
+		/*    - H1, H2														         */
+		/*                                                                           */
+		/*****************************************************************************/
+		for (unsigned m = 0; m < 3; m++) {
+			for (unsigned Ei = 0; Ei < 3; Ei++) {
+
+				Block1(m, Ei) = -TimeCoefficient * Lambda(k_index, 0, m, Ei);
+				Block2(m, Ei) = -TimeCoefficient * Lambda(k_index, 1, m, Ei);
+
+			}
+		}
+
+
+		/*****************************************************************************/
+		/*                                                                           */
+		/*    - H1, H2 blocks multiplied by the blocks Inverse of D			         */
+		/*                                                                           */
+		/*****************************************************************************/
+		arma::dmat33 const iDH1block = InverseBlock * Block1;
+		arma::dmat33 const iDH2block = InverseBlock * Block2;
+
+
+		/*****************************************************************************/
+		/*                                                                           */
+		/*    - Assembly of the resulting matrix R1 * iD * H1					     */
+		/*                                                                           */
+		/*****************************************************************************/
+		for (unsigned ei = 0; ei < 3; ei++) {
+
+
+			em_pointer const Ei = K->edges[ei];
+			unsigned const	 e_index_i = K->edges[ei]->index;
+
+
+			for (unsigned j = 0; j < 3; j++) {
+
+
+				unsigned const start_index_j = start_index + j;
+
+				/*****************************************************************************/
+				/*                                                                           */
+				/*    - Assemble Matrices H1, H2									         */
+				/*                                                                           */
+				/*****************************************************************************/
+				//H1_armadillo(start_index_j, e_index_i) = Block1(j, ei);
+				//H2_armadillo(start_index_j, e_index_i) = Block2(j, ei);
+
+
+				/*****************************************************************************/
+				/*                                                                           */
+				/*    - Assembly of the Matrices iDH1, iDH2	: iD * H1, iD * H2			     */
+				/*                                                                           */
+				/*****************************************************************************/
+				iDH1_armadillo(start_index_j, e_index_i) = iDH1block(j, ei);
+				iDH2_armadillo(start_index_j, e_index_i) = iDH2block(j, ei);
+
+
+				/*****************************************************************************/
+				/*                                                                           */
+				/*    - Assembly of the Matrices R1 * iD, R2 * iD						     */
+				/*                                                                           */
+				/*****************************************************************************/
+				Real sum1 = 0.0;
+				Real sum2 = 0.0;
+
+				for (unsigned m = 0; m < 3; m++) {
+
+					sum1 += R1_block(k_index, ei, m) * InverseBlock(m, j);
+					sum2 += R2_block(k_index, ei, m) * InverseBlock(m, j);
+
+				}
+
+				R1iD_armadillo(e_index_i, start_index_j) = sum1;
+				R2iD_armadillo(e_index_i, start_index_j) = sum2;
+
+			}
+
+
+			// Diagonal elements are already set
+			if (Ei->marker == E_MARKER::DIRICHLET)
+				continue;
+
+
+			for (unsigned ej = 0; ej < 3; ej++) {
+
+
+				unsigned const e_index_j = K->edges[ej]->index;
+
+				Real sum11 = 0.0;
+				Real sum12 = 0.0;
+				Real sum21 = 0.0;
+				Real sum22 = 0.0;
+
+				// Number of degrees of freedom of internal pressure
+				for (unsigned m = 0; m < 3; m++) {
+
+					sum11 += R1_block(k_index, ei, m) * iDH1block(m, ej);
+					sum12 += R1_block(k_index, ei, m) * iDH2block(m, ej);
+					sum21 += R2_block(k_index, ei, m) * iDH1block(m, ej);
+					sum22 += R2_block(k_index, ei, m) * iDH2block(m, ej);
+
+				}
+
+				// Because diagonal elements were zeroed at the beginning, the += operator is needed only here
+				if (e_index_i == e_index_j) {
+
+					PressureSystem_armadillo(e_index_i, e_index_i) += sum11;
+					PressureSystem_armadillo(e_index_i, e_index_i + ne) += sum12;
+					PressureSystem_armadillo(e_index_i + ne, e_index_i) += sum21;
+					PressureSystem_armadillo(e_index_i + ne, e_index_i + ne) += sum22;
+
+					continue;
+
+				}
+
+				PressureSystem_armadillo(e_index_i, e_index_j) = sum11 + M_j1_s1_armadillo(e_index_i, e_index_j);
+				PressureSystem_armadillo(e_index_i, e_index_j + ne) = sum12 + M_j1_s2_armadillo(e_index_i, e_index_j);
+				PressureSystem_armadillo(e_index_i + ne, e_index_j) = sum21 + M_j2_s1_armadillo(e_index_i, e_index_j);
+				PressureSystem_armadillo(e_index_i + ne, e_index_j + ne) = sum22 + M_j2_s2_armadillo(e_index_i, e_index_j);
+
+			}
+		}
+	}
+
+};
+
+
+
+
 
 
 
@@ -655,8 +1257,38 @@ solver<QuadraturePrecision, TimeScheme>::solver(MESH & mesh, int const nt0, Real
 
 
 
-	//PressureSystem_armadillo.set_size(2 * ne, 2 * ne);
-	//PressureSystemRHS_armadillo.set_size(2 * ne);
+	PressureSystem_armadillo.set_size(2 * ne, 2 * ne);
+	PressureSystemRHS_armadillo.set_size(2 * ne);
+
+	TracePressureSystem_armadillo.set_size(2 * ne, 2 * ne);
+	TracePressureSystemRHS_armadillo.set_size(2 * ne);
+
+	
+	TraceL_armadillo.set_size(2 * ne, 2 * ne);
+	TraceU_armadillo.set_size(2 * ne, 2 * ne);
+	TraceP_armadillo.set_size(2 * ne, 2 * ne);
+
+	Tp1_armadillo.set_size(ne);
+	Tp2_armadillo.set_size(ne);
+
+	iD_armadillo.set_size(3 * nk, 3 * nk);
+
+	R1iD_armadillo.set_size(ne, 3 * nk);
+	R2iD_armadillo.set_size(ne, 3 * nk);
+	iDH1_armadillo.set_size(3 * nk, ne);
+	iDH2_armadillo.set_size(3 * nk, ne);
+
+	G_armadillo.set_size(3 * nk);
+	V1_armadillo.set_size(ne);
+	V2_armadillo.set_size(ne);
+	Pi_armadillo.set_size(3 * nk);
+
+	R1_armadillo.set_size(ne, 3 * nk);
+	R2_armadillo.set_size(ne, 3 * nk);
+	M_j1_s1_armadillo.set_size(ne, ne);
+	M_j1_s2_armadillo.set_size(ne, ne);
+	M_j2_s1_armadillo.set_size(ne, ne);
+	M_j2_s2_armadillo.set_size(ne, ne);
 
 	/*****************************************************************************/
 	/*                                                                           */
@@ -1122,6 +1754,9 @@ solver<QuadraturePrecision, TimeScheme>::solver(MESH & mesh, int const nt0, Real
 	/*****************************************************************************/
 	assembleR();
 	assembleM();
+
+	assembleR_armadillo();
+	assembleM_armadillo();
 
 	getSparsityPatternOfThePressureSystem();
 
@@ -1676,7 +2311,7 @@ template<unsigned QuadraturePrecision, scheme TimeScheme>
 void solver<QuadraturePrecision, TimeScheme>::computePressureEquation() {
 
 
-
+	
 	assembleG();
 	assembleV();
 
@@ -1685,14 +2320,12 @@ void solver<QuadraturePrecision, TimeScheme>::computePressureEquation() {
 	pressureSystemRhs.head(ne) = R1iD * G - V1;
 	pressureSystemRhs.tail(ne) = R2iD * G - V2;
 
+
 	//pressureSystemRhs.head(ne) = R1iDG - V1;
 	//pressureSystemRhs.tail(ne) = R2iDG - V2;
-
 	//std::cout << R1iDG - R1iD * G << std::endl;
+	
 
-
-	//PressureSystem_armadillo;
-	//PressureSystemRHS_armadillo.head(ne) = 
 
 	/*****************************************************************************/
 	/*                                                                           */
@@ -1708,8 +2341,8 @@ void solver<QuadraturePrecision, TimeScheme>::computePressureEquation() {
 	Tp2 = solution.tail(ne);
 
 	Pi_eigen = iD * G - (iDH1 * Tp1 + iDH2 * Tp2);
-	//Pi_eigen = iDG - (iDH1 * Tp1 + iDH2 * Tp2);
 
+	//Pi_eigen = iDG - (iDH1 * Tp1 + iDH2 * Tp2);
 	//std::cout << iDG - iD * G << std::endl;
 
 
@@ -2688,179 +3321,7 @@ void solver<QuadraturePrecision, TimeScheme>::assembleG() {
 
 
 
-template<unsigned QuadraturePrecision, scheme TimeScheme>
-void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem_armadillo() {
 
-
-	Real const TimeCoefficient = TimeSchemeParameter * dt;
-
-	Eigen::Matrix3d Block;
-	Eigen::Matrix3d Block1;
-	Eigen::Matrix3d Block2;
-
-
-	// It is sufficient to zero only diagonal elements. Therefore, there is no need for += in the sequel
-	for (unsigned e = 0; e < ne; e++) {
-
-		//PressureSystem_armadillo.coeffRef(e, e) = M_j1_s1.coeff(e, e);
-		//PressureSystem_armadillo.coeffRef(e, e + ne) = M_j1_s2.coeff(e, e);
-		//PressureSystem_armadillo.coeffRef(e + ne, e) = M_j2_s1.coeff(e, e);
-		//PressureSystem_armadillo.coeffRef(e + ne, e + ne) = M_j2_s2.coeff(e, e);
-
-	}
-
-	for (unsigned k = 0; k < nk; k++) {
-
-
-		tm_pointer const K = Elements[k];
-		unsigned const	 k_index = ElementIndeces[k];
-		unsigned const	 start_index = 3 * k_index;
-
-
-		/*****************************************************************************/
-		/*                                                                           */
-		/*    - Inverse of the matrix D										         */
-		/*                                                                           */
-		/*****************************************************************************/
-		for (unsigned r = 0; r < 3; r++)
-			for (unsigned s = 0; s < 3; s++)
-				Block(r, s) = kroneckerDelta(r, s) - TimeCoefficient * Sigma(k_index, r, s);
-
-		Eigen::Matrix3d const InverseBlock = Block.inverse();
-
-		for (unsigned i = 0; i < 3; i++)
-			for (unsigned j = 0; j < 3; j++)
-				iD.coeffRef(start_index + i, start_index + j) = InverseBlock(i, j);
-
-
-
-		/*****************************************************************************/
-		/*                                                                           */
-		/*    - H1, H2														         */
-		/*                                                                           */
-		/*****************************************************************************/
-		for (unsigned m = 0; m < 3; m++) {
-			for (unsigned Ei = 0; Ei < 3; Ei++) {
-
-				Block1(m, Ei) = -TimeCoefficient * Lambda(k_index, 0, m, Ei);
-				Block2(m, Ei) = -TimeCoefficient * Lambda(k_index, 1, m, Ei);
-
-			}
-		}
-
-
-		/*****************************************************************************/
-		/*                                                                           */
-		/*    - H1, H2 blocks multiplied by the blocks Inverse of D			         */
-		/*                                                                           */
-		/*****************************************************************************/
-		Eigen::Matrix3d const iDH1block = InverseBlock * Block1;
-		Eigen::Matrix3d const iDH2block = InverseBlock * Block2;
-
-
-		/*****************************************************************************/
-		/*                                                                           */
-		/*    - Assembly of the resulting matrix R1 * iD * H1					     */
-		/*                                                                           */
-		/*****************************************************************************/
-		for (unsigned ei = 0; ei < 3; ei++) {
-
-
-			em_pointer const Ei = K->edges[ei];
-			unsigned const	 e_index_i = K->edges[ei]->index;
-
-
-			for (unsigned j = 0; j < 3; j++) {
-
-
-				unsigned const start_index_j = start_index + j;
-
-				/*****************************************************************************/
-				/*                                                                           */
-				/*    - Assemble Matrices H1, H2									         */
-				/*                                                                           */
-				/*****************************************************************************/
-				H1.coeffRef(start_index_j, e_index_i) = Block1.coeff(j, ei);
-				H2.coeffRef(start_index_j, e_index_i) = Block2.coeff(j, ei);
-
-
-				/*****************************************************************************/
-				/*                                                                           */
-				/*    - Assembly of the Matrices iDH1, iDH2	: iD * H1, iD * H2			     */
-				/*                                                                           */
-				/*****************************************************************************/
-				iDH1.coeffRef(start_index_j, e_index_i) = iDH1block.coeff(j, ei);
-				iDH2.coeffRef(start_index_j, e_index_i) = iDH2block.coeff(j, ei);
-
-
-				/*****************************************************************************/
-				/*                                                                           */
-				/*    - Assembly of the Matrices R1 * iD, R2 * iD						     */
-				/*                                                                           */
-				/*****************************************************************************/
-				Real sum1 = 0.0;
-				Real sum2 = 0.0;
-
-				for (unsigned m = 0; m < 3; m++) {
-
-					sum1 += R1_block(k_index, ei, m) * InverseBlock(m, j);
-					sum2 += R2_block(k_index, ei, m) * InverseBlock(m, j);
-
-				}
-
-				R1iD.coeffRef(e_index_i, start_index_j) = sum1;
-				R2iD.coeffRef(e_index_i, start_index_j) = sum2;
-
-			}
-
-
-			// Diagonal elements are already set
-			if (Ei->marker == E_MARKER::DIRICHLET)
-				continue;
-
-
-			for (unsigned ej = 0; ej < 3; ej++) {
-
-
-				unsigned const e_index_j = K->edges[ej]->index;
-
-				Real sum11 = 0.0;
-				Real sum12 = 0.0;
-				Real sum21 = 0.0;
-				Real sum22 = 0.0;
-
-				// Number of degrees of freedom of internal pressure
-				for (unsigned m = 0; m < 3; m++) {
-
-					sum11 += R1_block(k_index, ei, m) * iDH1block(m, ej);
-					sum12 += R1_block(k_index, ei, m) * iDH2block(m, ej);
-					sum21 += R2_block(k_index, ei, m) * iDH1block(m, ej);
-					sum22 += R2_block(k_index, ei, m) * iDH2block(m, ej);
-
-				}
-
-				// Because diagonal elements were zeroed at the beginning, the += operator is needed only here
-				if (e_index_i == e_index_j) {
-
-					//PressureSystem_armadillo.coeffRef(e_index_i, e_index_i) += sum11;
-					//PressureSystem_armadillo.coeffRef(e_index_i, e_index_i + ne) += sum12;
-					//PressureSystem_armadillo.coeffRef(e_index_i + ne, e_index_i) += sum21;
-					//PressureSystem_armadillo.coeffRef(e_index_i + ne, e_index_i + ne) += sum22;
-
-					continue;
-
-				}
-
-				//PressureSystem_armadillo.coeffRef(e_index_i, e_index_j) = sum11 + M_j1_s1.coeff(e_index_i, e_index_j);
-				//PressureSystem_armadillo.coeffRef(e_index_i, e_index_j + ne) = sum12 + M_j1_s2.coeff(e_index_i, e_index_j);
-				//PressureSystem_armadillo.coeffRef(e_index_i + ne, e_index_j) = sum21 + M_j2_s1.coeff(e_index_i, e_index_j);
-				//PressureSystem_armadillo.coeffRef(e_index_i + ne, e_index_j + ne) = sum22 + M_j2_s2.coeff(e_index_i, e_index_j);
-
-			}
-		}
-	}
-
-};
 
 template<unsigned QuadraturePrecision, scheme TimeScheme>
 void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem() {
@@ -3960,7 +4421,8 @@ void solver<QuadraturePrecision, TimeScheme>::getSolution() {
 	/*      velocity field and coefficients Thetas							     */
 	/*                                                                           */
 	/*****************************************************************************/
-	computeTracePressures();
+	//computeTracePressures();
+	computeTracePressures_armadillo();
 	computeVelocities();
 	computeThetas();
 
@@ -4027,7 +4489,8 @@ void solver<QuadraturePrecision, TimeScheme>::getSolution() {
 		//}
 
 
-		computePressureEquation();
+		//computePressureEquation();
+		computePressureEquation_armadillo();
 		computeVelocities();
 
 		updateConcentrations();
@@ -4090,7 +4553,7 @@ void solver<QuadraturePrecision, TimeScheme>::getSolution() {
 	}
 
 
-	//std::cout << counter << std::endl;
+	std::cout << counter << std::endl;
 
 	//if (nt % 1000 == 0)
 	//std::cout << nt << " - Iterations : " << counter << std::endl;
