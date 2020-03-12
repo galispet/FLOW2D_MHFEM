@@ -21,6 +21,7 @@
 
 #include <Eigen/Sparse>
 #include <omp.h>
+#include <immintrin.h>
 
 //#include <armadillo>
 
@@ -1813,6 +1814,10 @@ void solver<QuadraturePrecision, TimeScheme>::computeVelocities() {
 
 					Real BetaPi = 0.0;
 					Real ChiTracePi = 0.0;
+
+
+
+					//__m256d vv = __mm256
 
 					for (unsigned i = 0; i < 3; i++)
 						BetaPi += Beta(m, i) * Pi(k_index, i);
