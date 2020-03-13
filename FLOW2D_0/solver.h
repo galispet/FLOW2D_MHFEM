@@ -2,16 +2,17 @@
 #pragma once
 
 
+
 /*****************************************************************************/
 /*                                                                           */
-/*    - If compiled with NDEBUG flag, Eigen will turn off					 */
-/*      vector size checks													 */
-/*                                                                           */
-/*    - Probably, it doesn't work this way                                   */
+/*    - Preprocessor flags for eigen										 */
 /*                                                                           */
 /*****************************************************************************/
-#define NDEBUG 
-#define ARMA_NO_DEBUG
+#define EIGEN_NO_DEBUG
+#define NDEBUG
+#define EIGEN_UNROLLING_LIMIT 1000
+
+
 
 
 #include "miscellaneous.h"
@@ -22,8 +23,6 @@
 #include <Eigen/Sparse>
 #include <omp.h>
 #include <immintrin.h>
-
-//#include <armadillo>
 
 
 enum scheme { CRANK_NICOLSON, EULER_BACKWARD };
@@ -215,6 +214,8 @@ private:
 	CoeffMatrix1D<8>	Velocity;
 	CoeffMatrix1D<3>	Sources;
 
+	DenseVector Pi_eigen_prev;
+	DenseVector Pi_eigen_n;
 
 	/*****************************************************************************/
 	/*                                                                           */
@@ -620,6 +621,16 @@ solver<QuadraturePrecision, TimeScheme>::solver(MESH & mesh, int const nt0, Real
 	rkFc_n.setZero();
 	rkFp_n.setZero();
 
+	__m128 a4 = _mm_set_ps(4.0f, 4.1f, 4.2f, 4.3f);	__m128 b4 = _mm_set_ps(1.0f, 1.0f, 1.0f, 1.0f);
+	__m128 sum4 = _mm_add_ps(a4, b4);
+
+	//TODO : change also Tpi ... this is bigger bottleneck
+
+	Pi_eigen_prev.resize(3 * nk);
+	Pi_eigen_prev.setZero();
+
+	Pi_eigen_n.resize(3 * nk);
+	Pi_eigen_n.setZero();
 
 	/*****************************************************************************/
 	/*                                                                           */
@@ -653,10 +664,6 @@ solver<QuadraturePrecision, TimeScheme>::solver(MESH & mesh, int const nt0, Real
 	//BigPsi	.setZero();
 	//BigOmega.setZero();
 
-
-
-	//PressureSystem_armadillo.set_size(2 * ne, 2 * ne);
-	//PressureSystemRHS_armadillo.set_size(2 * ne);
 
 	/*****************************************************************************/
 	/*                                                                           */
@@ -1196,9 +1203,13 @@ void solver<QuadraturePrecision, TimeScheme>::initializeValues() {
 		Xi.setCoeff(k_index, 1) = Solution(1);
 		Xi.setCoeff(k_index, 2) = Solution(2);
 
-		Pi.setCoeff(k_index, 0) = equationOfState(Xi(k_index, 0));
-		Pi.setCoeff(k_index, 1) = equationOfState(Xi(k_index, 1));
-		Pi.setCoeff(k_index, 2) = equationOfState(Xi(k_index, 2));
+		//Pi.setCoeff(k_index, 0) = equationOfState(Xi(k_index, 0));
+		//Pi.setCoeff(k_index, 1) = equationOfState(Xi(k_index, 1));
+		//Pi.setCoeff(k_index, 2) = equationOfState(Xi(k_index, 2));
+
+		Pi_eigen[3 * k_index + 0] = equationOfState(Xi(k_index, 0));
+		Pi_eigen[3 * k_index + 1] = equationOfState(Xi(k_index, 1));
+		Pi_eigen[3 * k_index + 2] = equationOfState(Xi(k_index, 2));
 
 		//Pi.setCoeff(k_index, 0) = integrate_triangle<Real>(K, time, barenblatt) / area;
 		//Pi.setCoeff(k_index, 1) = 0.0;
@@ -1486,12 +1497,20 @@ bool solver<QuadraturePrecision, TimeScheme>::stopCriterion() {
 			Real Difference = 0.0;
 			Real Norm = 0.0;
 
+			//for (unsigned j = 0; j < 3; j++) {
+			//
+			//	Difference += BasisPolynomial(j) * (Pi(k_index, j) - Pi_prev(k_index, j));
+			//	Norm += BasisPolynomial(j) * Pi(k_index, j);
+			//
+			//}
+
 			for (unsigned j = 0; j < 3; j++) {
 
-				Difference += BasisPolynomial(j) * (Pi(k_index, j) - Pi_prev(k_index, j));
-				Norm += BasisPolynomial(j) * Pi(k_index, j);
+				Difference += BasisPolynomial(j) * (Pi_eigen[3 * k_index + j] - Pi_eigen_prev[3 * k_index + j]);
+				Norm += BasisPolynomial(j) * Pi_eigen[3 * k_index + j];
 
 			}
+			
 
 			IntegralError += w * square(Difference);
 			IntegralNorm += w * square(Norm);
@@ -1620,14 +1639,14 @@ void solver<QuadraturePrecision, TimeScheme>::computeTracePressures() {
 	/*    - Copy Internal Pressures into Eigen container						 */
 	/*                                                                           */
 	/*****************************************************************************/
-	for (unsigned k = 0; k < nk; k++) {
-
-		unsigned const k_index = ElementIndeces[k];
-
-		for (unsigned m = 0; m < 3; m++)
-			Pi_eigen[3 * k_index + m] = Pi(k_index, m);
-
-	}
+	//for (unsigned k = 0; k < nk; k++) {
+	//
+	//	unsigned const k_index = ElementIndeces[k];
+	//
+	//	for (unsigned m = 0; m < 3; m++)
+	//		Pi_eigen[3 * k_index + m] = Pi(k_index, m);
+	//
+	//}
 
 	assembleV();
 
@@ -1691,9 +1710,6 @@ void solver<QuadraturePrecision, TimeScheme>::computePressureEquation() {
 	//std::cout << R1iDG - R1iD * G << std::endl;
 
 
-	//PressureSystem_armadillo;
-	//PressureSystemRHS_armadillo.head(ne) = 
-
 	/*****************************************************************************/
 	/*                                                                           */
 	/*    - Sparsity pattern is already known. Method factorize() is enough		 */
@@ -1708,8 +1724,8 @@ void solver<QuadraturePrecision, TimeScheme>::computePressureEquation() {
 	Tp2 = solution.tail(ne);
 
 	Pi_eigen = iD * G - (iDH1 * Tp1 + iDH2 * Tp2);
-	//Pi_eigen = iDG - (iDH1 * Tp1 + iDH2 * Tp2);
 
+	//Pi_eigen = iDG - (iDH1 * Tp1 + iDH2 * Tp2);
 	//std::cout << iDG - iD * G << std::endl;
 
 
@@ -1819,9 +1835,13 @@ void solver<QuadraturePrecision, TimeScheme>::computeVelocities() {
 
 					//__m256d vv = __mm256
 
-					for (unsigned i = 0; i < 3; i++)
-						BetaPi += Beta(m, i) * Pi(k_index, i);
+					//for (unsigned i = 0; i < 3; i++)
+					//	BetaPi += Beta(m, i) * Pi(k_index, i);
 
+					for (unsigned i = 0; i < 3; i++)
+						BetaPi += Beta(m, i) * Pi_eigen[3 * k_index + i];
+
+					
 					Value1 += AlphaTemp * BetaPi;
 
 
@@ -1858,8 +1878,12 @@ void solver<QuadraturePrecision, TimeScheme>::computeVelocities() {
 				Real BetaPi = 0.0;
 				Real ChiTracePi = 0.0;
 
+
+				//for (unsigned i = 0; i < 3; i++)
+				//	BetaPi += Beta(m, i) * Pi(k_index, i);
+
 				for (unsigned i = 0; i < 3; i++)
-					BetaPi += Beta(m, i) * Pi(k_index, i);
+					BetaPi += Beta(m, i) * Pi_eigen[3 * k_index + i];
 
 				Value1 += AlphaTemp * BetaPi;
 
@@ -2679,188 +2703,17 @@ void solver<QuadraturePrecision, TimeScheme>::assembleG() {
 
 		unsigned const k_index = ElementIndeces[k];
 
+		//for (unsigned m = 0; m < 3; m++)
+		//	G[3 * k_index + m] = Pi_n(k_index, m) + TimeCoefficient * rkFp_n(k_index, m);
+
 		for (unsigned m = 0; m < 3; m++)
-			G[3 * k_index + m] = Pi_n(k_index, m) + TimeCoefficient * rkFp_n(k_index, m);
-
+			G[3 * k_index + m] = Pi_eigen_n[3 * k_index + m] + TimeCoefficient * rkFp_n(k_index, m);
+		
 	}
 
 };
 
 
-
-template<unsigned QuadraturePrecision, scheme TimeScheme>
-void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem_armadillo() {
-
-
-	Real const TimeCoefficient = TimeSchemeParameter * dt;
-
-	Eigen::Matrix3d Block;
-	Eigen::Matrix3d Block1;
-	Eigen::Matrix3d Block2;
-
-
-	// It is sufficient to zero only diagonal elements. Therefore, there is no need for += in the sequel
-	for (unsigned e = 0; e < ne; e++) {
-
-		//PressureSystem_armadillo.coeffRef(e, e) = M_j1_s1.coeff(e, e);
-		//PressureSystem_armadillo.coeffRef(e, e + ne) = M_j1_s2.coeff(e, e);
-		//PressureSystem_armadillo.coeffRef(e + ne, e) = M_j2_s1.coeff(e, e);
-		//PressureSystem_armadillo.coeffRef(e + ne, e + ne) = M_j2_s2.coeff(e, e);
-
-	}
-
-	for (unsigned k = 0; k < nk; k++) {
-
-
-		tm_pointer const K = Elements[k];
-		unsigned const	 k_index = ElementIndeces[k];
-		unsigned const	 start_index = 3 * k_index;
-
-
-		/*****************************************************************************/
-		/*                                                                           */
-		/*    - Inverse of the matrix D										         */
-		/*                                                                           */
-		/*****************************************************************************/
-		for (unsigned r = 0; r < 3; r++)
-			for (unsigned s = 0; s < 3; s++)
-				Block(r, s) = kroneckerDelta(r, s) - TimeCoefficient * Sigma(k_index, r, s);
-
-		Eigen::Matrix3d const InverseBlock = Block.inverse();
-
-		for (unsigned i = 0; i < 3; i++)
-			for (unsigned j = 0; j < 3; j++)
-				iD.coeffRef(start_index + i, start_index + j) = InverseBlock(i, j);
-
-
-
-		/*****************************************************************************/
-		/*                                                                           */
-		/*    - H1, H2														         */
-		/*                                                                           */
-		/*****************************************************************************/
-		for (unsigned m = 0; m < 3; m++) {
-			for (unsigned Ei = 0; Ei < 3; Ei++) {
-
-				Block1(m, Ei) = -TimeCoefficient * Lambda(k_index, 0, m, Ei);
-				Block2(m, Ei) = -TimeCoefficient * Lambda(k_index, 1, m, Ei);
-
-			}
-		}
-
-
-		/*****************************************************************************/
-		/*                                                                           */
-		/*    - H1, H2 blocks multiplied by the blocks Inverse of D			         */
-		/*                                                                           */
-		/*****************************************************************************/
-		Eigen::Matrix3d const iDH1block = InverseBlock * Block1;
-		Eigen::Matrix3d const iDH2block = InverseBlock * Block2;
-
-
-		/*****************************************************************************/
-		/*                                                                           */
-		/*    - Assembly of the resulting matrix R1 * iD * H1					     */
-		/*                                                                           */
-		/*****************************************************************************/
-		for (unsigned ei = 0; ei < 3; ei++) {
-
-
-			em_pointer const Ei = K->edges[ei];
-			unsigned const	 e_index_i = K->edges[ei]->index;
-
-
-			for (unsigned j = 0; j < 3; j++) {
-
-
-				unsigned const start_index_j = start_index + j;
-
-				/*****************************************************************************/
-				/*                                                                           */
-				/*    - Assemble Matrices H1, H2									         */
-				/*                                                                           */
-				/*****************************************************************************/
-				H1.coeffRef(start_index_j, e_index_i) = Block1.coeff(j, ei);
-				H2.coeffRef(start_index_j, e_index_i) = Block2.coeff(j, ei);
-
-
-				/*****************************************************************************/
-				/*                                                                           */
-				/*    - Assembly of the Matrices iDH1, iDH2	: iD * H1, iD * H2			     */
-				/*                                                                           */
-				/*****************************************************************************/
-				iDH1.coeffRef(start_index_j, e_index_i) = iDH1block.coeff(j, ei);
-				iDH2.coeffRef(start_index_j, e_index_i) = iDH2block.coeff(j, ei);
-
-
-				/*****************************************************************************/
-				/*                                                                           */
-				/*    - Assembly of the Matrices R1 * iD, R2 * iD						     */
-				/*                                                                           */
-				/*****************************************************************************/
-				Real sum1 = 0.0;
-				Real sum2 = 0.0;
-
-				for (unsigned m = 0; m < 3; m++) {
-
-					sum1 += R1_block(k_index, ei, m) * InverseBlock(m, j);
-					sum2 += R2_block(k_index, ei, m) * InverseBlock(m, j);
-
-				}
-
-				R1iD.coeffRef(e_index_i, start_index_j) = sum1;
-				R2iD.coeffRef(e_index_i, start_index_j) = sum2;
-
-			}
-
-
-			// Diagonal elements are already set
-			if (Ei->marker == E_MARKER::DIRICHLET)
-				continue;
-
-
-			for (unsigned ej = 0; ej < 3; ej++) {
-
-
-				unsigned const e_index_j = K->edges[ej]->index;
-
-				Real sum11 = 0.0;
-				Real sum12 = 0.0;
-				Real sum21 = 0.0;
-				Real sum22 = 0.0;
-
-				// Number of degrees of freedom of internal pressure
-				for (unsigned m = 0; m < 3; m++) {
-
-					sum11 += R1_block(k_index, ei, m) * iDH1block(m, ej);
-					sum12 += R1_block(k_index, ei, m) * iDH2block(m, ej);
-					sum21 += R2_block(k_index, ei, m) * iDH1block(m, ej);
-					sum22 += R2_block(k_index, ei, m) * iDH2block(m, ej);
-
-				}
-
-				// Because diagonal elements were zeroed at the beginning, the += operator is needed only here
-				if (e_index_i == e_index_j) {
-
-					//PressureSystem_armadillo.coeffRef(e_index_i, e_index_i) += sum11;
-					//PressureSystem_armadillo.coeffRef(e_index_i, e_index_i + ne) += sum12;
-					//PressureSystem_armadillo.coeffRef(e_index_i + ne, e_index_i) += sum21;
-					//PressureSystem_armadillo.coeffRef(e_index_i + ne, e_index_i + ne) += sum22;
-
-					continue;
-
-				}
-
-				//PressureSystem_armadillo.coeffRef(e_index_i, e_index_j) = sum11 + M_j1_s1.coeff(e_index_i, e_index_j);
-				//PressureSystem_armadillo.coeffRef(e_index_i, e_index_j + ne) = sum12 + M_j1_s2.coeff(e_index_i, e_index_j);
-				//PressureSystem_armadillo.coeffRef(e_index_i + ne, e_index_j) = sum21 + M_j2_s1.coeff(e_index_i, e_index_j);
-				//PressureSystem_armadillo.coeffRef(e_index_i + ne, e_index_j + ne) = sum22 + M_j2_s2.coeff(e_index_i, e_index_j);
-
-			}
-		}
-	}
-
-};
 
 template<unsigned QuadraturePrecision, scheme TimeScheme>
 void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem() {
@@ -3976,8 +3829,11 @@ void solver<QuadraturePrecision, TimeScheme>::getSolution() {
 	/*			: Thetas_prev - Thetas on the (n+1),(l-1)-th time level			 */
 	/*                                                                           */
 	/*****************************************************************************/
-	Pi_n = Pi;
-	Pi_prev = Pi;
+	//Pi_n = Pi;
+	//Pi_prev = Pi;
+
+	Pi_eigen_n = Pi_eigen;
+	Pi_eigen_prev = Pi_eigen;
 
 	Xi_n = Xi;
 	Xi_prev = Xi;
@@ -4043,8 +3899,10 @@ void solver<QuadraturePrecision, TimeScheme>::getSolution() {
 		/*    - Set next iteration number: l = l + 1								 */
 		/*                                                                           */
 		/*****************************************************************************/
-		Pi_prev = Pi;
+		//Pi_prev = Pi;
 		Xi_prev = Xi;
+
+		Pi_eigen_prev = Pi_eigen;
 
 		//HardCopy(Thetas_prev, Thetas, nk);
 
@@ -4076,9 +3934,12 @@ void solver<QuadraturePrecision, TimeScheme>::getSolution() {
 
 			Real Value1 = 0.0;
 			Real Value2 = 0.0;
+			
+			//for (unsigned j = 0; j < 3; j++)
+			//	Value1 += Sigma(k_index, m, j) * Pi(k_index, j);
 
 			for (unsigned j = 0; j < 3; j++)
-				Value1 += Sigma(k_index, m, j) * Pi(k_index, j);
+				Value1 += Sigma(k_index, m, j) * Pi_eigen[3 * k_index + j];
 
 			for (unsigned El = 0; El < 3; El++)
 				for (unsigned s = 0; s < 2; s++)
@@ -4141,9 +4002,12 @@ void solver<QuadraturePrecision, TimeScheme>::exportPressures(std::string const 
 
 		//Real const S[4] = { 0.0, 1.0, 0.0, 0.0 };
 		//Real const T[4] = { 0.0, 0.0, 1.0, 0.0 };
+		
+		//for (unsigned i = 0; i < 3; i++)
+		//	OFSTxtFile << std::setprecision(20) << x[i] << "\t" << y[i] << "\t" << Pi(k_index, 0) * phi0(S[i], T[i]) + Pi(k_index, 1) * phi1(S[i], T[i]) + Pi(k_index, 2) * phi2(S[i], T[i]) << std::endl;
 
 		for (unsigned i = 0; i < 3; i++)
-			OFSTxtFile << std::setprecision(20) << x[i] << "\t" << y[i] << "\t" << Pi(k_index, 0) * phi0(S[i], T[i]) + Pi(k_index, 1) * phi1(S[i], T[i]) + Pi(k_index, 2) * phi2(S[i], T[i]) << std::endl;
+			OFSTxtFile << std::setprecision(20) << x[i] << "\t" << y[i] << "\t" << Pi_eigen[3 * k_index + 0] * phi0(S[i], T[i]) + Pi_eigen[3 * k_index + 1] * phi1(S[i], T[i]) + Pi_eigen[3 * k_index + 2] * phi2(S[i], T[i]) << std::endl;
 
 		OFSTxtFile << std::endl;
 
@@ -4397,8 +4261,13 @@ void solver<QuadraturePrecision, TimeScheme>::computeError(std::string const & f
 
 			Real PressureK = 0.0;
 
+			//for (unsigned j = 0; j < 3; j++)
+			//	PressureK += Pi(k_index, j) * BasisPolynomial(j);
+
 			for (unsigned j = 0; j < 3; j++)
-				PressureK += Pi(k_index, j) * BasisPolynomial(j);
+				PressureK += Pi_eigen[3 * k_index + j] * BasisPolynomial(j);
+
+
 
 			Real const Difference = abs(PressureK - barenblatt(X, Y, time));
 

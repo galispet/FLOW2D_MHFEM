@@ -154,13 +154,13 @@ MESH::MESH(Triangulation<GK> & triangulation) {
 	/*                                                                           */
 	/*****************************************************************************/
 	for (size_t i = 0; i < edges.size(); i++)
-		edges[i]->index = i;
+		edges[i]->index = (unsigned) i;
 
 	for (size_t i = 0; i < vertices.size(); i++)
-		vertices[i]->index = i;
+		vertices[i]->index = (unsigned) i;
 
 	for (size_t i = 0; i < triangles.size(); i++)
-		triangles[i]->index = i;
+		triangles[i]->index = (unsigned) i;
 
 
 	/*****************************************************************************/

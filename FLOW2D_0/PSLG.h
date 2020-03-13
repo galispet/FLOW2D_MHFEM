@@ -74,7 +74,7 @@ v_pointer PlanarStraightLineGraph::insert_vertex(Vertex v) {
 
 	v_pointer const new_vertex = new Vertex(v.x, v.y);
 
-	new_vertex->index = vertices_pslg.size();
+	new_vertex->index = (unsigned) vertices_pslg.size();
 	new_vertex->marker = marker;
 
 	vertices_pslg.push_back(new_vertex);

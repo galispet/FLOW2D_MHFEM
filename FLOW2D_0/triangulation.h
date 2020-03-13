@@ -799,13 +799,13 @@ Triangulation<GK>::Triangulation(PlanarStraightLineGraph & input_pslg, std::vect
 
 	// After deletetion of triangles, edges and vertices, we have to reindex it. Indexing is important for efficient for write-in / remove into data structers of primitives
 	for (size_t i = 0; i < vertices_tri.size(); i++)
-		vertices_tri[i]->index = i;
+		vertices_tri[i]->index = (unsigned) i;
 
 	for (size_t i = 0; i < edges_tri.size(); i++)
-		edges_tri[i]->index = i;
+		edges_tri[i]->index = (unsigned) i;
 
 	for (size_t i = 0; i < triangles_tri.size(); i++)
-		triangles_tri[i]->index = i;
+		triangles_tri[i]->index = (unsigned) i;
 
 
 };
@@ -1089,7 +1089,7 @@ void Triangulation<GK>::remove_outside_triangles_and_edges() {
 	if (!vertices_to_remove.empty()) {
 
 		for (size_t i = 0; i < vertices_tri.size(); i++)
-			vertices_tri[i]->index = i;
+			vertices_tri[i]->index = (unsigned) i;
 
 	}
 
@@ -1142,7 +1142,7 @@ v_pointer Triangulation<GK>::insert_vertex(v_pointer const v, t_pointer t) {
 	}
 	}
 
-	v->index = vertices_tri.size();
+	v->index = (unsigned) vertices_tri.size();
 
 	vertices_tri.push_back(v);
 
@@ -1356,14 +1356,14 @@ t_pointer Triangulation<GK>::insert_vertex_into_triangle(t_pointer const t, v_po
 
 
 	// Set indeces of new triangles
-	unsigned const nt = triangles_tri.size();		// see paper for fastering the remove() ->transformed to erase .... see the paper man
+	unsigned const nt = (unsigned) triangles_tri.size();		// see paper for fastering the remove() ->transformed to erase .... see the paper man
 
 	t0->index = t->index;
 	t1->index = nt;
 	t2->index = nt + 1;
 
 	// Set indeces of new edges
-	unsigned const ne = edges_tri.size();
+	unsigned const ne = (unsigned) edges_tri.size();
 	e0->index = ne;
 	e1->index = ne + 1;
 	e2->index = ne + 2;
@@ -1618,7 +1618,7 @@ t_pointer Triangulation<GK>::insert_vertex_into_edge(e_pointer e, v_pointer p, e
 	size_t ne = edges_tri.size();
 
 	e0->index = e->index;
-	e2->index = ne;
+	e2->index = (unsigned) ne;
 
 	// Remove and delete splitted edge from the triangulation
 	remove(edges_tri, e);
@@ -1638,7 +1638,7 @@ t_pointer Triangulation<GK>::insert_vertex_into_edge(e_pointer e, v_pointer p, e
 
 
 		// Set indeces of new triangles
-		unsigned const nt = triangles_tri.size();		// see paper for fastering the remove() ->transformed to erase .... see the paper man
+		unsigned const nt = (unsigned) triangles_tri.size();		// see paper for fastering the remove() ->transformed to erase .... see the paper man
 
 		k0->index = t0->index;
 		k1->index = nt;
@@ -1657,7 +1657,7 @@ t_pointer Triangulation<GK>::insert_vertex_into_edge(e_pointer e, v_pointer p, e
 		triangles_tri.push_back(k1);
 
 		size_t const ne = edges_tri.size();
-		e1->index = ne;
+		e1->index = (unsigned) ne;
 		//ne++;
 
 		// Add new edges to triangulation
@@ -1671,7 +1671,7 @@ t_pointer Triangulation<GK>::insert_vertex_into_edge(e_pointer e, v_pointer p, e
 	if (t1) {
 
 		// Set indeces of new triangles
-		unsigned const nt = triangles_tri.size();		// see paper for fastering the remove() ->transformed to erase .... see the paper man
+		unsigned const nt = (unsigned) triangles_tri.size();		// see paper for fastering the remove() ->transformed to erase .... see the paper man
 
 		k2->index = t1->index;
 		k3->index = nt;
@@ -1689,7 +1689,7 @@ t_pointer Triangulation<GK>::insert_vertex_into_edge(e_pointer e, v_pointer p, e
 		triangles_tri.push_back(k3);
 
 		size_t const ne = edges_tri.size();
-		e3->index = ne;
+		e3->index = (unsigned) ne;
 		//ne++;
 
 		// Add new edges to triangulation
@@ -2483,7 +2483,7 @@ void Triangulation<GK>::insert_constraint_intersection(v_pointer const a, v_poin
 		v_pointer const new_vertex = new Vertex(ix, iy);
 
 		// Denote Vertices of constrained edge as 'constrained' -> When smoothing, these vertices won't be displaced
-		new_vertex->index = vertices_tri.size();
+		new_vertex->index = (unsigned) vertices_tri.size();
 		new_vertex->marker = V_MARKER::CONSTRAINED;
 		a->marker = V_MARKER::CONSTRAINED;
 		s->marker = V_MARKER::CONSTRAINED;
@@ -2553,7 +2553,7 @@ void Triangulation<GK>::insert_constraint_intersection(v_pointer const a, v_poin
 
 		v_pointer const new_vertex = new Vertex(ix, iy);
 
-		new_vertex->index = vertices_tri.size();
+		new_vertex->index = (unsigned) vertices_tri.size();
 		new_vertex->marker = V_MARKER::CONSTRAINED;
 		// Denote Vertices of constrained edge as 'constrained' -> When smoothing, these vertices won't be displaced
 		a->marker = V_MARKER::CONSTRAINED;
@@ -2616,7 +2616,7 @@ void Triangulation<GK>::insert_constraint_intersection(v_pointer const a, v_poin
 
 		v_pointer const new_vertex = new Vertex(ix, iy);
 
-		new_vertex->index = vertices_tri.size();
+		new_vertex->index = (unsigned) vertices_tri.size();
 		new_vertex->marker = V_MARKER::CONSTRAINED;
 		// Denote Vertices of constrained edge as 'constrained' -> When smoothing, these vertices won't be displaced
 		a->marker = V_MARKER::CONSTRAINED;
