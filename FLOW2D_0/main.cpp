@@ -13,6 +13,10 @@
 /*    - Speed up recommendations						 			         */
 /*                                                                           */
 /*****************************************************************************/
+// For the vectorization i Would need to the data in containers aligned ... try it. eg. obtain pointer to the next 4 (3) elements (doubles) from the conatiner
+// What about not making containers with 3 element, but with four elements and the 4th will be dummy value (0.0 for example)?
+
+
 // Mesh primitives : in solver, create only arrays of pointers to triangles and edges (inner, dirichlet, neumann). We dont need mesh
 // quadrature_points_x/y calculate only for dirihlet edges/neuman somehow (hash table?)
 // Allocate memory in the beginning of the assemble function (typically those Eigen::triplet make only once, not in the loop as const)->will it be faster?
@@ -74,24 +78,24 @@ const double b_x = 40.0;
 const double a_y = 0.0;
 const double b_y = 40.0;
 
-unsigned const refinement = 2 * 2;
+unsigned const refinement = 2*2*2*2*2;
 
 const int N_x = 4 * refinement;
 const int N_y = N_x;
 
-//unsigned const nt0 = 25 * (refinement * refinement);
-//unsigned const NT = 150 * (refinement * refinement);
-//double const dt = 300.0 / (refinement * refinement);
+unsigned const nt0 = 25 * (refinement * refinement);
+unsigned const NT = 150 * (refinement * refinement);
+double const dt = 300.0 / (refinement * refinement);
 
-unsigned const nt0 = 25 * (refinement);
-unsigned const NT = 150 * (refinement);
-double const dt = 300.0 / (refinement);
-
-
+//unsigned const nt0 = 25 * (refinement);
+//unsigned const NT = 150 * (refinement);
+//double const dt = 300.0 / (refinement);
 
 
-std::string fileName_mesh		= "C:\\Users\\pgali\\Desktop\\eoc\\mesh.txt";
-std::string fileName_velocity	= "C:\\Users\\pgali\\Desktop\\eoc\\velocity_";
+
+
+std::string fileName_mesh			= "C:\\Users\\pgali\\Desktop\\eoc\\mesh.txt";
+std::string fileName_velocity		= "C:\\Users\\pgali\\Desktop\\eoc\\velocity_";
 
 std::string fileName_pressure		= "C:\\Users\\pgali\\Desktop\\eoc\\pressure_";
 std::string fileName_concentration	= "C:\\Users\\pgali\\Desktop\\eoc\\concentration_";
@@ -187,9 +191,7 @@ int main() {
 	/*    - Create text file of the mesh: coordinates							 */
 	/*                                                                           */
 	/*****************************************************************************/
-	//OFSTxtFile.open(directory_mesh);
-	//exportMesh(OFSTxtFile, mesh);
-	//OFSTxtFile.close();
+	exportMesh(fileName_mesh, mesh);
 
 
 

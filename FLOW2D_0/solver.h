@@ -10,7 +10,7 @@
 /*****************************************************************************/
 #define EIGEN_NO_DEBUG
 #define NDEBUG
-#define EIGEN_UNROLLING_LIMIT 1000
+#define EIGEN_UNROLLING_LIMIT 500
 
 
 
@@ -27,7 +27,8 @@
 
 enum scheme { CRANK_NICOLSON, EULER_BACKWARD };
 
-
+	typedef Eigen::SparseMatrix<Real>				SparseMatrix;
+	typedef Eigen::Matrix<Real, Eigen::Dynamic, 1>	DenseVector;
 
 
 /*****************************************************************************/
@@ -114,8 +115,7 @@ template <unsigned QuadraturePrecision = 6, scheme TimeScheme = CRANK_NICOLSON>
 class solver {
 
 
-	typedef Eigen::SparseMatrix<Real>				SparseMatrix;
-	typedef Eigen::Matrix<Real, Eigen::Dynamic, 1>	DenseVector;
+
 
 
 
@@ -214,8 +214,6 @@ private:
 	CoeffMatrix1D<8>	Velocity;
 	CoeffMatrix1D<3>	Sources;
 
-	DenseVector Pi_eigen_prev;
-	DenseVector Pi_eigen_n;
 
 	/*****************************************************************************/
 	/*                                                                           */
@@ -309,7 +307,7 @@ private:
 	CoeffMatrix1D<3> edgeOrientation;
 
 	tm_pointer	* Elements = NULL;
-	unsigned	* ElementIndeces = NULL;
+	unsigned	* ElementIndeces;
 
 	Real * AffineMappingMatrixDeterminant = NULL;
 	Real * PorosityViscosityDeterminant = NULL;
@@ -551,7 +549,6 @@ private:
 
 
 
-
 template<unsigned QuadraturePrecision, scheme TimeScheme>
 solver<QuadraturePrecision, TimeScheme>::solver(MESH & mesh, int const nt0, Real const dt0) : nk(mesh.get_number_of_triangles()), ne(mesh.get_number_of_edges()), Mesh(&mesh), nt(nt0), dt(dt0) {
 
@@ -621,16 +618,6 @@ solver<QuadraturePrecision, TimeScheme>::solver(MESH & mesh, int const nt0, Real
 	rkFc_n.setZero();
 	rkFp_n.setZero();
 
-	__m128 a4 = _mm_set_ps(4.0f, 4.1f, 4.2f, 4.3f);	__m128 b4 = _mm_set_ps(1.0f, 1.0f, 1.0f, 1.0f);
-	__m128 sum4 = _mm_add_ps(a4, b4);
-
-	//TODO : change also Tpi ... this is bigger bottleneck
-
-	Pi_eigen_prev.resize(3 * nk);
-	Pi_eigen_prev.setZero();
-
-	Pi_eigen_n.resize(3 * nk);
-	Pi_eigen_n.setZero();
 
 	/*****************************************************************************/
 	/*                                                                           */
@@ -1203,13 +1190,9 @@ void solver<QuadraturePrecision, TimeScheme>::initializeValues() {
 		Xi.setCoeff(k_index, 1) = Solution(1);
 		Xi.setCoeff(k_index, 2) = Solution(2);
 
-		//Pi.setCoeff(k_index, 0) = equationOfState(Xi(k_index, 0));
-		//Pi.setCoeff(k_index, 1) = equationOfState(Xi(k_index, 1));
-		//Pi.setCoeff(k_index, 2) = equationOfState(Xi(k_index, 2));
-
-		Pi_eigen[3 * k_index + 0] = equationOfState(Xi(k_index, 0));
-		Pi_eigen[3 * k_index + 1] = equationOfState(Xi(k_index, 1));
-		Pi_eigen[3 * k_index + 2] = equationOfState(Xi(k_index, 2));
+		Pi.setCoeff(k_index, 0) = equationOfState(Xi(k_index, 0));
+		Pi.setCoeff(k_index, 1) = equationOfState(Xi(k_index, 1));
+		Pi.setCoeff(k_index, 2) = equationOfState(Xi(k_index, 2));
 
 		//Pi.setCoeff(k_index, 0) = integrate_triangle<Real>(K, time, barenblatt) / area;
 		//Pi.setCoeff(k_index, 1) = 0.0;
@@ -1497,21 +1480,13 @@ bool solver<QuadraturePrecision, TimeScheme>::stopCriterion() {
 			Real Difference = 0.0;
 			Real Norm = 0.0;
 
-			//for (unsigned j = 0; j < 3; j++) {
-			//
-			//	Difference += BasisPolynomial(j) * (Pi(k_index, j) - Pi_prev(k_index, j));
-			//	Norm += BasisPolynomial(j) * Pi(k_index, j);
-			//
-			//}
-
 			for (unsigned j = 0; j < 3; j++) {
-
-				Difference += BasisPolynomial(j) * (Pi_eigen[3 * k_index + j] - Pi_eigen_prev[3 * k_index + j]);
-				Norm += BasisPolynomial(j) * Pi_eigen[3 * k_index + j];
-
+			
+				Difference += BasisPolynomial(j) * (Pi(k_index, j) - Pi_prev(k_index, j));
+				Norm += BasisPolynomial(j) * Pi(k_index, j);
+			
 			}
 			
-
 			IntegralError += w * square(Difference);
 			IntegralNorm += w * square(Norm);
 
@@ -1639,14 +1614,14 @@ void solver<QuadraturePrecision, TimeScheme>::computeTracePressures() {
 	/*    - Copy Internal Pressures into Eigen container						 */
 	/*                                                                           */
 	/*****************************************************************************/
-	//for (unsigned k = 0; k < nk; k++) {
-	//
-	//	unsigned const k_index = ElementIndeces[k];
-	//
-	//	for (unsigned m = 0; m < 3; m++)
-	//		Pi_eigen[3 * k_index + m] = Pi(k_index, m);
-	//
-	//}
+	for (unsigned k = 0; k < nk; k++) {
+	
+		unsigned const k_index = ElementIndeces[k];
+	
+		for (unsigned m = 0; m < 3; m++)
+			Pi_eigen[3 * k_index + m] = Pi(k_index, m);
+	
+	}
 
 	assembleV();
 
@@ -1831,17 +1806,9 @@ void solver<QuadraturePrecision, TimeScheme>::computeVelocities() {
 					Real BetaPi = 0.0;
 					Real ChiTracePi = 0.0;
 
-
-
-					//__m256d vv = __mm256
-
-					//for (unsigned i = 0; i < 3; i++)
-					//	BetaPi += Beta(m, i) * Pi(k_index, i);
-
 					for (unsigned i = 0; i < 3; i++)
-						BetaPi += Beta(m, i) * Pi_eigen[3 * k_index + i];
-
-					
+						BetaPi += Beta(m, i) * Pi(k_index, i);
+										
 					Value1 += AlphaTemp * BetaPi;
 
 
@@ -1879,12 +1846,9 @@ void solver<QuadraturePrecision, TimeScheme>::computeVelocities() {
 				Real ChiTracePi = 0.0;
 
 
-				//for (unsigned i = 0; i < 3; i++)
-				//	BetaPi += Beta(m, i) * Pi(k_index, i);
-
 				for (unsigned i = 0; i < 3; i++)
-					BetaPi += Beta(m, i) * Pi_eigen[3 * k_index + i];
-
+					BetaPi += Beta(m, i) * Pi(k_index, i);
+				
 				Value1 += AlphaTemp * BetaPi;
 
 
@@ -2703,12 +2667,9 @@ void solver<QuadraturePrecision, TimeScheme>::assembleG() {
 
 		unsigned const k_index = ElementIndeces[k];
 
-		//for (unsigned m = 0; m < 3; m++)
-		//	G[3 * k_index + m] = Pi_n(k_index, m) + TimeCoefficient * rkFp_n(k_index, m);
-
 		for (unsigned m = 0; m < 3; m++)
-			G[3 * k_index + m] = Pi_eigen_n[3 * k_index + m] + TimeCoefficient * rkFp_n(k_index, m);
-		
+			G[3 * k_index + m] = Pi_n(k_index, m) + TimeCoefficient * rkFp_n(k_index, m);
+
 	}
 
 };
@@ -2754,7 +2715,7 @@ void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem() {
 
 	}
 
-	//#pragma omp parallel for private(block,block1,block2) shared(tri, triR1iD, triR2iD)
+//#pragma omp parallel for private(Block,Block1,Block2), shared(tri, triR1iD, triR2iD)
 	for (unsigned k = 0; k < nk; k++) {
 
 		tm_pointer const K = Elements[k];
@@ -2868,6 +2829,19 @@ void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem() {
 				/*****************************************************************************/
 				Real Sum1 = 0.0;
 				Real Sum2 = 0.0;
+				
+				/*__declspec(align(64)) Real S1[4];
+				__declspec(align(64)) Real S2[4];
+
+				__m256d _InvBlock = _mm256_set_pd(0.0, InverseBlock(2, j), InverseBlock(1, j), InverseBlock(0, j));
+				__m256d _R1Block = _mm256_set_pd(0.0, R1_block(k_index, ei, 2), R1_block(k_index, ei, 1), R1_block(k_index, ei, 0));				__m256d _R2Block = _mm256_set_pd(0.0, R2_block(k_index, ei, 2), R2_block(k_index, ei, 1), R2_block(k_index, ei, 0));								__m256d _Prod1 = _mm256_mul_pd(_R1Block, _InvBlock);
+				__m256d _Prod2 = _mm256_mul_pd(_R2Block, _InvBlock);
+
+				_mm256_store_pd(S1, _Prod1);
+				_mm256_store_pd(S2, _Prod2);
+
+				Sum1 = S1[0] + S1[1] + S1[2] + S1[3];
+				Sum2 = S2[0] + S2[1] + S2[2] + S2[3];*/
 
 				for (unsigned m = 0; m < 3; m++) {
 
@@ -2911,6 +2885,7 @@ void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem() {
 
 					sum11 += R1_block(k_index, ei, m) * iDH1Block(m, ej);
 					sum12 += R1_block(k_index, ei, m) * iDH2Block(m, ej);
+
 					sum21 += R2_block(k_index, ei, m) * iDH1Block(m, ej);
 					sum22 += R2_block(k_index, ei, m) * iDH2Block(m, ej);
 
@@ -3812,10 +3787,17 @@ void solver<QuadraturePrecision, TimeScheme>::getSolution() {
 	/*    - Compute initial trace pressures from known inner pressures and	     */
 	/*      velocity field and coefficients Thetas							     */
 	/*                                                                           */
+	/*    - This is initializing step. This is first guess for the               */
+	/*      trace pressures and velocities on the time level nt = (n + 1),       */
+	/*      therefore quantities are computed on the (n + 1)-th time level       */
+	/*                                                                           */
 	/*****************************************************************************/
 	computeTracePressures();
 	computeVelocities();
 	computeThetas();
+
+	//std::string fileName_velocity = "C:\\Users\\pgali\\Desktop\\eoc\\velocity_";
+	//exportVelocities(fileName_velocity + std::to_string(nt) + ".txt");
 
 
 	/*****************************************************************************/
@@ -3829,11 +3811,8 @@ void solver<QuadraturePrecision, TimeScheme>::getSolution() {
 	/*			: Thetas_prev - Thetas on the (n+1),(l-1)-th time level			 */
 	/*                                                                           */
 	/*****************************************************************************/
-	//Pi_n = Pi;
-	//Pi_prev = Pi;
-
-	Pi_eigen_n = Pi_eigen;
-	Pi_eigen_prev = Pi_eigen;
+	Pi_n = Pi;
+	Pi_prev = Pi;
 
 	Xi_n = Xi;
 	Xi_prev = Xi;
@@ -3899,10 +3878,8 @@ void solver<QuadraturePrecision, TimeScheme>::getSolution() {
 		/*    - Set next iteration number: l = l + 1								 */
 		/*                                                                           */
 		/*****************************************************************************/
-		//Pi_prev = Pi;
+		Pi_prev = Pi;
 		Xi_prev = Xi;
-
-		Pi_eigen_prev = Pi_eigen;
 
 		//HardCopy(Thetas_prev, Thetas, nk);
 
@@ -3935,11 +3912,8 @@ void solver<QuadraturePrecision, TimeScheme>::getSolution() {
 			Real Value1 = 0.0;
 			Real Value2 = 0.0;
 			
-			//for (unsigned j = 0; j < 3; j++)
-			//	Value1 += Sigma(k_index, m, j) * Pi(k_index, j);
-
 			for (unsigned j = 0; j < 3; j++)
-				Value1 += Sigma(k_index, m, j) * Pi_eigen[3 * k_index + j];
+				Value1 += Sigma(k_index, m, j) * Pi(k_index, j);
 
 			for (unsigned El = 0; El < 3; El++)
 				for (unsigned s = 0; s < 2; s++)
@@ -4003,11 +3977,8 @@ void solver<QuadraturePrecision, TimeScheme>::exportPressures(std::string const 
 		//Real const S[4] = { 0.0, 1.0, 0.0, 0.0 };
 		//Real const T[4] = { 0.0, 0.0, 1.0, 0.0 };
 		
-		//for (unsigned i = 0; i < 3; i++)
-		//	OFSTxtFile << std::setprecision(20) << x[i] << "\t" << y[i] << "\t" << Pi(k_index, 0) * phi0(S[i], T[i]) + Pi(k_index, 1) * phi1(S[i], T[i]) + Pi(k_index, 2) * phi2(S[i], T[i]) << std::endl;
-
 		for (unsigned i = 0; i < 3; i++)
-			OFSTxtFile << std::setprecision(20) << x[i] << "\t" << y[i] << "\t" << Pi_eigen[3 * k_index + 0] * phi0(S[i], T[i]) + Pi_eigen[3 * k_index + 1] * phi1(S[i], T[i]) + Pi_eigen[3 * k_index + 2] * phi2(S[i], T[i]) << std::endl;
+			OFSTxtFile << std::setprecision(20) << x[i] << "\t" << y[i] << "\t" << Pi(k_index, 0) * phi0(S[i], T[i]) + Pi(k_index, 1) * phi1(S[i], T[i]) + Pi(k_index, 2) * phi2(S[i], T[i]) << std::endl;
 
 		OFSTxtFile << std::endl;
 
@@ -4261,13 +4232,8 @@ void solver<QuadraturePrecision, TimeScheme>::computeError(std::string const & f
 
 			Real PressureK = 0.0;
 
-			//for (unsigned j = 0; j < 3; j++)
-			//	PressureK += Pi(k_index, j) * BasisPolynomial(j);
-
 			for (unsigned j = 0; j < 3; j++)
-				PressureK += Pi_eigen[3 * k_index + j] * BasisPolynomial(j);
-
-
+				PressureK += Pi(k_index, j) * BasisPolynomial(j);
 
 			Real const Difference = abs(PressureK - barenblatt(X, Y, time));
 

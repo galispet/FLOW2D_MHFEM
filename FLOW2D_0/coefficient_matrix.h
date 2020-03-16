@@ -5,6 +5,7 @@
 #include <iostream>
 
 
+#define MEMORY_ALIGNEMENT 32
 
 template<unsigned N1, unsigned N2, unsigned N3>
 class CoeffMatrix3D {
@@ -26,14 +27,17 @@ public:
 	~CoeffMatrix3D() {
 
 		if (data)
-			delete[] data;
+			_mm_free(data);
+			//delete[] data;
 
 	};
 
 	void setNumberOfElements(unsigned const numElements) {
 
 		length = numElements * (N1 * N2 * N3);
-		data = new double[length];
+		//data = new double[length];
+
+		data = (double *)_mm_malloc(numElements * (N1 * N2 * N3) * sizeof(double), MEMORY_ALIGNEMENT);
 
 	};
 	void setZero() {
@@ -93,14 +97,17 @@ public:
 	~CoeffMatrix2D() {
 
 		if (data)
-			delete[] data;
+			_mm_free(data);
+			//delete[] data;
 
 	};
 
 	void setNumberOfElements(unsigned const numElements) {
 
 		length = numElements * (N1 * N2);
-		data = new double[length];
+		//data = new double[length];
+
+		data = (double *)_mm_malloc(numElements * (N1 * N2) * sizeof(double), MEMORY_ALIGNEMENT);
 
 	};
 	void setZero() {
@@ -161,14 +168,18 @@ public:
 	~CoeffMatrix1D() {
 
 		if (data)
-			delete[] data;
+			_mm_free(data);
+
+			//delete[] data;
 
 	};
 
 	void setNumberOfElements(unsigned const numElements) {
 
 		length = numElements * (N1);
-		data = new double[length];
+		//data = new double[length];
+
+		data = (double *)_mm_malloc(numElements * (N1) * sizeof(double), MEMORY_ALIGNEMENT);
 
 	};
 	void setZero() {
