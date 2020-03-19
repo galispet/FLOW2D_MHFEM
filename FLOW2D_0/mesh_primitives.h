@@ -9,25 +9,6 @@
 #include <iostream>
 
 
-
-
-/*
-template<typename real>
-class MESHVertex;
-template<typename real>
-class MESHEdge;
-template<typename real>
-class MESHTriangle;
-
-template<typename real>
-using vm_pointer = MESHVertex<real> *;
-template<typename real>
-using em_pointer = MESHEdge<real> *;
-template<typename real>
-using tm_pointer = MESHTriangle<real> *;
-*/
-
-
 class MESHVertex;
 class MESHEdge;
 class MESHTriangle;

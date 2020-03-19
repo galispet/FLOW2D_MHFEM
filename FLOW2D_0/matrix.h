@@ -12,6 +12,237 @@ class Vector;
 
 
 
+template<typename real, unsigned m>
+class SquareMatrix {
+
+public:
+
+	real * const data;
+	unsigned const n = m;
+
+	SquareMatrix() : data(new real[m*m])  {
+
+		//this->data = new real[n*n];
+		this->setZero();
+
+	};
+	SquareMatrix(SquareMatrix const & mat) : data(new real[m*m]) {
+
+		for (unsigned i = 0; i < n*n; i++)
+			this->data[i] = mat.data[i];
+
+	};
+	~SquareMatrix() {
+
+		if (this->data)
+			delete[] this->data;
+
+	};
+
+
+	inline real operator()(unsigned const i, unsigned const j) const {
+
+		return this->data[j + m * i];
+
+	};
+	inline real & operator()(unsigned i, unsigned j) {
+
+		return this->data[j + m * i];
+
+	};
+	inline SquareMatrix & operator=(SquareMatrix const & mat) {
+
+		for (unsigned i = 0; i < n*m; i++)
+			this->data[i] = mat.data[i];
+
+		return * this;
+
+	};
+	inline SquareMatrix operator*(SquareMatrix const & mat) const {
+
+
+		SquareMatrix<real, m> result;
+
+		for (unsigned i = 0; i < m; i++) {
+			for (unsigned j = 0; j < m; j++) {
+
+				real s = 0.0;
+
+				for (unsigned k = 0; k < m; k++)
+					s += this->data[k + m * i] * mat.data[j + m * k];
+
+				result.data[j + m * i] = s;
+
+			}
+		}
+
+		return result;
+
+	};
+
+
+	inline void setZero() {
+
+		for (unsigned i = 0; i < n*n; i++)
+			this->data[i] = 0.0;
+
+	};
+	inline void inverseInPlace() {
+
+		if (m == 2) {
+
+			real const aa = this->data[0];
+			real const bb = this->data[1];
+			real const cc = this->data[2];
+			real const dd = this->data[3];
+
+			real const iiDet = (real) 1.0 / (aa*dd - bb * cc);
+
+			this->data[0] = +iiDet * dd;
+			this->data[1] = -iiDet * bb;
+			this->data[2] = -iiDet * cc;
+			this->data[3] = +iiDet * aa;
+
+			return;
+
+		}
+		if (m == 3) {
+
+			real const a = this->data[0];
+			real const b = this->data[1];
+			real const c = this->data[2];
+			real const d = this->data[3];
+			real const e = this->data[4];
+			real const f = this->data[5];
+			real const g = this->data[6];
+			real const h = this->data[7];
+			real const i = this->data[8];
+
+			real const iDet = (real) 1.0 / (a*(e*i - f * h) - b * (d*i - f * g) + c * (d*h - e * g));
+
+			this->data[0] = iDet * (e*i - f * h);
+			this->data[1] = iDet * (c*h - b * i);
+			this->data[2] = iDet * (b*f - c * e);
+			this->data[3] = iDet * (f*g - d * i);
+			this->data[4] = iDet * (a*i - c * g);
+			this->data[5] = iDet * (c*d - a * f);
+			this->data[6] = iDet * (d*h - e * g);
+			this->data[7] = iDet * (b*g - a * h);
+			this->data[8] = iDet * (a*e - b * d);
+
+			return;
+
+		}
+
+		/*
+		switch (m) {
+
+		case 2: 
+
+			real const aa = this->data[0];
+			real const bb = this->data[1];
+			real const cc = this->data[2];
+			real const dd = this->data[3];
+
+			real const iiDet = (real) 1.0 / (aa*dd - bb * cc);
+
+			this->data[0] = +iiDet * dd;
+			this->data[1] = -iiDet * bb;
+			this->data[2] = -iiDet * cc;
+			this->data[3] = +iiDet * aa;
+
+			return;
+
+		case 3:
+
+			real const a = this->data[0];
+			real const b = this->data[1];
+			real const c = this->data[2];
+			real const d = this->data[3];
+			real const e = this->data[4];
+			real const f = this->data[5];
+			real const g = this->data[6];
+			real const h = this->data[7];
+			real const i = this->data[8];
+
+			real const iDet = (real) 1.0 / (a*(e*i - f * h) - b * (d*i - f * g) + c * (d*h - e * g));
+
+			this->data[0] = iDet * (e*i - f * h);
+			this->data[1] = iDet * (c*h - b * i);
+			this->data[2] = iDet * (b*f - c * e);
+			this->data[3] = iDet * (f*g - d * i);
+			this->data[4] = iDet * (a*i - c * g);
+			this->data[5] = iDet * (c*d - a * f);
+			this->data[6] = iDet * (d*h - e * g);
+			this->data[7] = iDet * (b*g - a * h);
+			this->data[8] = iDet * (a*e - b * d);
+
+			return;
+
+		}
+		*/
+
+	};
+	inline SquareMatrix inverse() {
+
+
+		SquareMatrix<real, m> result;
+
+		if (m == 2) {
+
+			real const aa = this->data[0];
+			real const bb = this->data[1];
+			real const cc = this->data[2];
+			real const dd = this->data[3];
+
+			real const iiDet = (real) 1.0 / (aa*dd - bb * cc);
+
+			result.data[0] = +iiDet * dd;
+			result.data[1] = -iiDet * bb;
+			result.data[2] = -iiDet * cc;
+			result.data[3] = +iiDet * aa;
+
+
+			return result;
+
+		}
+		if (m == 3) {
+
+			real const a = this->data[0];
+			real const b = this->data[1];
+			real const c = this->data[2];
+			real const d = this->data[3];
+			real const e = this->data[4];
+			real const f = this->data[5];
+			real const g = this->data[6];
+			real const h = this->data[7];
+			real const i = this->data[8];
+
+			real const iDet = (real) 1.0 / (a*(e*i - f * h) - b * (d*i - f * g) + c * (d*h - e * g));
+
+			result.data[0] = iDet * (e*i - f * h);
+			result.data[1] = iDet * (c*h - b * i);
+			result.data[2] = iDet * (b*f - c * e);
+			result.data[3] = iDet * (f*g - d * i);
+			result.data[4] = iDet * (a*i - c * g);
+			result.data[5] = iDet * (c*d - a * f);
+			result.data[6] = iDet * (d*h - e * g);
+			result.data[7] = iDet * (b*g - a * h);
+			result.data[8] = iDet * (a*e - b * d);
+
+			return result;
+
+		}
+
+		return result;
+
+	};
+
+
+};
+
+
+
 template<typename real>
 class Matrix {
 
@@ -25,22 +256,22 @@ public:
 	unsigned numCols;
 
 	Matrix() {
-
+	
 		this->data = NULL;
-
+	
 		this->numRows = 0;
 		this->numCols = 0;
-
+	
 	};
 	Matrix(unsigned rows, unsigned cols) {
-
+	//
 		this->data = new real[rows*cols];
-
+		//
 		this->numRows = rows;
 		this->numCols = cols;
-
+		//
 		this->setZero();
-
+		//
 	};
 	Matrix(Matrix const & mat) {
 
@@ -82,8 +313,13 @@ public:
 		if (this == &mat)
 			return *this;
 
+
+
 		unsigned const n = mat.numRows;
 		unsigned const m = mat.numCols;
+
+		//delete[] this->data;
+		//this->data = new real[n*m];
 
 		this->numRows = n;
 		this->numCols = m;

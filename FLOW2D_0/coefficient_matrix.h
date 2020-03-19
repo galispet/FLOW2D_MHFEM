@@ -5,7 +5,7 @@
 #include <iostream>
 
 
-#define MEMORY_ALIGNEMENT 32
+#define MEMORY_ALIGNEMENT 64
 
 template<unsigned N1, unsigned N2, unsigned N3>
 class CoeffMatrix3D {

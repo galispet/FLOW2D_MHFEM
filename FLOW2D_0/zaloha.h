@@ -48,8 +48,312 @@
 // Dirichlet boundary conditions - time at which I sample boundary values is ahead -> try: time = nt*dt ( now i have (nt+1)*dt ) ??
 
 
-	// TODO
-	// Mesh - sort by the wish of the user ->template parameter sorting (1.inner, 2. neumann, 3. dirichlet and permutations ....) 
+//assemblePressureSystem()
+/*
+
+
+template<unsigned QuadraturePrecision, scheme TimeScheme>
+void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem() {
+
+
+	Real const TimeCoefficient = TimeSchemeParameter * dt;
+
+	Eigen::Matrix3d Block;
+	Eigen::Matrix3d Block1;
+	Eigen::Matrix3d Block2;
+
+
+	//SquareMatrix<Real, 3> Block;
+	//SquareMatrix<Real, 3> Block1;
+	//SquareMatrix<Real, 3> Block2;
+
+	std::vector<Eigen::Triplet<Real>> tri;
+	std::vector<Eigen::Triplet<Real>> triR1iD;
+	std::vector<Eigen::Triplet<Real>> triR2iD;
+
+	//std::vector<Eigen::Triplet<real>> triiDH1;
+	//std::vector<Eigen::Triplet<real>> triiDH2;
+
+
+	//   - Assemble of the diagonal. Therefore, there is no need 			
+	//		for += operator in the seque
+for (int e = 0; e < ne; e++) {
+
+	Real const M11 = M_j1_s1.coeff(e, e);
+	Real const M12 = M_j1_s2.coeff(e, e);
+	Real const M21 = M_j2_s1.coeff(e, e);
+	Real const M22 = M_j2_s2.coeff(e, e);
+
+	Eigen::Triplet<Real> const T11(e, e, M11);
+	Eigen::Triplet<Real> const T12(e, e + ne, M12);
+	Eigen::Triplet<Real> const T21(e + ne, e, M21);
+	Eigen::Triplet<Real> const T22(e + ne, e + ne, M22);
+
+	tri.push_back(T11);
+	tri.push_back(T12);
+	tri.push_back(T21);
+	tri.push_back(T22);
+
+}
+
+for (unsigned k = 0; k < nk; k++) {
+
+	tm_pointer const K = MeshElements[k];
+	unsigned const	 k_index = MeshElementIndeces[k];
+	unsigned const	 start_index = 3 * k_index;
+
+
+
+	//    - Inverse of the matrix D
+	for (unsigned r = 0; r < 3; r++)
+		for (unsigned s = 0; s < 3; s++)
+			Block(r, s) = kroneckerDelta(r, s) - TimeCoefficient * Sigma(k_index, r, s);
+
+	Eigen::Matrix3d const InverseBlock = Block.inverse();
+
+	for (unsigned i = 0; i < 3; i++)
+		for (unsigned j = 0; j < 3; j++)
+			iD.coeffRef(start_index + i, start_index + j) = InverseBlock(i, j);
+
+	//Block.inverseInPlace();
+	//Block = Block.inverse();
+
+	//for (unsigned i = 0; i < 3; i++)
+	//	for (unsigned j = 0; j < 3; j++)
+	//		iD.coeffRef(start_index + i, start_index + j) = Block(i, j);
+
+	//for (unsigned i = 0; i < 3; i++) {
+	//
+	//	Real Sum = 0.0;
+	//
+	//	for (unsigned j = 0; j < 3; j++) {
+	//
+	//		iD.coeffRef(start_index + i, start_index + j) = InverseBlock(i, j);
+	//		Sum += InverseBlock(i, j) * G(start_index + j);
+	//
+	//	}
+	//
+	//	iDG.coeffRef(start_index + i) = Sum;
+	//		
+	//}
+
+
+                                                                         
+	//    - H1, H2
+	for (unsigned m = 0; m < 3; m++) {
+		for (unsigned Ei = 0; Ei < 3; Ei++) {
+
+			Block1(m, Ei) = -TimeCoefficient * Lambda(k_index, 0, m, Ei);
+			Block2(m, Ei) = -TimeCoefficient * Lambda(k_index, 1, m, Ei);
+
+		}
+	}
+
+
+
+	//    - H1, H2 blocks multiplied by the blocks Inverse of D
+	Eigen::Matrix3d const iDH1Block = InverseBlock * Block1;
+	Eigen::Matrix3d const iDH2Block = InverseBlock * Block2;
+
+	//SquareMatrix<Real, 3> const iDH1Block = Block * Block1;
+	//SquareMatrix<Real, 3> const iDH2Block = Block * Block2;
+
+
+
+	//    - Assembly of the resulting matrix R1 * iD * H1
+	for (unsigned ei = 0; ei < 3; ei++) {
+
+
+		em_pointer const Ei = K->edges[ei];
+		unsigned const	 e_index_i = Ei->index;
+
+
+		for (unsigned j = 0; j < 3; j++) {
+
+
+			unsigned const start_index_j = start_index + j;
+
+                                                                         
+			//    - Assemble Matrices H1, H2
+			//H1.coeffRef(start_index + j, e_index_i) = Block1.coeff(j, ei);
+			//H2.coeffRef(start_index + j, e_index_i) = Block2.coeff(j, ei);
+
+
+
+			//   - Assembly of the Matrices iDH1, iDH2	: iD * H1, iD * H2
+			//Eigen::Triplet<real> const TH1(start_index + j, e_index_i, iDH1block(j, ei));
+			//Eigen::Triplet<real> const TH2(start_index + j, e_index_i, iDH2block(j, ei));
+
+			//triiDH1.push_back(TH1);
+			//triiDH2.push_back(TH2);
+
+			iDH1.coeffRef(start_index_j, e_index_i) = iDH1Block.coeff(j, ei);
+			iDH2.coeffRef(start_index_j, e_index_i) = iDH2Block.coeff(j, ei);
+
+			//iDH1.coeffRef(start_index_j, e_index_i) = iDH1Block(j, ei);
+			//iDH2.coeffRef(start_index_j, e_index_i) = iDH2Block(j, ei);
+
+			//iDH1.coeffRef(start_index + j, e_index_i) = iDH1block.coeff(j, ei);
+			//iDH2.coeffRef(start_index + j, e_index_i) = iDH2block.coeff(j, ei);
+
+
+
+			//    - Assemble Matrices R1 * D.inverse, R2 * D.inverse			         
+
+			Real Sum1 = 0.0;
+			Real Sum2 = 0.0;
+
+			//__declspec(align(64)) Real S1[4];
+			//__declspec(align(64)) Real S2[4];
+
+			//__m256d _InvBlock = _mm256_set_pd(0.0, InverseBlock(2, j), InverseBlock(1, j), InverseBlock(0, j));
+			//__m256d _R1Block = _mm256_set_pd(0.0, R1_block(k_index, ei, 2), R1_block(k_index, ei, 1), R1_block(k_index, ei, 0));			//__m256d _R2Block = _mm256_set_pd(0.0, R2_block(k_index, ei, 2), R2_block(k_index, ei, 1), R2_block(k_index, ei, 0));			//__m256d _Prod1 = _mm256_mul_pd(_R1Block, _InvBlock);
+			//__m256d _Prod2 = _mm256_mul_pd(_R2Block, _InvBlock);
+
+			//_mm256_store_pd(S1, _Prod1);
+			//_mm256_store_pd(S2, _Prod2);
+
+			//Sum1 = S1[0] + S1[1] + S1[2] + S1[3];
+			//Sum2 = S2[0] + S2[1] + S2[2] + S2[3];
+			
+
+			for (unsigned m = 0; m < 3; m++) {
+
+				Sum1 += R1_block(k_index, ei, m) * InverseBlock(m, j);
+				Sum2 += R2_block(k_index, ei, m) * InverseBlock(m, j);
+
+				//Sum1 += R1_block(k_index, ei, m) * Block(m, j);
+				//Sum2 += R2_block(k_index, ei, m) * Block(m, j);
+
+			}
+
+			Eigen::Triplet<Real> const TR1(e_index_i, start_index_j, Sum1);
+			Eigen::Triplet<Real> const TR2(e_index_i, start_index_j, Sum2);
+
+			//Eigen::Triplet<Real> const TR1(e_index_i, start_index + j, Sum1);
+			//Eigen::Triplet<Real> const TR2(e_index_i, start_index + j, Sum2);
+
+			triR1iD.push_back(TR1);
+			triR2iD.push_back(TR2);
+
+
+		}
+
+
+		// Diagonal elements are already zeroed/or there is Mij already
+		if (Ei->marker == E_MARKER::DIRICHLET)
+			continue;
+
+
+		//#pragma omp parallel for
+		for (unsigned ej = 0; ej < 3; ej++) {
+
+
+			unsigned const e_index_j = K->edges[ej]->index;
+
+
+			Real sum11 = 0.0;
+			Real sum12 = 0.0;
+			Real sum21 = 0.0;
+			Real sum22 = 0.0;
+
+			// Number of degrees of freedom of internal pressure
+			for (unsigned m = 0; m < 3; m++) {
+
+				sum11 += R1_block(k_index, ei, m) * iDH1Block(m, ej);
+				sum12 += R1_block(k_index, ei, m) * iDH2Block(m, ej);
+
+				sum21 += R2_block(k_index, ei, m) * iDH1Block(m, ej);
+				sum22 += R2_block(k_index, ei, m) * iDH2Block(m, ej);
+
+			}
+
+			// Because diagonal elements were zeroed at the beginning, the += operator is needed only here (if there was any. Will be when migrate to linux and No Eigen will be used)
+			if (e_index_i == e_index_j) {
+
+				Eigen::Triplet<Real> const T11(e_index_i, e_index_i, sum11);
+				Eigen::Triplet<Real> const T12(e_index_i, e_index_i + ne, sum12);
+				Eigen::Triplet<Real> const T21(e_index_i + ne, e_index_i, sum21);
+				Eigen::Triplet<Real> const T22(e_index_i + ne, e_index_i + ne, sum22);
+
+				tri.push_back(T11);
+				tri.push_back(T12);
+				tri.push_back(T21);
+				tri.push_back(T22);
+
+				continue;
+
+			}
+
+			Real const M11 = sum11 + M_j1_s1.coeff(e_index_i, e_index_j);
+			Real const M12 = sum12 + M_j1_s2.coeff(e_index_i, e_index_j);
+			Real const M21 = sum21 + M_j2_s1.coeff(e_index_i, e_index_j);
+			Real const M22 = sum22 + M_j2_s2.coeff(e_index_i, e_index_j);
+
+			Eigen::Triplet<Real> const T11(e_index_i, e_index_j, M11);
+			Eigen::Triplet<Real> const T12(e_index_i, e_index_j + ne, M12);
+			Eigen::Triplet<Real> const T21(e_index_i + ne, e_index_j, M21);
+			Eigen::Triplet<Real> const T22(e_index_i + ne, e_index_j + ne, M22);
+
+			tri.push_back(T11);
+			tri.push_back(T12);
+			tri.push_back(T21);
+			tri.push_back(T22);
+
+		}
+	}
+}
+
+PressureSystem.setFromTriplets(tri.begin(), tri.end());
+
+R1iD.setFromTriplets(triR1iD.begin(), triR1iD.end());
+R2iD.setFromTriplets(triR2iD.begin(), triR2iD.end());
+
+
+//for (unsigned e = 0; e < ne; e++) {
+//
+//
+//	em_pointer const E = Mesh->get_edge(e);
+//	unsigned const	 e_index = E->index;
+//	E_MARKER const	 e_marker = E->marker;
+//
+//	//if (e_marker == E_MARKER::DIRICHLET)
+//	//	continue;
+//
+//
+//	for (unsigned neighborElement = 0; neighborElement < 2; neighborElement++) {
+//
+//		tm_pointer const K = E->neighbors[neighborElement];
+//
+//		if (!K)
+//			continue;
+//
+//		unsigned const k_index = K->index;
+//
+//
+//		Real Sum1 = 0.0;
+//		Real Sum2 = 0.0;
+//
+//		for (unsigned k = 0; k < 3; k++) {
+//
+//			Sum1 += R1iD.coeff(e_index, 3 * k_index + k) * G(3 * k_index + k);
+//			Sum2 += R2iD.coeff(e_index, 3 * k_index + k) * G(3 * k_index + k);
+//
+//		}
+//
+//		R1iDG.coeffRef(e_index) = Sum1;
+//		R2iDG.coeffRef(e_index) = Sum2;
+//
+//	}
+//}
+
+
+//iDH1.setFromTriplets(triiDH1.begin(), triiDH1.end());
+//iDH2.setFromTriplets(triiDH2.begin(), triiDH2.end());
+
+};
+
+*/
 
 
 
