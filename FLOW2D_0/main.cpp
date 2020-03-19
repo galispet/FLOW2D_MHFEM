@@ -106,7 +106,7 @@ std::string fileName_error			= "C:\\Users\\pgali\\Desktop\\eoc\\error_";
 std::vector<Vertex>		vertices;
 
 int main() {
-
+	
 
 	PlanarStraightLineGraph pslg;
 	std::vector<Vertex>		seeds;

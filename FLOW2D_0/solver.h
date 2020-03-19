@@ -20,6 +20,7 @@
 #include "matrix.h"
 #include "mesh.h"
 
+//#include <Eigen/UmfPackSupport>
 #include <Eigen/Sparse>
 #include <omp.h>
 #include <immintrin.h>
@@ -372,8 +373,7 @@ private:
 	DenseVector		V2;
 	DenseVector		G;
 
-	DenseVector		Tp1;
-	DenseVector		Tp2;
+	DenseVector		Tp;
 	DenseVector		Pi_eigen;
 
 	SparseMatrix	iD;
@@ -400,15 +400,15 @@ private:
 	/*    - Eigen solver for the computation of LU factorization				 */
 	/*                                                                           */
 	/*****************************************************************************/
-	Eigen::SparseLU<SparseMatrix>		sparseLUsolver_TracePressureSystem;
-	Eigen::SparseLU<SparseMatrix>		sparseLUsolver_PressureSystem;
-	SparseMatrix						PressureSystem;
+	//Eigen::UmfPackLU<SparseMatrix>	LUFacorizationUMFPACK;
 
-	DenseVector Tp;
-	Eigen::BiCGSTAB<SparseMatrix> Solver;
+	Eigen::BiCGSTAB<SparseMatrix, Eigen::DiagonalPreconditioner<Real>>	BiConjugateGradientSolver;
+	Eigen::SparseLU<SparseMatrix>										sparseLUsolver_TracePressureSystem;
+	Eigen::SparseLU<SparseMatrix>										sparseLUsolver_PressureSystem;
+	SparseMatrix														PressureSystem;
 
 	std::vector<Eigen::Triplet<Real>>	TripletVector;
-
+	
 
 	DenseVector traceSystemRhs;
 	DenseVector pressureSystemRhs;
@@ -644,8 +644,6 @@ solver<QuadraturePrecision, TimeScheme>::solver(MESH & mesh, int const nt0, Real
 	pressureSystemRhs	.resize(2 * ne);
 	traceSystemRhs		.resize(2 * ne);
 
-	Tp					.resize(2 * ne);
-
 	R1					.resize(ne, 3 * nk);
 	R2					.resize(ne, 3 * nk);
 	M_j1_s1				.resize(ne, ne);
@@ -657,8 +655,7 @@ solver<QuadraturePrecision, TimeScheme>::solver(MESH & mesh, int const nt0, Real
 	V2					.resize(ne);
 	G					.resize(3 * nk);
 
-	Tp1					.resize(ne);
-	Tp2					.resize(ne);
+	Tp					.resize(2 * ne);
 	Pi_eigen			.resize(3 * nk);
 
 	iD					.resize(3 * nk, 3 * nk);
@@ -1153,7 +1150,7 @@ solver<QuadraturePrecision, TimeScheme>::solver(MESH & mesh, int const nt0, Real
 	std::cout << std::endl;
 	std::cout << "/*****************/" << std::endl;
 	std::cout << "/*               */" << std::endl;
-	std::cout << "/*  Factorizing  */" << std::endl;
+	std::cout << "/*  Assembling   */" << std::endl;
 	std::cout << "/*  -R           */" << std::endl;
 	std::cout << "/*               */" << std::endl;
 	std::cout << "/*****************/" << std::endl;
@@ -1164,6 +1161,7 @@ solver<QuadraturePrecision, TimeScheme>::solver(MESH & mesh, int const nt0, Real
 	std::cout << std::endl;
 	std::cout << "/*****************/" << std::endl;
 	std::cout << "/*               */" << std::endl;
+	std::cout << "/*  Assembling & */" << std::endl;
 	std::cout << "/*  Factorizing  */" << std::endl;
 	std::cout << "/*  -M           */" << std::endl;
 	std::cout << "/*               */" << std::endl;
@@ -1679,12 +1677,7 @@ void solver<QuadraturePrecision, TimeScheme>::computeTracePressures() {
 	traceSystemRhs.head(ne) = R1 * Pi_eigen - V1;
 	traceSystemRhs.tail(ne) = R2 * Pi_eigen - V2;
 
-	//DenseVector const solution = sparseLUsolver_TracePressureSystem.solve(traceSystemRhs);
-	DenseVector const Tp = sparseLUsolver_TracePressureSystem.solve(traceSystemRhs);
-
-
-	//Tp1 = solution.head(ne);
-	//Tp2 = solution.tail(ne);
+	Tp = sparseLUsolver_TracePressureSystem.solve(traceSystemRhs);
 
 
 	/*****************************************************************************/
@@ -1696,11 +1689,7 @@ void solver<QuadraturePrecision, TimeScheme>::computeTracePressures() {
 	for (unsigned e = 0; e < ne; e++) {
 
 
-		//em_pointer const E = Mesh->get_edge(e);
 		em_pointer const E = MeshEdges[e];
-
-		//Real const TpValue1 = Tp1[E->index];
-		//Real const TpValue2 = Tp2[E->index];
 
 		Real const TpValue1 = Tp[E->index];
 		Real const TpValue2 = Tp[E->index + ne];
@@ -1743,23 +1732,10 @@ void solver<QuadraturePrecision, TimeScheme>::computePressureEquation() {
 	/*                                                                           */
 	/*****************************************************************************/
 	//sparseLUsolver_PressureSystem.factorize(PressureSystem);
+	BiConjugateGradientSolver.factorize(PressureSystem);
 
-	Solver.factorize(PressureSystem);
-
-	//Tp.head(ne) = Tp1;
-	//Tp.tail(ne) = Tp2;
-
-	Tp = Solver.solveWithGuess(pressureSystemRhs, Tp);
-
-	//Tp1 = Tp.head(ne);
-	//Tp2 = Tp.tail(ne);
-
+	Tp		 = BiConjugateGradientSolver.solveWithGuess(pressureSystemRhs, Tp);
 	Pi_eigen = iD * G - (iDH1 * Tp.head(ne) + iDH2 * Tp.tail(ne));
-
-	//Pi_eigen = iD * G - (iDH1 * Tp1 + iDH2 * Tp2);
-
-	//Pi_eigen = iDG - (iDH1 * Tp1 + iDH2 * Tp2);
-	//std::cout << iDG - iD * G << std::endl;
 
 
 	/*****************************************************************************/
@@ -1785,14 +1761,11 @@ void solver<QuadraturePrecision, TimeScheme>::computePressureEquation() {
 	for (unsigned e = 0; e < ne; e++) {
 
 
-		//em_pointer const E = Mesh->get_edge(e);
 		em_pointer const E = MeshEdges[e];
-
-		//Real const TpValue1 = Tp1[E->index];
-		//Real const TpValue2 = Tp2[E->index];
 
 		Real const TpValue1 = Tp[E->index];
 		Real const TpValue2 = Tp[E->index + ne];
+
 
 		for (unsigned neighbor = 0; neighbor < 2; neighbor++) {
 
@@ -3112,21 +3085,19 @@ void solver<QuadraturePrecision, TimeScheme>::getSparsityPatternOfThePressureSys
 		}
 	}
 
-	R1iD.setFromTriplets(triR1iD.cbegin(), triR1iD.cend());
-	R2iD.setFromTriplets(triR2iD.cbegin(), triR2iD.cend());
-	iDH1.setFromTriplets(triiDH1.cbegin(), triiDH1.cend());
-	iDH2.setFromTriplets(triiDH2.cbegin(), triiDH2.cend());
+	R1iD			.setFromTriplets(triR1iD.cbegin(), triR1iD.cend());
+	R2iD			.setFromTriplets(triR2iD.cbegin(), triR2iD.cend());
+	iDH1			.setFromTriplets(triiDH1.cbegin(), triiDH1.cend());
+	iDH2			.setFromTriplets(triiDH2.cbegin(), triiDH2.cend());
 
-
-	PressureSystem.setFromTriplets(TripletVector.cbegin(), TripletVector.cend());
+	PressureSystem.	setFromTriplets(TripletVector.cbegin(), TripletVector.cend());
 	
-	Solver.analyzePattern(PressureSystem);
-
-	sparseLUsolver_PressureSystem.analyzePattern(PressureSystem);
+	BiConjugateGradientSolver		.analyzePattern(PressureSystem);
+	sparseLUsolver_PressureSystem	.analyzePattern(PressureSystem);
 
 	TripletVector.shrink_to_fit();
 	
-
+	//BiConjugateGradientSolver.setTolerance(1-10);
 
 	R1iD.setZero();
 	R2iD.setZero();
@@ -3534,6 +3505,7 @@ void solver<QuadraturePrecision, TimeScheme>::assemble_Gamma() {
 			for (unsigned j = 0; j < 8; j++) {
 
 
+				/*
 				Real Value1 = 0.0;
 				Real Value2 = 0.0;
 
@@ -3542,6 +3514,21 @@ void solver<QuadraturePrecision, TimeScheme>::assemble_Gamma() {
 
 				for (unsigned l = 0; l < 3; l++)
 					Value2 += Tau(m, j, l) * Xi_prev(k_index, l);
+				*/
+
+				/*****************************************************************************/
+				/*                                                                           */
+				/*    - Sum over element's edges El = 0,1,2									 */
+				/*                                                                           */
+				/*****************************************************************************/
+				Real const Value1 = Delta(k_index, m, 0, j) + Delta(k_index, m, 1, j) + Delta(k_index, m, 2, j);
+
+				/*****************************************************************************/
+				/*                                                                           */
+				/*    - Sum over DG degrees of freedom l = 0,1,2							 */
+				/*                                                                           */
+				/*****************************************************************************/
+				Real const Value2 = Tau(m, j, 0) * Xi_prev(k_index, 0) + Tau(m, j, 1) * Xi_prev(k_index, 1) + Tau(m, j, 2) * Xi_prev(k_index, 2);
 
 				Gamma.setCoeff(k_index, m, j) = Value1 - Value2;
 
@@ -3567,6 +3554,7 @@ void solver<QuadraturePrecision, TimeScheme>::assemble_Sigma() {
 		for (unsigned m = 0; m < 3; m++) {
 			for (unsigned l = 0; l < 3; l++) {
 
+				/*
 				Real Value = 0.0;
 
 				for (unsigned q = 0; q < 3; q++) {
@@ -3579,6 +3567,23 @@ void solver<QuadraturePrecision, TimeScheme>::assemble_Sigma() {
 					Value += Eta(m, q) * GammaAlphaBeta;
 
 				}
+				*/
+
+				Real GammaAlphaBeta0 = 0.0;
+				Real GammaAlphaBeta1 = 0.0;
+				Real GammaAlphaBeta2 = 0.0;
+
+				for (unsigned j = 0; j < 8; j++) {
+
+					Real const AlphaBeta = AlphaTimesBeta(k_index, j, l);
+
+					GammaAlphaBeta0 += Gamma(k_index, 0, j) * AlphaBeta;
+					GammaAlphaBeta1 += Gamma(k_index, 1, j) * AlphaBeta;
+					GammaAlphaBeta2 += Gamma(k_index, 2, j) * AlphaBeta;
+
+				}
+
+				Real const Value = Eta(m, 0) * GammaAlphaBeta0 + Eta(m, 1) * GammaAlphaBeta1 + Eta(m, 2) * GammaAlphaBeta2;
 
 				// In the computation of Eta, there is coefficient detJF. When inverting, the coefficient is inverted
 				Sigma.setCoeff(k_index, m, l) = Coefficient * Value;
@@ -3602,6 +3607,8 @@ void solver<QuadraturePrecision, TimeScheme>::assemble_Lambda() {
 			for (unsigned m = 0; m < 3; m++) {
 				for (unsigned El = 0; El < 3; El++) {
 
+
+					/*
 					Real Value = 0.0;
 
 					for (unsigned q = 0; q < 3; q++) {
@@ -3614,6 +3621,23 @@ void solver<QuadraturePrecision, TimeScheme>::assemble_Lambda() {
 						Value += Eta(m, q) * GammaAlphaChi;
 
 					}
+					*/
+
+					Real GammaAlphaChi0 = 0.0;
+					Real GammaAlphaChi1 = 0.0;
+					Real GammaAlphaChi2 = 0.0;
+
+					for (unsigned j = 0; j < 8; j++) {
+
+						Real const AlphaChi = AlphaTimesChi(k_index, j, El, s);
+
+						GammaAlphaChi0 += Gamma(k_index, 0, j) * AlphaChi;
+						GammaAlphaChi1 += Gamma(k_index, 1, j) * AlphaChi;
+						GammaAlphaChi2 += Gamma(k_index, 2, j) * AlphaChi;
+
+					}
+
+					Real const Value = Eta(m, 0) * GammaAlphaChi0 + Eta(m, 1) * GammaAlphaChi1 + Eta(m, 2) * GammaAlphaChi2;
 
 					// In the computation of Eta, there is coefficient detJF. When inverting, the coefficient is inverted
 					Lambda.setCoeff(k_index, s, m, El) = Coefficient * Value;
