@@ -216,6 +216,281 @@ private:
 };
 
 
+//
+//template<unsigned N1, unsigned N2, unsigned N3>
+//class Struct3  {
+//
+//	template<unsigned N1, unsigned N2, unsigned N3>
+//	class SoACoeffMatrix3D;
+//
+//public:
+//
+//	double * const Data1;
+//	double * const Data2;
+//	double * const Data3;
+//
+//	/*Struct3() : Data1((double *)_mm_malloc(N1 * sizeof(double), MEMORY_ALIGNEMENT)),
+//				Data2((double *)_mm_malloc(N2 * sizeof(double), MEMORY_ALIGNEMENT)),
+//				Data3((double *)_mm_malloc(N3 * sizeof(double), MEMORY_ALIGNEMENT))
+//	{};*/
+//	Struct3() : Data1(new double[N1]),
+//		Data2(new double[N2]),
+//		Data3(new double[N3])
+//	{};
+//	~Struct3() {
+//
+//		_mm_free(Data1);
+//		_mm_free(Data2);
+//		_mm_free(Data3);
+//
+//	};
+//
+//};
+
+
+template<unsigned N1, unsigned N2, unsigned N3>
+struct Struct3 {
+
+
+	//double * const Data1 = (double *)_mm_malloc(N1 * sizeof(double), MEMORY_ALIGNEMENT);
+	//double * const Data2 = (double *)_mm_malloc(N2 * sizeof(double), MEMORY_ALIGNEMENT);
+	//double * const Data3 = (double *)_mm_malloc(N3 * sizeof(double), MEMORY_ALIGNEMENT);
+
+	//double * const Data1 = new double[N1];
+	//double * const Data2 = new double[N2];
+	//double * const Data3 = new double[N3];
+
+	double Data1[N1];
+	double Data2[N2];
+	double Data3[N3];
+
+	~Struct3() {
+
+		//_mm_free(Data1);
+		//_mm_free(Data2);
+		//_mm_free(Data3);
+
+	};
+
+};
+
+
+template<unsigned N1, unsigned N2, unsigned N3>
+class SoACoeffMatrix3D {
+
+	template<unsigned N1, unsigned N2, unsigned N3>
+	friend class CoeffMatrixOfElement;
+
+public:
+
+	SoACoeffMatrix3D() {
+
+	};
+	~SoACoeffMatrix3D() {
+
+		//if (data)
+		//	_mm_free(data);
+		////delete[] data;
+
+	};
+
+	
+	void setNumberOfElements(unsigned const numElements) {
+
+		length = numElements * (N1 * N2 * N3);
+		data = new Struct3<N1, N2, N3>[numElements];
+		Maybe this all is not needed. Data are aleradz good aligned (array of SoA) in container i currently have .. check it
+		double * a = &(data->Data1[0]);
+		double * b = &(data->Data1[0]);
+		double * c = &(data->Data3[0]);
+
+		//__m256d reg = _mm256_loadu_pd(a);
+
+		int differenceInBytesAB = (b - a) * sizeof(double);
+		int differenceInBytesAC = (c - a) * sizeof(double);
+		int differenceInBytesBC = (c - b) * sizeof(double);
+
+	};
+
+	//void setZero() {
+	//
+	//	for (unsigned i = 0; i < length; i++)
+	//		data[i] = 0.0;
+	//
+	//};
+	//
+	//inline double & setCoeff(unsigned const elementIndex, unsigned const n1, unsigned const n2, unsigned const n3) {
+	//
+	//	return data[n3 + N3 * (n2 + N2 * (n1 + N1 * elementIndex))];
+	//
+	//};
+	//inline double operator()(unsigned const elementIndex, unsigned const n1, unsigned const n2, unsigned const n3) const {
+	//
+	//	return data[n3 + N3 * (n2 + N2 * (n1 + N1 * elementIndex))];
+	//
+	//};
+
+private:
+
+	Struct3<N1, N2, N3> * data = NULL;
+
+	unsigned length = 0;
+
+};
+//
+//template<unsigned N1, unsigned N2>
+//class SoACoeffMatrix2D {
+//
+//	template<typename real>
+//	friend class Matrix;
+//
+//public:
+//
+//	CoeffMatrix2D() {
+//
+//		data = NULL;
+//		length = 0;
+//
+//	};
+//	~CoeffMatrix2D() {
+//
+//		if (data)
+//			_mm_free(data);
+//		//delete[] data;
+//
+//	};
+//
+//	void setNumberOfElements(unsigned const numElements) {
+//
+//		length = numElements * (N1 * N2);
+//		//data = new double[length];
+//
+//		data = (double *)_mm_malloc(numElements * (N1 * N2) * sizeof(double), MEMORY_ALIGNEMENT);
+//
+//	};
+//	void setZero() {
+//
+//		for (unsigned i = 0; i < length; i++)
+//			data[i] = 0.0;
+//
+//	};
+//
+//	inline double & setCoeff(unsigned const elementIndex, unsigned const n1, unsigned const n2) {
+//
+//		return data[n2 + N2 * (n1 + N1 * elementIndex)];
+//
+//	};
+//	inline double operator()(unsigned const elementIndex, unsigned const n1, unsigned const n2) const {
+//
+//		return data[n2 + N2 * (n1 + N1 * elementIndex)];
+//
+//	};
+//
+//	void operator=(CoeffMatrix2D const & m) {
+//
+//		for (unsigned i = 0; i < length; i++)
+//			this->data[i] = m.data[i];
+//
+//	};
+//
+//
+//private:
+//
+//	double * data;
+//	unsigned length;
+//
+//};
+//
+//template<unsigned N1, unsigned numElements = 0>
+//class SoACoeffMatrix1D {
+//
+//	template<typename real>
+//	friend class Matrix;
+//
+//public:
+//
+//
+//	CoeffMatrix1D() {
+//
+//		data = NULL;
+//		length = 0;
+//
+//		if (numElements) {
+//
+//			length = numElements * (N1);
+//			data = new double[length];
+//
+//		}
+//
+//	};
+//	~CoeffMatrix1D() {
+//
+//		if (data)
+//			_mm_free(data);
+//
+//		//delete[] data;
+//
+//	};
+//
+//	void setNumberOfElements(unsigned const numElements) {
+//
+//		length = numElements * (N1);
+//		//data = new double[length];
+//
+//		data = (double *)_mm_malloc(numElements * (N1) * sizeof(double), MEMORY_ALIGNEMENT);
+//
+//	};
+//	void setZero() {
+//
+//		for (unsigned i = 0; i < length; i++)
+//			data[i] = 0.0;
+//
+//	};
+//
+//	inline double & setCoeff(unsigned const elementIndex, unsigned const n1) {
+//
+//		return data[n1 + N1 * elementIndex];
+//
+//	};
+//	inline double operator()(unsigned const elementIndex, unsigned const n1) const {
+//
+//		return data[n1 + N1 * elementIndex];
+//
+//	};
+//
+//	void operator=(CoeffMatrix1D const & m) {
+//
+//		for (unsigned i = 0; i < length; i++)
+//			this->data[i] = m.data[i];
+//
+//	};
+//
+//
+//private:
+//
+//	double * data;
+//	unsigned length;
+//
+//};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

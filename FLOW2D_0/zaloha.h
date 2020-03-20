@@ -355,7 +355,39 @@ R2iD.setFromTriplets(triR2iD.begin(), triR2iD.end());
 
 */
 
+/*
+	
+assembleInverseD();
+assembleH();
 
+P00 = R1 * iD * H1 + M_j1_s1;
+P01 = R1 * iD * H2 + M_j1_s2;
+P10 = R2 * iD * H1 + M_j2_s1;
+P11 = R2 * iD * H2 + M_j2_s2;
+
+for (int i = 0; i < P00.outerSize(); i++) {
+	for (typename SparseMatrix::InnerIterator it(P00, i); it; ++it)
+		SystemTriplet.emplace_back(it.row(), it.col(), it.value());
+
+	for (typename SparseMatrix::InnerIterator it(P01, i); it; ++it)
+		SystemTriplet.emplace_back(it.row(), it.col() + ne, it.value());
+
+	for (typename SparseMatrix::InnerIterator it(P10, i); it; ++it)
+		SystemTriplet.emplace_back(it.row() + ne, it.col(), it.value());
+
+	for (typename SparseMatrix::InnerIterator it(P11, i); it; ++it)
+		SystemTriplet.emplace_back(it.row() + ne, it.col() + ne, it.value());
+}
+
+PressureSystem.setFromTriplets(SystemTriplet.cbegin(), SystemTriplet.cend());
+
+SystemTriplet.clear();
+
+pressureSystemRhs.head(ne) = R1 * iD * G - V1;
+pressureSystemRhs.tail(ne) = R2 * iD * G - V2;
+
+
+*/
 
 
 /*

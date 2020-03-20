@@ -374,7 +374,7 @@ private:
 	DenseVector		G;
 
 	DenseVector		Tp;
-	DenseVector		Pi_eigen;
+	DenseVector		PiTemp;
 
 	SparseMatrix	iD;
 	SparseMatrix	H1;
@@ -527,7 +527,12 @@ private:
 	};
 
 
+	SparseMatrix P00;
+	SparseMatrix P01;
+	SparseMatrix P10;
+	SparseMatrix P11;
 
+	std::vector<Eigen::Triplet<Real>> SystemTriplet;
 };
 
 
@@ -656,11 +661,11 @@ solver<QuadraturePrecision, TimeScheme>::solver(MESH & mesh, int const nt0, Real
 	G					.resize(3 * nk);
 
 	Tp					.resize(2 * ne);
-	Pi_eigen			.resize(3 * nk);
+	PiTemp			.resize(3 * nk);
 
 	iD					.resize(3 * nk, 3 * nk);
-	//H1		.resize(3 * nk, ne);
-	//H2		.resize(3 * nk, ne);
+	H1		.resize(3 * nk, ne);
+	H2		.resize(3 * nk, ne);
 	R1iD				.resize(ne, 3 * nk);
 	R2iD				.resize(ne, 3 * nk);
 
@@ -675,6 +680,11 @@ solver<QuadraturePrecision, TimeScheme>::solver(MESH & mesh, int const nt0, Real
 	//R2iDG.resize(ne);
 
 
+
+	P00.resize(ne, ne);
+	P01.resize(ne, ne);
+	P10.resize(ne, ne);
+	P11.resize(ne, ne);
 
 
 	/*****************************************************************************/
@@ -1303,7 +1313,7 @@ template<unsigned QuadraturePrecision, scheme TimeScheme>
 void solver<QuadraturePrecision, TimeScheme>::computeThetas() {
 
 	for (unsigned k = 0; k < nk; k++)
-		Thetas[k] = 1.0;	// Thetas[k] = equationOfStateDerivative(Xi_prev(Mesh->get_triangle(k), 0));
+		Thetas[k] = 1.0;
 
 };
 
@@ -1667,15 +1677,15 @@ void solver<QuadraturePrecision, TimeScheme>::computeTracePressures() {
 		unsigned const k_index = MeshElementIndeces[k];
 	
 		for (unsigned m = 0; m < 3; m++)
-			Pi_eigen[3 * k_index + m] = Pi(k_index, m);
+			PiTemp[3 * k_index + m] = Pi(k_index, m);
 	
 	}
 
 	assembleV();
 
 
-	traceSystemRhs.head(ne) = R1 * Pi_eigen - V1;
-	traceSystemRhs.tail(ne) = R2 * Pi_eigen - V2;
+	traceSystemRhs.head(ne) = R1 * PiTemp - V1;
+	traceSystemRhs.tail(ne) = R2 * PiTemp - V2;
 
 	Tp = sparseLUsolver_TracePressureSystem.solve(traceSystemRhs);
 
@@ -1734,10 +1744,10 @@ void solver<QuadraturePrecision, TimeScheme>::computePressureEquation() {
 	//sparseLUsolver_PressureSystem.factorize(PressureSystem);
 	BiConjugateGradientSolver.factorize(PressureSystem);
 
-	Tp		 = BiConjugateGradientSolver.solveWithGuess(pressureSystemRhs, Tp);
-	Pi_eigen = iD * G - (iDH1 * Tp.head(ne) + iDH2 * Tp.tail(ne));
+	Tp		= BiConjugateGradientSolver.solveWithGuess(pressureSystemRhs, Tp);
+	PiTemp	= iD * G - (iDH1 * Tp.head(ne) + iDH2 * Tp.tail(ne));
 
-
+	
 	/*****************************************************************************/
 	/*                                                                           */
 	/*    - Copy Internal Pressures from Eigen container						 */
@@ -1748,7 +1758,7 @@ void solver<QuadraturePrecision, TimeScheme>::computePressureEquation() {
 		unsigned const k_index = MeshElementIndeces[k];
 
 		for (unsigned m = 0; m < 3; m++)
-			Pi.setCoeff(k_index, m) = Pi_eigen[3 * k_index + m];
+			Pi.setCoeff(k_index, m) = PiTemp[3 * k_index + m];
 
 	}
 
@@ -2630,7 +2640,7 @@ template<unsigned QuadraturePrecision, scheme TimeScheme>
 void solver<QuadraturePrecision, TimeScheme>::assembleInverseD() {
 
 
-	assemble_Sigma();
+	//assemble_Sigma();
 
 	Real const TimeCoefficient = TimeSchemeParameter * dt;
 	Eigen::Matrix3d Block;
@@ -2639,7 +2649,6 @@ void solver<QuadraturePrecision, TimeScheme>::assembleInverseD() {
 	for (unsigned k = 0; k < nk; k++) {
 
 
-		tm_pointer const K			 = MeshElements[k];
 		unsigned const	 k_index	 = MeshElementIndeces[k];
 		unsigned const	 start_index = 3 * k_index;
 
@@ -2648,11 +2657,15 @@ void solver<QuadraturePrecision, TimeScheme>::assembleInverseD() {
 			for (unsigned s = 0; s < 3; s++)
 				Block(r, s) = kroneckerDelta(r, s) - TimeCoefficient * Sigma(k_index, r, s);
 
-		Eigen::Matrix3d const inverseBlock = Block.inverse();
+		Eigen::Matrix3d const InverseBlock = Block.inverse();
 
 		for (unsigned i = 0; i < 3; i++)
 			for (unsigned j = 0; j < 3; j++)
-				iD.coeffRef(start_index + i, start_index + j) = abs(inverseBlock(i, j)) < INTEGRAL_PRECISION ? 0.0 : inverseBlock(i, j);
+				iD.coeffRef(start_index + i, start_index + j) = InverseBlock(i, j);
+
+
+
+
 
 	}
 
@@ -2661,7 +2674,7 @@ template<unsigned QuadraturePrecision, scheme TimeScheme>
 void solver<QuadraturePrecision, TimeScheme>::assembleH() {
 
 
-	assemble_Lambda();
+	//assemble_Lambda();
 
 	Eigen::Matrix3d Block1;
 	Eigen::Matrix3d Block2;
@@ -2777,6 +2790,8 @@ void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem() {
 		unsigned const	 start_index = 3 * k_index;
 
 
+
+
 		/*****************************************************************************/
 		/*                                                                           */
 		/*    - Inverse of the matrix D										         */
@@ -2785,7 +2800,7 @@ void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem() {
 		for (unsigned r = 0; r < 3; r++)
 			for (unsigned s = 0; s < 3; s++)
 				Block(r, s) = kroneckerDelta(r, s) - TimeCoefficient * Sigma(k_index, r, s);
-
+			
 		Eigen::Matrix3d const InverseBlock = Block.inverse();
 
 		for (unsigned i = 0; i < 3; i++)
@@ -2822,11 +2837,132 @@ void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem() {
 		/*    - Assembly of the resulting matrix R1 * iD * H1						 */
 		/*                                                                           */
 		/*****************************************************************************/
+
+		/*
+		__declspec(align(64)) Real const R1Row0[4] = { R1_block(k_index, 0, 0), R1_block(k_index, 0, 1), R1_block(k_index, 0, 2), 0.0 };
+		__declspec(align(64)) Real const R1Row1[4] = { R1_block(k_index, 1, 0), R1_block(k_index, 1, 1), R1_block(k_index, 1, 2), 0.0 };
+		__declspec(align(64)) Real const R1Row2[4] = { R1_block(k_index, 2, 0), R1_block(k_index, 2, 1), R1_block(k_index, 2, 2), 0.0 };
+
+		__declspec(align(64)) Real const R2Row0[4] = { R2_block(k_index, 0, 0), R2_block(k_index, 0, 1), R2_block(k_index, 0, 2), 0.0 };
+		__declspec(align(64)) Real const R2Row1[4] = { R2_block(k_index, 1, 0), R2_block(k_index, 1, 1), R2_block(k_index, 1, 2), 0.0 };
+		__declspec(align(64)) Real const R2Row2[4] = { R2_block(k_index, 2, 0), R2_block(k_index, 2, 1), R2_block(k_index, 2, 2), 0.0 };
+
+		__declspec(align(64)) Real const InverseBlockTransRow0[4] = { InverseBlock(0, 0), InverseBlock(1, 0), InverseBlock(2, 0), 0.0 };
+		__declspec(align(64)) Real const InverseBlockTransRow1[4] = { InverseBlock(0, 1), InverseBlock(1, 1), InverseBlock(2, 1), 0.0 };
+		__declspec(align(64)) Real const InverseBlockTransRow2[4] = { InverseBlock(0, 2), InverseBlock(1, 2), InverseBlock(2, 2), 0.0 };
+
+		Real R1TimesInverseBlock[9];
+		Real R2TimesInverseBlock[9];
+
+		
+		
+
+		//for (unsigned ei = 0; ei < 3; ei++) {
+		//	for (unsigned j = 0; j < 3; j++) {
+
+		//		Real Sum1 = 0.0;
+		//		Real Sum2 = 0.0;
+
+		//		for (unsigned m = 0; m < 4; m++) {
+
+		//			Sum1 += R1_block(k_index, ei, m) * InverseBlock(m, j);
+		//			Sum2 += R2_block(k_index, ei, m) * InverseBlock(m, j);
+
+		//		}
+
+		//		R1TimesInverseBlock[ei][j] = Sum1;
+		//		R2TimesInverseBlock[ei][j] = Sum2;
+
+		//	}
+		//}
+		
+
+		__declspec(align(64)) Real S1um00[4];
+		__declspec(align(64)) Real S1um01[4];
+		__declspec(align(64)) Real S1um02[4];
+
+		__declspec(align(64)) Real S1um10[4];
+		__declspec(align(64)) Real S1um11[4];
+		__declspec(align(64)) Real S1um12[4];
+
+		__declspec(align(64)) Real S1um20[4];
+		__declspec(align(64)) Real S1um21[4];
+		__declspec(align(64)) Real S1um22[4];
+
+
+		__declspec(align(64)) Real S2um00[4];
+		__declspec(align(64)) Real S2um01[4];
+		__declspec(align(64)) Real S2um02[4];
+
+		__declspec(align(64)) Real S2um10[4];
+		__declspec(align(64)) Real S2um11[4];
+		__declspec(align(64)) Real S2um12[4];
+
+		__declspec(align(64)) Real S2um20[4];
+		__declspec(align(64)) Real S2um21[4];
+		__declspec(align(64)) Real S2um22[4];
+
+		for (unsigned m = 0; m < 4; m++) {
+
+			S1um00[m] = R1Row0[m] * InverseBlockTransRow0[m];
+			S1um01[m] = R1Row0[m] * InverseBlockTransRow1[m];
+			S1um02[m] = R1Row0[m] * InverseBlockTransRow2[m];
+
+			S1um10[m] = R1Row1[m] * InverseBlockTransRow0[m];
+			S1um11[m] = R1Row1[m] * InverseBlockTransRow1[m];
+			S1um12[m] = R1Row1[m] * InverseBlockTransRow2[m];
+
+			S1um20[m] = R1Row2[m] * InverseBlockTransRow0[m];
+			S1um21[m] = R1Row2[m] * InverseBlockTransRow1[m];
+			S1um22[m] = R1Row2[m] * InverseBlockTransRow2[m];
+
+
+			S2um00[m] = R2Row0[m] * InverseBlockTransRow0[m];
+			S2um01[m] = R2Row0[m] * InverseBlockTransRow1[m];
+			S2um02[m] = R2Row0[m] * InverseBlockTransRow2[m];
+
+			S2um10[m] = R2Row1[m] * InverseBlockTransRow0[m];
+			S2um11[m] = R2Row1[m] * InverseBlockTransRow1[m];
+			S2um12[m] = R2Row1[m] * InverseBlockTransRow2[m];
+
+			S2um20[m] = R2Row2[m] * InverseBlockTransRow0[m];
+			S2um21[m] = R2Row2[m] * InverseBlockTransRow1[m];
+			S2um22[m] = R2Row2[m] * InverseBlockTransRow2[m];
+
+		}
+
+		R1TimesInverseBlock[0 + 0 * 3] = S1um00[0] + S1um00[1] + S1um00[2];
+		R1TimesInverseBlock[1 + 0 * 3] = S1um01[0] + S1um01[1] + S1um01[2];
+		R1TimesInverseBlock[2 + 0 * 3] = S1um02[0] + S1um02[1] + S1um02[2];
+
+		R1TimesInverseBlock[0 + 1 * 3] = S1um10[0] + S1um10[1] + S1um10[2];
+		R1TimesInverseBlock[1 + 1 * 3] = S1um11[0] + S1um11[1] + S1um11[2];
+		R1TimesInverseBlock[2 + 1 * 3] = S1um12[0] + S1um12[1] + S1um12[2];
+
+		R1TimesInverseBlock[0 + 2 * 3] = S1um20[0] + S1um20[1] + S1um20[2];
+		R1TimesInverseBlock[1 + 2 * 3] = S1um21[0] + S1um21[1] + S1um21[2];
+		R1TimesInverseBlock[2 + 2 * 3] = S1um22[0] + S1um22[1] + S1um22[2];
+
+
+		R2TimesInverseBlock[0 + 0 * 3] = S2um00[0] + S2um00[1] + S2um00[2];
+		R2TimesInverseBlock[1 + 0 * 3] = S2um01[0] + S2um01[1] + S2um01[2];
+		R2TimesInverseBlock[2 + 0 * 3] = S2um02[0] + S2um02[1] + S2um02[2];
+
+		R2TimesInverseBlock[0 + 1 * 3] = S2um10[0] + S2um10[1] + S2um10[2];
+		R2TimesInverseBlock[1 + 1 * 3] = S2um11[0] + S2um11[1] + S2um11[2];
+		R2TimesInverseBlock[2 + 1 * 3] = S2um12[0] + S2um12[1] + S2um12[2];
+
+		R2TimesInverseBlock[0 + 2 * 3] = S2um20[0] + S2um20[1] + S2um20[2];
+		R2TimesInverseBlock[1 + 2 * 3] = S2um21[0] + S2um21[1] + S2um21[2];
+		R2TimesInverseBlock[2 + 2 * 3] = S2um22[0] + S2um22[1] + S2um22[2];
+		*/
+
+
 		for (unsigned ei = 0; ei < 3; ei++) {
 
 
-			em_pointer const Ei = K->edges[ei];
-			unsigned const	 e_index_i = Ei->index;
+			em_pointer const Ei			= K->edges[ei];
+			unsigned const	 e_index_i	= Ei->index;
 
 
 			for (unsigned j = 0; j < 3; j++) {
@@ -2860,27 +2996,16 @@ void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem() {
 				Real Sum1 = 0.0;
 				Real Sum2 = 0.0;
 
-				/*
-				__declspec(align(64)) Real S1[4];
-				__declspec(align(64)) Real S2[4];
-
-				__m256d _InvBlock = _mm256_set_pd(0.0, InverseBlock(2, j), InverseBlock(1, j), InverseBlock(0, j));
-				__m256d _R1Block = _mm256_set_pd(0.0, R1_block(k_index, ei, 2), R1_block(k_index, ei, 1), R1_block(k_index, ei, 0));				__m256d _R2Block = _mm256_set_pd(0.0, R2_block(k_index, ei, 2), R2_block(k_index, ei, 1), R2_block(k_index, ei, 0));				__m256d _Prod1 = _mm256_mul_pd(_R1Block, _InvBlock);
-				__m256d _Prod2 = _mm256_mul_pd(_R2Block, _InvBlock);
-
-				_mm256_store_pd(S1, _Prod1);
-				_mm256_store_pd(S2, _Prod2);
-
-				Sum1 = S1[0] + S1[1] + S1[2] + S1[3];
-				Sum2 = S2[0] + S2[1] + S2[2] + S2[3];
-				*/
-				
 				for (unsigned m = 0; m < 3; m++) {
 
 					Sum1 += R1_block(k_index, ei, m) * InverseBlock(m, j);
 					Sum2 += R2_block(k_index, ei, m) * InverseBlock(m, j);
 
 				}
+				
+
+				//R1iD.coeffRef(e_index_i, start_index_j) = R1TimesInverseBlock[j + 3 * ei];
+				//R2iD.coeffRef(e_index_i, start_index_j) = R2TimesInverseBlock[j + 3 * ei];
 
 				R1iD.coeffRef(e_index_i, start_index_j) = Sum1;
 				R2iD.coeffRef(e_index_i, start_index_j) = Sum2;
@@ -3464,7 +3589,7 @@ void solver<QuadraturePrecision, TimeScheme>::assemble_Delta() {
 
 
 				Real const tC = upwindConcentration(K, El, n);
-
+				
 				for (unsigned m = 0; m < 3; m++) {
 
 					Integral.coeffRef(m, 0) += tC * QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis(n, 0, El, m);
@@ -3480,6 +3605,7 @@ void solver<QuadraturePrecision, TimeScheme>::assemble_Delta() {
 					//	Integral.coeffRef(m, j) += tC * QuadraturePoints_RaviartThomasBasisDotNormalTimesPolynomialBasis(n, j, El, m);
 
 				}
+				
 
 			}
 
@@ -3547,12 +3673,13 @@ void solver<QuadraturePrecision, TimeScheme>::assemble_Sigma() {
 	for (unsigned k = 0; k < nk; k++) {
 
 
-		unsigned const	k_index = MeshElementIndeces[k];
+		unsigned const	k_index		= MeshElementIndeces[k];
 		Real const		Coefficient = -Thetas_prev[k_index] * PorosityViscosityDeterminant[k_index];
 
 
 		for (unsigned m = 0; m < 3; m++) {
 			for (unsigned l = 0; l < 3; l++) {
+
 
 				/*
 				Real Value = 0.0;
@@ -3569,6 +3696,11 @@ void solver<QuadraturePrecision, TimeScheme>::assemble_Sigma() {
 				}
 				*/
 
+				/*****************************************************************************/
+				/*                                                                           */
+				/*    - Sum over DG degrees of freedom q = 0,1,2							 */
+				/*                                                                           */
+				/*****************************************************************************/
 				Real GammaAlphaBeta0 = 0.0;
 				Real GammaAlphaBeta1 = 0.0;
 				Real GammaAlphaBeta2 = 0.0;
@@ -3599,7 +3731,7 @@ void solver<QuadraturePrecision, TimeScheme>::assemble_Lambda() {
 
 	for (unsigned k = 0; k < nk; k++) {
 
-		unsigned const	k_index = MeshElementIndeces[k];
+		unsigned const	k_index		= MeshElementIndeces[k];
 		Real const		Coefficient = Thetas_prev[k_index] * PorosityViscosityDeterminant[k_index];
 
 
@@ -3623,6 +3755,11 @@ void solver<QuadraturePrecision, TimeScheme>::assemble_Lambda() {
 					}
 					*/
 
+					/*****************************************************************************/
+					/*                                                                           */
+					/*    - Sum over DG degrees of freedom q = 0,1,2							 */
+					/*                                                                           */
+					/*****************************************************************************/
 					Real GammaAlphaChi0 = 0.0;
 					Real GammaAlphaChi1 = 0.0;
 					Real GammaAlphaChi2 = 0.0;

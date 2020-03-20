@@ -121,7 +121,25 @@ int main() {
 	generate_vertices();
 
 
+	//Struct3<2,2,2> ttt;
 
+	//ttt.Data1[0] = 0.0;
+	//ttt.Data1[1] = 1.0;
+	//ttt.Data2[0] = 2.0;
+	//ttt.Data2[1] = 3.0;
+
+	//double * a = &(ttt.Data1[0]);
+	//double * b = &(ttt.Data2[0]);
+	//double * c = &(ttt.Data3[0]);
+
+	//__m256d reg = _mm256_loadu_pd(a);
+
+	//int differenceInBytesAB = (b - a) * sizeof(double);
+	//int differenceInBytesAC = (c - a) * sizeof(double);
+	//int differenceInBytesBC = (c - b) * sizeof(double);
+
+	SoACoeffMatrix3D<1,1,1> TEST;
+	TEST.setNumberOfElements(2);
 	/*****************************************************************************/
 	/*                                                                           */
 	/*    - Insert vertices in to Planar Straight Line Graph and define			 */
