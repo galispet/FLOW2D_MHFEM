@@ -39,6 +39,8 @@
 // Templateed construcotr for gauss quadrature points (NumberOfQuadraturePointsTriangle, QuadraturePoints_PolynomialBasisOnReferenceTriangle, ...), so the memory can be allocated in the compile time
 
 
+// Mesh_primitives: Assign each edge neighbors edges (will vary from 3 to 5)
+
 
 
 
@@ -138,8 +140,8 @@ int main() {
 	//int differenceInBytesAC = (c - a) * sizeof(double);
 	//int differenceInBytesBC = (c - b) * sizeof(double);
 
-	SoACoeffMatrix3D<1,1,1> TEST;
-	TEST.setNumberOfElements(2);
+	//SoACoeffMatrix3D<1,1,1> TEST;
+	//TEST.setNumberOfElements(2);
 	/*****************************************************************************/
 	/*                                                                           */
 	/*    - Insert vertices in to Planar Straight Line Graph and define			 */

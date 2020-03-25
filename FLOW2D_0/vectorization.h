@@ -22,6 +22,68 @@
 
 */
 
+/*
+
+for (unsigned m = 0; m < 3; m++) {
+
+			//Real const InverseBlockArray[4] = { InverseBlock.coeff(m, 0), InverseBlock.coeff(m, 1) , InverseBlock.coeff(m, 2), 0.0 };
+			__m256d reg3 = _mm256_set_pd(InverseBlock.coeff(m, 0), InverseBlock.coeff(m, 1), InverseBlock.coeff(m, 2), 0.0);
+
+			for (unsigned Ei = 0; Ei < 3; Ei++) {
+
+				Real Sum0 = 0.0;
+				Real Sum1 = 0.0;
+
+				//Real const LambdaArray0[4] = { Lambda(k_index, 0, 0, Ei), Lambda(k_index, 0, 1, Ei) , Lambda(k_index, 0, 2, Ei),0.0 };
+				//Real const LambdaArray1[4] = { Lambda(k_index, 1, 0, Ei), Lambda(k_index, 1, 1, Ei) , Lambda(k_index, 1, 2, Ei),0.0 };
+
+				__m256d reg1 = _mm256_set_pd(Lambda(k_index, 0, 0, Ei), Lambda(k_index, 0, 1, Ei), Lambda(k_index, 0, 2, Ei), 0.0);
+				__m256d reg2 = _mm256_set_pd(Lambda(k_index, 1, 0, Ei), Lambda(k_index, 1, 1, Ei), Lambda(k_index, 1, 2, Ei), 0.0);
+
+				union {
+
+					__m256d res1;
+					Real r1[4];
+				};
+
+				res1 = _mm256_mul_pd(reg1, reg3);
+
+				union {
+
+					__m256d res2;
+					Real r2[4];
+				};
+
+				res2 = _mm256_mul_pd(reg2, reg3);
+
+				for (unsigned s = 0; s < 4; s++) {
+
+					Sum0 += r1[s];
+					Sum1 += r2[s];
+
+				}
+
+
+				//for (unsigned s = 0; s < 4; s++) {
+
+				//	Sum0 += InverseBlockArray[s] * LambdaArray0[s];
+				//	Sum1 += InverseBlockArray[s] * LambdaArray1[s];
+
+				//	//Sum0 += InverseBlock.coeff(m, s) * LambdaArray0[s];
+				//	//Sum1 += InverseBlock.coeff(m, s) * LambdaArray1[s];
+
+				//	//Sum0 += InverseBlock.coeff(m, s) * Lambda(k_index, 0, s, Ei);
+				//	//Sum1 += InverseBlock.coeff(m, s) * Lambda(k_index, 1, s, Ei);
+
+				//}
+
+				iDH1Block.coeffRef(m, Ei) = -TimeCoefficient * Sum0;
+				iDH2Block.coeffRef(m, Ei) = -TimeCoefficient * Sum1;
+
+			}
+		}
+
+*/
 
 // !!!!!!!!!!!!!!!!!!!
 // https://github.com/JGU-HPC/parallelprogrammingbook/blob/master/chapter3/AVX/matrix_matrix_mult.cpp

@@ -52,12 +52,17 @@ public:
 		return data[n3 + N3 * (n2 + N2 * (n1 + N1 * elementIndex))];
 
 	};
-	inline double operator()(unsigned const elementIndex, unsigned const n1, unsigned const n2, unsigned const n3) const {
+	inline double & operator()(unsigned const elementIndex, unsigned const n1, unsigned const n2, unsigned const n3) const {
 
 		return data[n3 + N3 * (n2 + N2 * (n1 + N1 * elementIndex))];
 
 	};
+	inline double * const getRowPointer(unsigned const elementIndex, unsigned const n1, unsigned const n2, unsigned const n3) const {
 
+		return data + n3 + N3 * (n2 + N2 * (n1 + N1 * elementIndex));
+		//return &data[n3 + N3 * (n2 + N2 * (n1 + N1 * elementIndex))];
+
+	};
 
 	// Operators
 	void operator=(CoeffMatrix3D const & m) {
@@ -122,9 +127,15 @@ public:
 		return data[n2 + N2 * (n1 + N1 * elementIndex)];
 
 	};
-	inline double operator()(unsigned const elementIndex, unsigned const n1, unsigned const n2) const {
+	inline double & operator()(unsigned const elementIndex, unsigned const n1, unsigned const n2) const {
 
 		return data[n2 + N2 * (n1 + N1 * elementIndex)];
+
+	};
+	inline double * const getRowPointer(unsigned const elementIndex, unsigned const n1, unsigned const n2) const {
+
+		return data + n2 + N2 * (n1 + N1 * elementIndex);
+		//return &data[n2 + N2 * (n1 + N1 * elementIndex)];
 
 	};
 
@@ -299,7 +310,7 @@ public:
 
 		length = numElements * (N1 * N2 * N3);
 		data = new Struct3<N1, N2, N3>[numElements];
-		Maybe this all is not needed. Data are aleradz good aligned (array of SoA) in container i currently have .. check it
+		//Maybe this all is not needed. Data are aleradz good aligned (array of SoA) in container i currently have .. check it
 		double * a = &(data->Data1[0]);
 		double * b = &(data->Data1[0]);
 		double * c = &(data->Data3[0]);

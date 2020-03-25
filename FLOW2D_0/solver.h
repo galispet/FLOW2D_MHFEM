@@ -408,7 +408,7 @@ private:
 	SparseMatrix														PressureSystem;
 
 	std::vector<Eigen::Triplet<Real>>	TripletVector;
-	
+	std::vector<Eigen::Triplet<Real>>	TripletVectorInverseD;
 
 	DenseVector traceSystemRhs;
 	DenseVector pressureSystemRhs;
@@ -2789,8 +2789,11 @@ void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem() {
 		unsigned const	 k_index	 = MeshElementIndeces[k];
 		unsigned const	 start_index = 3 * k_index;
 
-
-
+		/*
+		Real * const R1BlockArray0 = R1_block.getRowPointer(k_index, 0, 0);
+		Real * const R1BlockArray1 = R1_block.getRowPointer(k_index, 1, 0);
+		Real * const R1BlockArray2 = R1_block.getRowPointer(k_index, 2, 0);
+		*/
 
 		/*****************************************************************************/
 		/*                                                                           */
@@ -2810,26 +2813,46 @@ void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem() {
 
 		/*****************************************************************************/
 		/*                                                                           */
-		/*    - H1, H2														         */
-		/*                                                                           */
-		/*****************************************************************************/
-		for (unsigned m = 0; m < 3; m++) {
-			for (unsigned Ei = 0; Ei < 3; Ei++) {
-
-				Block1(m, Ei) = -TimeCoefficient * Lambda(k_index, 0, m, Ei);
-				Block2(m, Ei) = -TimeCoefficient * Lambda(k_index, 1, m, Ei);
-
-			}
-		}
-
-
-		/*****************************************************************************/
-		/*                                                                           */
 		/*    - H1, H2 blocks multiplied by the blocks Inverse of D					 */
 		/*                                                                           */
 		/*****************************************************************************/
-		Eigen::Matrix3d const iDH1Block = InverseBlock * Block1;
-		Eigen::Matrix3d const iDH2Block = InverseBlock * Block2;
+		Eigen::Matrix3d iDH1Block;
+		Eigen::Matrix3d iDH2Block;
+
+		for (unsigned m = 0; m < 3; m++) {
+
+
+			Real const InverseBlockArray[3] = { InverseBlock.coeff(m, 0), InverseBlock.coeff(m, 1) , InverseBlock.coeff(m, 2)};
+
+			for (unsigned Ei = 0; Ei < 3; Ei++) {
+
+				Real Sum0 = 0.0;
+				Real Sum1 = 0.0;
+
+				Real const LambdaArray0[3] = { Lambda(k_index, 0, 0, Ei), Lambda(k_index, 0, 1, Ei) , Lambda(k_index, 0, 2, Ei)};
+				Real const LambdaArray1[3] = { Lambda(k_index, 1, 0, Ei), Lambda(k_index, 1, 1, Ei) , Lambda(k_index, 1, 2, Ei)};
+
+				for (unsigned s = 0; s < 3; s++) {
+
+					//Sum0 += InverseBlockArray[s] * Lambda(k_index, 0, s, Ei);
+					//Sum1 += InverseBlockArray[s] * Lambda(k_index, 1, s, Ei);
+
+					//Sum0 += InverseBlock.coeff(m, s) * LambdaArray0[s];
+					//Sum1 += InverseBlock.coeff(m, s) * LambdaArray1[s];
+
+					//Sum0 += InverseBlock.coeff(m, s) * Lambda(k_index, 0, s, Ei);
+					//Sum1 += InverseBlock.coeff(m, s) * Lambda(k_index, 1, s, Ei);
+
+					Sum0 += InverseBlockArray[s] * LambdaArray0[s];
+					Sum1 += InverseBlockArray[s] * LambdaArray1[s];
+
+				}
+				
+				iDH1Block.coeffRef(m, Ei) = -TimeCoefficient * Sum0;
+				iDH2Block.coeffRef(m, Ei) = -TimeCoefficient * Sum1;
+
+			}
+		}
 
 
 		/*****************************************************************************/
@@ -2839,130 +2862,159 @@ void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem() {
 		/*****************************************************************************/
 
 		/*
-		__declspec(align(64)) Real const R1Row0[4] = { R1_block(k_index, 0, 0), R1_block(k_index, 0, 1), R1_block(k_index, 0, 2), 0.0 };
-		__declspec(align(64)) Real const R1Row1[4] = { R1_block(k_index, 1, 0), R1_block(k_index, 1, 1), R1_block(k_index, 1, 2), 0.0 };
-		__declspec(align(64)) Real const R1Row2[4] = { R1_block(k_index, 2, 0), R1_block(k_index, 2, 1), R1_block(k_index, 2, 2), 0.0 };
 
-		__declspec(align(64)) Real const R2Row0[4] = { R2_block(k_index, 0, 0), R2_block(k_index, 0, 1), R2_block(k_index, 0, 2), 0.0 };
-		__declspec(align(64)) Real const R2Row1[4] = { R2_block(k_index, 1, 0), R2_block(k_index, 1, 1), R2_block(k_index, 1, 2), 0.0 };
-		__declspec(align(64)) Real const R2Row2[4] = { R2_block(k_index, 2, 0), R2_block(k_index, 2, 1), R2_block(k_index, 2, 2), 0.0 };
+		//Real * const R1BlockPointer = R1_block.getRowPointer(k_index, 0, 0);
+		//Real * const R2BlockPointer = R2_block.getRowPointer(k_index, 0, 0);
 
-		__declspec(align(64)) Real const InverseBlockTransRow0[4] = { InverseBlock(0, 0), InverseBlock(1, 0), InverseBlock(2, 0), 0.0 };
-		__declspec(align(64)) Real const InverseBlockTransRow1[4] = { InverseBlock(0, 1), InverseBlock(1, 1), InverseBlock(2, 1), 0.0 };
-		__declspec(align(64)) Real const InverseBlockTransRow2[4] = { InverseBlock(0, 2), InverseBlock(1, 2), InverseBlock(2, 2), 0.0 };
-
-		Real R1TimesInverseBlock[9];
-		Real R2TimesInverseBlock[9];
-
-		
-		
+		//Real R1BlockTimesInverseBlock[3][3];
+		//Real R2BlockTimesInverseBlock[3][3];
 
 		//for (unsigned ei = 0; ei < 3; ei++) {
 		//	for (unsigned j = 0; j < 3; j++) {
 
+		//		Real Sum0 = 0.0;
 		//		Real Sum1 = 0.0;
-		//		Real Sum2 = 0.0;
 
-		//		for (unsigned m = 0; m < 4; m++) {
+		//		for (unsigned k = 0; k < 3; k++) {
 
-		//			Sum1 += R1_block(k_index, ei, m) * InverseBlock(m, j);
-		//			Sum2 += R2_block(k_index, ei, m) * InverseBlock(m, j);
+		//			Sum0 += R1BlockPointer[3 * ei + k] * InverseBlock.coeff(k, j);
+		//			Sum1 += R2BlockPointer[3 * ei + k] * InverseBlock.coeff(k, j);
 
 		//		}
 
-		//		R1TimesInverseBlock[ei][j] = Sum1;
-		//		R2TimesInverseBlock[ei][j] = Sum2;
-
+		//		R1BlockTimesInverseBlock[ei][j] = Sum0;
+		//		R2BlockTimesInverseBlock[ei][j] = Sum1;
+		//		
 		//	}
 		//}
-		
 
-		__declspec(align(64)) Real S1um00[4];
-		__declspec(align(64)) Real S1um01[4];
-		__declspec(align(64)) Real S1um02[4];
-
-		__declspec(align(64)) Real S1um10[4];
-		__declspec(align(64)) Real S1um11[4];
-		__declspec(align(64)) Real S1um12[4];
-
-		__declspec(align(64)) Real S1um20[4];
-		__declspec(align(64)) Real S1um21[4];
-		__declspec(align(64)) Real S1um22[4];
-
-
-		__declspec(align(64)) Real S2um00[4];
-		__declspec(align(64)) Real S2um01[4];
-		__declspec(align(64)) Real S2um02[4];
-
-		__declspec(align(64)) Real S2um10[4];
-		__declspec(align(64)) Real S2um11[4];
-		__declspec(align(64)) Real S2um12[4];
-
-		__declspec(align(64)) Real S2um20[4];
-		__declspec(align(64)) Real S2um21[4];
-		__declspec(align(64)) Real S2um22[4];
-
-		for (unsigned m = 0; m < 4; m++) {
-
-			S1um00[m] = R1Row0[m] * InverseBlockTransRow0[m];
-			S1um01[m] = R1Row0[m] * InverseBlockTransRow1[m];
-			S1um02[m] = R1Row0[m] * InverseBlockTransRow2[m];
-
-			S1um10[m] = R1Row1[m] * InverseBlockTransRow0[m];
-			S1um11[m] = R1Row1[m] * InverseBlockTransRow1[m];
-			S1um12[m] = R1Row1[m] * InverseBlockTransRow2[m];
-
-			S1um20[m] = R1Row2[m] * InverseBlockTransRow0[m];
-			S1um21[m] = R1Row2[m] * InverseBlockTransRow1[m];
-			S1um22[m] = R1Row2[m] * InverseBlockTransRow2[m];
-
-
-			S2um00[m] = R2Row0[m] * InverseBlockTransRow0[m];
-			S2um01[m] = R2Row0[m] * InverseBlockTransRow1[m];
-			S2um02[m] = R2Row0[m] * InverseBlockTransRow2[m];
-
-			S2um10[m] = R2Row1[m] * InverseBlockTransRow0[m];
-			S2um11[m] = R2Row1[m] * InverseBlockTransRow1[m];
-			S2um12[m] = R2Row1[m] * InverseBlockTransRow2[m];
-
-			S2um20[m] = R2Row2[m] * InverseBlockTransRow0[m];
-			S2um21[m] = R2Row2[m] * InverseBlockTransRow1[m];
-			S2um22[m] = R2Row2[m] * InverseBlockTransRow2[m];
-
-		}
-
-		R1TimesInverseBlock[0 + 0 * 3] = S1um00[0] + S1um00[1] + S1um00[2];
-		R1TimesInverseBlock[1 + 0 * 3] = S1um01[0] + S1um01[1] + S1um01[2];
-		R1TimesInverseBlock[2 + 0 * 3] = S1um02[0] + S1um02[1] + S1um02[2];
-
-		R1TimesInverseBlock[0 + 1 * 3] = S1um10[0] + S1um10[1] + S1um10[2];
-		R1TimesInverseBlock[1 + 1 * 3] = S1um11[0] + S1um11[1] + S1um11[2];
-		R1TimesInverseBlock[2 + 1 * 3] = S1um12[0] + S1um12[1] + S1um12[2];
-
-		R1TimesInverseBlock[0 + 2 * 3] = S1um20[0] + S1um20[1] + S1um20[2];
-		R1TimesInverseBlock[1 + 2 * 3] = S1um21[0] + S1um21[1] + S1um21[2];
-		R1TimesInverseBlock[2 + 2 * 3] = S1um22[0] + S1um22[1] + S1um22[2];
-
-
-		R2TimesInverseBlock[0 + 0 * 3] = S2um00[0] + S2um00[1] + S2um00[2];
-		R2TimesInverseBlock[1 + 0 * 3] = S2um01[0] + S2um01[1] + S2um01[2];
-		R2TimesInverseBlock[2 + 0 * 3] = S2um02[0] + S2um02[1] + S2um02[2];
-
-		R2TimesInverseBlock[0 + 1 * 3] = S2um10[0] + S2um10[1] + S2um10[2];
-		R2TimesInverseBlock[1 + 1 * 3] = S2um11[0] + S2um11[1] + S2um11[2];
-		R2TimesInverseBlock[2 + 1 * 3] = S2um12[0] + S2um12[1] + S2um12[2];
-
-		R2TimesInverseBlock[0 + 2 * 3] = S2um20[0] + S2um20[1] + S2um20[2];
-		R2TimesInverseBlock[1 + 2 * 3] = S2um21[0] + S2um21[1] + S2um21[2];
-		R2TimesInverseBlock[2 + 2 * 3] = S2um22[0] + S2um22[1] + S2um22[2];
 		*/
 
+		/*
+		//__declspec(align(64)) Real const R1Row0[4] = { R1_block(k_index, 0, 0), R1_block(k_index, 0, 1), R1_block(k_index, 0, 2), 0.0 };
+		//__declspec(align(64)) Real const R1Row1[4] = { R1_block(k_index, 1, 0), R1_block(k_index, 1, 1), R1_block(k_index, 1, 2), 0.0 };
+		//__declspec(align(64)) Real const R1Row2[4] = { R1_block(k_index, 2, 0), R1_block(k_index, 2, 1), R1_block(k_index, 2, 2), 0.0 };
+
+		//__declspec(align(64)) Real const R2Row0[4] = { R2_block(k_index, 0, 0), R2_block(k_index, 0, 1), R2_block(k_index, 0, 2), 0.0 };
+		//__declspec(align(64)) Real const R2Row1[4] = { R2_block(k_index, 1, 0), R2_block(k_index, 1, 1), R2_block(k_index, 1, 2), 0.0 };
+		//__declspec(align(64)) Real const R2Row2[4] = { R2_block(k_index, 2, 0), R2_block(k_index, 2, 1), R2_block(k_index, 2, 2), 0.0 };
+
+		//__declspec(align(64)) Real const InverseBlockTransRow0[4] = { InverseBlock(0, 0), InverseBlock(1, 0), InverseBlock(2, 0), 0.0 };
+		//__declspec(align(64)) Real const InverseBlockTransRow1[4] = { InverseBlock(0, 1), InverseBlock(1, 1), InverseBlock(2, 1), 0.0 };
+		//__declspec(align(64)) Real const InverseBlockTransRow2[4] = { InverseBlock(0, 2), InverseBlock(1, 2), InverseBlock(2, 2), 0.0 };
+
+		//Real R1TimesInverseBlock[9];
+		//Real R2TimesInverseBlock[9];
+
+
+
+
+		////for (unsigned ei = 0; ei < 3; ei++) {
+		////	for (unsigned j = 0; j < 3; j++) {
+
+		////		Real Sum1 = 0.0;
+		////		Real Sum2 = 0.0;
+
+		////		for (unsigned m = 0; m < 4; m++) {
+
+		////			Sum1 += R1_block(k_index, ei, m) * InverseBlock(m, j);
+		////			Sum2 += R2_block(k_index, ei, m) * InverseBlock(m, j);
+
+		////		}
+
+		////		R1TimesInverseBlock[ei][j] = Sum1;
+		////		R2TimesInverseBlock[ei][j] = Sum2;
+
+		////	}
+		////}
+
+
+		//__declspec(align(64)) Real S1um00[4];
+		//__declspec(align(64)) Real S1um01[4];
+		//__declspec(align(64)) Real S1um02[4];
+
+		//__declspec(align(64)) Real S1um10[4];
+		//__declspec(align(64)) Real S1um11[4];
+		//__declspec(align(64)) Real S1um12[4];
+
+		//__declspec(align(64)) Real S1um20[4];
+		//__declspec(align(64)) Real S1um21[4];
+		//__declspec(align(64)) Real S1um22[4];
+
+
+		//__declspec(align(64)) Real S2um00[4];
+		//__declspec(align(64)) Real S2um01[4];
+		//__declspec(align(64)) Real S2um02[4];
+
+		//__declspec(align(64)) Real S2um10[4];
+		//__declspec(align(64)) Real S2um11[4];
+		//__declspec(align(64)) Real S2um12[4];
+
+		//__declspec(align(64)) Real S2um20[4];
+		//__declspec(align(64)) Real S2um21[4];
+		//__declspec(align(64)) Real S2um22[4];
+
+		//for (unsigned m = 0; m < 4; m++) {
+
+		//	S1um00[m] = R1Row0[m] * InverseBlockTransRow0[m];
+		//	S1um01[m] = R1Row0[m] * InverseBlockTransRow1[m];
+		//	S1um02[m] = R1Row0[m] * InverseBlockTransRow2[m];
+
+		//	S1um10[m] = R1Row1[m] * InverseBlockTransRow0[m];
+		//	S1um11[m] = R1Row1[m] * InverseBlockTransRow1[m];
+		//	S1um12[m] = R1Row1[m] * InverseBlockTransRow2[m];
+
+		//	S1um20[m] = R1Row2[m] * InverseBlockTransRow0[m];
+		//	S1um21[m] = R1Row2[m] * InverseBlockTransRow1[m];
+		//	S1um22[m] = R1Row2[m] * InverseBlockTransRow2[m];
+
+
+		//	S2um00[m] = R2Row0[m] * InverseBlockTransRow0[m];
+		//	S2um01[m] = R2Row0[m] * InverseBlockTransRow1[m];
+		//	S2um02[m] = R2Row0[m] * InverseBlockTransRow2[m];
+
+		//	S2um10[m] = R2Row1[m] * InverseBlockTransRow0[m];
+		//	S2um11[m] = R2Row1[m] * InverseBlockTransRow1[m];
+		//	S2um12[m] = R2Row1[m] * InverseBlockTransRow2[m];
+
+		//	S2um20[m] = R2Row2[m] * InverseBlockTransRow0[m];
+		//	S2um21[m] = R2Row2[m] * InverseBlockTransRow1[m];
+		//	S2um22[m] = R2Row2[m] * InverseBlockTransRow2[m];
+
+		//}
+
+		//R1TimesInverseBlock[0 + 0 * 3] = S1um00[0] + S1um00[1] + S1um00[2];
+		//R1TimesInverseBlock[1 + 0 * 3] = S1um01[0] + S1um01[1] + S1um01[2];
+		//R1TimesInverseBlock[2 + 0 * 3] = S1um02[0] + S1um02[1] + S1um02[2];
+
+		//R1TimesInverseBlock[0 + 1 * 3] = S1um10[0] + S1um10[1] + S1um10[2];
+		//R1TimesInverseBlock[1 + 1 * 3] = S1um11[0] + S1um11[1] + S1um11[2];
+		//R1TimesInverseBlock[2 + 1 * 3] = S1um12[0] + S1um12[1] + S1um12[2];
+
+		//R1TimesInverseBlock[0 + 2 * 3] = S1um20[0] + S1um20[1] + S1um20[2];
+		//R1TimesInverseBlock[1 + 2 * 3] = S1um21[0] + S1um21[1] + S1um21[2];
+		//R1TimesInverseBlock[2 + 2 * 3] = S1um22[0] + S1um22[1] + S1um22[2];
+
+
+		//R2TimesInverseBlock[0 + 0 * 3] = S2um00[0] + S2um00[1] + S2um00[2];
+		//R2TimesInverseBlock[1 + 0 * 3] = S2um01[0] + S2um01[1] + S2um01[2];
+		//R2TimesInverseBlock[2 + 0 * 3] = S2um02[0] + S2um02[1] + S2um02[2];
+
+		//R2TimesInverseBlock[0 + 1 * 3] = S2um10[0] + S2um10[1] + S2um10[2];
+		//R2TimesInverseBlock[1 + 1 * 3] = S2um11[0] + S2um11[1] + S2um11[2];
+		//R2TimesInverseBlock[2 + 1 * 3] = S2um12[0] + S2um12[1] + S2um12[2];
+
+		//R2TimesInverseBlock[0 + 2 * 3] = S2um20[0] + S2um20[1] + S2um20[2];
+		//R2TimesInverseBlock[1 + 2 * 3] = S2um21[0] + S2um21[1] + S2um21[2];
+		//R2TimesInverseBlock[2 + 2 * 3] = S2um22[0] + S2um22[1] + S2um22[2];
+
+		*/
 
 		for (unsigned ei = 0; ei < 3; ei++) {
 
 
-			em_pointer const Ei			= K->edges[ei];
-			unsigned const	 e_index_i	= Ei->index;
+			em_pointer const Ei = K->edges[ei];
+			unsigned const	 e_index_i = Ei->index;
 
 
 			for (unsigned j = 0; j < 3; j++) {
@@ -2996,19 +3048,37 @@ void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem() {
 				Real Sum1 = 0.0;
 				Real Sum2 = 0.0;
 
+				Real const InverseBlockArray[3] = { InverseBlock.coeff(0, j), InverseBlock.coeff(1, j) , InverseBlock.coeff(2, j) };
+
 				for (unsigned m = 0; m < 3; m++) {
 
-					Sum1 += R1_block(k_index, ei, m) * InverseBlock(m, j);
-					Sum2 += R2_block(k_index, ei, m) * InverseBlock(m, j);
+					/*
+					//Sum1 += R1BlockPointer[3 * ei + m] * InverseBlockArray[m];
+					//Sum2 += R2BlockPointer[3 * ei + m] * InverseBlockArray[m];
+					*/
+
+					//Sum1 += R1_block(k_index, ei, m) * InverseBlock(m, j);
+					//Sum2 += R2_block(k_index, ei, m) * InverseBlock(m, j);
+
+					Sum1 += R1_block(k_index, ei, m) * InverseBlockArray[m];
+					Sum2 += R2_block(k_index, ei, m) * InverseBlockArray[m];
 
 				}
-				
 
 				//R1iD.coeffRef(e_index_i, start_index_j) = R1TimesInverseBlock[j + 3 * ei];
 				//R2iD.coeffRef(e_index_i, start_index_j) = R2TimesInverseBlock[j + 3 * ei];
 
 				R1iD.coeffRef(e_index_i, start_index_j) = Sum1;
 				R2iD.coeffRef(e_index_i, start_index_j) = Sum2;
+
+
+				/*
+				//Real const Temp0 = R1BlockTimesInverseBlock[ei][j];
+				//Real const Temp1 = R2BlockTimesInverseBlock[ei][j];
+
+				//R1iD.coeffRef(e_index_i, start_index_j) = Temp0;
+				//R2iD.coeffRef(e_index_i, start_index_j) = Temp1;
+				*/
 
 			}
 
@@ -3032,6 +3102,15 @@ void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem() {
 
 				// Number of degrees of freedom of internal pressure
 				for (unsigned m = 0; m < 3; m++) {
+
+					/*
+					//sum11 += R1BlockPointer[3 * ei + m] * iDH1Block(m, ej);
+					//sum12 += R1BlockPointer[3 * ei + m] * iDH2Block(m, ej);
+
+					//sum21 += R2BlockPointer[3 * ei + m] * iDH1Block(m, ej);
+					//sum22 += R2BlockPointer[3 * ei + m] * iDH2Block(m, ej);
+
+					*/
 
 					sum11 += R1_block(k_index, ei, m) * iDH1Block(m, ej);
 					sum12 += R1_block(k_index, ei, m) * iDH2Block(m, ej);
@@ -3106,10 +3185,10 @@ void solver<QuadraturePrecision, TimeScheme>::getSparsityPatternOfThePressureSys
 
 	for (unsigned e = 0; e < ne; e++) {
 
-		Eigen::Triplet<Real> const T11(e, e, DummyFillIn);
-		Eigen::Triplet<Real> const T12(e, e + ne, DummyFillIn);
-		Eigen::Triplet<Real> const T21(e + ne, e, DummyFillIn);
-		Eigen::Triplet<Real> const T22(e + ne, e + ne, DummyFillIn);
+		Eigen::Triplet<Real> const T11(e,		e,		DummyFillIn);
+		Eigen::Triplet<Real> const T12(e,		e + ne, DummyFillIn);
+		Eigen::Triplet<Real> const T21(e + ne,	e,		DummyFillIn);
+		Eigen::Triplet<Real> const T22(e + ne,	e + ne, DummyFillIn);
 
 		TripletVector.push_back(T11);
 		TripletVector.push_back(T12);
@@ -3120,16 +3199,17 @@ void solver<QuadraturePrecision, TimeScheme>::getSparsityPatternOfThePressureSys
 
 	for (unsigned k = 0; k < nk; k++) {
 
-		tm_pointer const K = MeshElements[k];
-		unsigned const	 k_index = MeshElementIndeces[k];
+
+		tm_pointer		 K			 = MeshElements[k];
+		unsigned const	 k_index	 = MeshElementIndeces[k];
 		unsigned const	 start_index = 3 * k_index;
 
 
 		for (unsigned ei = 0; ei < 3; ei++) {
 
 
-			em_pointer const Ei = K->edges[ei];
-			unsigned const	 e_index_i = Ei->index;
+			em_pointer const Ei			= K->edges[ei];
+			unsigned const	 e_index_i  = Ei->index;
 
 
 			for (unsigned j = 0; j < 3; j++) {
@@ -3181,10 +3261,10 @@ void solver<QuadraturePrecision, TimeScheme>::getSparsityPatternOfThePressureSys
 				// Because diagonal elements were zeroed at the beginning, the += operator is needed only here (if there was any. Will be when migrate to linux and No Eigen will be used)
 				if (e_index_i == e_index_j) {
 
-					Eigen::Triplet<Real> const T11(e_index_i, e_index_i, DummyFillIn);
-					Eigen::Triplet<Real> const T12(e_index_i, e_index_i + ne, DummyFillIn);
-					Eigen::Triplet<Real> const T21(e_index_i + ne, e_index_i, DummyFillIn);
-					Eigen::Triplet<Real> const T22(e_index_i + ne, e_index_i + ne, DummyFillIn);
+					Eigen::Triplet<Real> const T11(e_index_i,		e_index_i,		DummyFillIn);
+					Eigen::Triplet<Real> const T12(e_index_i,		e_index_i + ne, DummyFillIn);
+					Eigen::Triplet<Real> const T21(e_index_i + ne,	e_index_i,		DummyFillIn);
+					Eigen::Triplet<Real> const T22(e_index_i + ne,	e_index_i + ne, DummyFillIn);
 
 					TripletVector.push_back(T11);
 					TripletVector.push_back(T12);
@@ -3196,10 +3276,10 @@ void solver<QuadraturePrecision, TimeScheme>::getSparsityPatternOfThePressureSys
 				}
 
 
-				Eigen::Triplet<Real> const T11(e_index_i, e_index_j, DummyFillIn);
-				Eigen::Triplet<Real> const T12(e_index_i, e_index_j + ne, DummyFillIn);
-				Eigen::Triplet<Real> const T21(e_index_i + ne, e_index_j, DummyFillIn);
-				Eigen::Triplet<Real> const T22(e_index_i + ne, e_index_j + ne, DummyFillIn);
+				Eigen::Triplet<Real> const T11(e_index_i,		e_index_j,		DummyFillIn);
+				Eigen::Triplet<Real> const T12(e_index_i,		e_index_j + ne, DummyFillIn);
+				Eigen::Triplet<Real> const T21(e_index_i + ne,	e_index_j,		DummyFillIn);
+				Eigen::Triplet<Real> const T22(e_index_i + ne,	e_index_j + ne, DummyFillIn);
 
 				TripletVector.push_back(T11);
 				TripletVector.push_back(T12);
@@ -3218,7 +3298,7 @@ void solver<QuadraturePrecision, TimeScheme>::getSparsityPatternOfThePressureSys
 	PressureSystem.	setFromTriplets(TripletVector.cbegin(), TripletVector.cend());
 	
 	BiConjugateGradientSolver		.analyzePattern(PressureSystem);
-	sparseLUsolver_PressureSystem	.analyzePattern(PressureSystem);
+	//sparseLUsolver_PressureSystem	.analyzePattern(PressureSystem);
 
 	TripletVector.shrink_to_fit();
 	
