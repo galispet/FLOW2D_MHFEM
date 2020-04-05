@@ -318,6 +318,28 @@ void MESH::set_adjacencies(Triangulation<GK> & triangulation) {
 		if (n1)	f->neighbors[1] = triangles[n1->index];
 		else	f->neighbors[1] = NULL;
 
+
+		unsigned EdgesCount = 0;
+
+		if (n0) {
+
+			unsigned const f_index	= f->neighbors[0]->get_edge_index(f);
+			vm_pointer const v		= f->neighbors[0]->get_vertex(f_index);
+
+			f->neighborEdges[EdgesCount++] = f->neighbors[0]->get_edge_ccw(v);
+			f->neighborEdges[EdgesCount++] = f->neighbors[0]->get_edge_cw(v);
+		
+		}
+		if (n1) {
+
+			unsigned const f_index	= f->neighbors[1]->get_edge_index(f);
+			vm_pointer const v		= f->neighbors[1]->get_vertex(f_index);
+
+			f->neighborEdges[EdgesCount++] = f->neighbors[1]->get_edge_ccw(v);
+			f->neighborEdges[EdgesCount++] = f->neighbors[1]->get_edge_cw(v);
+
+		}
+
 	}
 
 

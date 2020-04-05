@@ -285,7 +285,7 @@ int main() {
 
 
 
-	solution.computeError(fileName_error + std::to_string(N_x) + ".txt");
+	//solution.computeError(fileName_error + std::to_string(N_x) + ".txt");
 
 
 

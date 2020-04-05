@@ -1803,7 +1803,9 @@ void solver<QuadraturePrecision, TimeScheme>::computeVelocities() {
 
 	Real const time = (nt + 1) * dt;
 
-	for (unsigned k = 0; k < nk; k++) {
+//	omp_set_num_threads(2);
+//#pragma omp parallel for 
+	for (int k = 0; k < nk; k++) {
 
 
 		tm_pointer const K		 = MeshElements[k];
@@ -1919,7 +1921,9 @@ void solver<QuadraturePrecision, TimeScheme>::updateConcentrations() {
 	Real const TimeCoefficient1 = dt * TimeSchemeParameter;
 	Real const TimeCoefficient2 = dt * (1.0 - TimeSchemeParameter);
 
-	for (unsigned k = 0; k < nk; k++) {
+//	omp_set_num_threads(2);
+//#pragma omp parallel for 
+	for (int k = 0; k < nk; k++) {
 
 
 		unsigned const	k_index		= MeshElementIndeces[k];
@@ -2548,7 +2552,9 @@ void solver<QuadraturePrecision, TimeScheme>::assembleV() {
 
 	Real const time = (nt + 1) * dt;
 
-	for (unsigned e = 0; e < ne; e++) {
+//	omp_set_num_threads(2);
+//#pragma omp parallel for 
+	for (int e = 0; e < ne; e++) {
 
 
 		//em_pointer const E = Mesh->get_edge(e);
@@ -2727,7 +2733,9 @@ void solver<QuadraturePrecision, TimeScheme>::assembleG() {
 
 	Real const TimeCoefficient = dt * (1.0 - TimeSchemeParameter);
 
-	for (unsigned k = 0; k < nk; k++) {
+//	omp_set_num_threads(2);
+//#pragma omp parallel for 
+	for (int k = 0; k < nk; k++) {
 
 		unsigned const k_index = MeshElementIndeces[k];
 
@@ -3700,8 +3708,9 @@ void solver<QuadraturePrecision, TimeScheme>::assemble_Delta() {
 template<unsigned QuadraturePrecision, scheme TimeScheme>
 void solver<QuadraturePrecision, TimeScheme>::assemble_Gamma() {
 
-
-	for (unsigned k = 0; k < nk; k++) {
+//	omp_set_num_threads(2);
+//#pragma omp parallel for 
+	for (int k = 0; k < nk; k++) {
 
 
 		unsigned const k_index = MeshElementIndeces[k];
@@ -3749,8 +3758,9 @@ void solver<QuadraturePrecision, TimeScheme>::assemble_Gamma() {
 template<unsigned QuadraturePrecision, scheme TimeScheme>
 void solver<QuadraturePrecision, TimeScheme>::assemble_Sigma() {
 
-
-	for (unsigned k = 0; k < nk; k++) {
+//	omp_set_num_threads(2);
+//#pragma omp parallel for 
+	for (int k = 0; k < nk; k++) {
 
 
 		unsigned const	k_index		= MeshElementIndeces[k];
@@ -3808,8 +3818,9 @@ void solver<QuadraturePrecision, TimeScheme>::assemble_Sigma() {
 template<unsigned QuadraturePrecision, scheme TimeScheme>
 void solver<QuadraturePrecision, TimeScheme>::assemble_Lambda() {
 
-
-	for (unsigned k = 0; k < nk; k++) {
+//	omp_set_num_threads(2);
+//#pragma omp parallel for 
+	for (int k = 0; k < nk; k++) {
 
 		unsigned const	k_index		= MeshElementIndeces[k];
 		Real const		Coefficient = Thetas_prev[k_index] * PorosityViscosityDeterminant[k_index];

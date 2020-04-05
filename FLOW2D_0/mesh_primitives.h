@@ -7,6 +7,7 @@
 #include <cassert>
 #include <algorithm>
 #include <iostream>
+#include <vector>
 
 
 class MESHVertex;
@@ -87,6 +88,7 @@ public:
 	E_MARKER marker;
 
 	tm_pointer neighbors[2] = { NULL,NULL };
+	std::vector<em_pointer> neighborEdges;
 
 
 	/*****************************************************************************/
@@ -109,6 +111,8 @@ public:
 
 
 MESHEdge::MESHEdge(vm_pointer const & va, vm_pointer const & vb) : a(va), b(vb) {
+
+	neighborEdges.resize(4);
 
 };
 MESHEdge::~MESHEdge() {
@@ -179,6 +183,9 @@ public:
 	vm_pointer const & get_vertex_ccw(vm_pointer const & v) const;
 
 	unsigned const get_edge_index(em_pointer const & e) const;
+
+	em_pointer get_edge_cw(vm_pointer const & v) const;
+	em_pointer get_edge_ccw(vm_pointer const & v) const;
 
 	Real const area() const;
 
@@ -253,6 +260,25 @@ unsigned const MESHTriangle::get_edge_index(em_pointer const & e) const {
 	assert(0 && "Triangle::edge_index(Edge)");
 
 	return -1;
+
+};
+
+em_pointer MESHTriangle::get_edge_cw(vm_pointer const & v) const {
+
+	if		(vertices[0] == v) return edges[1];
+	else if (vertices[1] == v) return edges[2];
+	else if (vertices[2] == v) return edges[0];
+
+	return NULL;
+
+};
+em_pointer MESHTriangle::get_edge_ccw(vm_pointer const & v) const {
+
+	if		(vertices[0] == v) return edges[2];
+	else if (vertices[1] == v) return edges[0];
+	else if (vertices[2] == v) return edges[1];
+
+	return NULL;
 
 };
 
