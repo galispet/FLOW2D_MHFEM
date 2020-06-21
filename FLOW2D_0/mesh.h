@@ -1,8 +1,6 @@
 #pragma once
 
 
-#pragma once
-
 
 #include "triangulation.h"
 #include "enumerators.h"
@@ -29,7 +27,7 @@ bool mmarker_compare_dirichlet(em_pointer const e1, em_pointer const e2);
 
 
 
-
+/**/
 class MESH {
 
 
@@ -599,3 +597,5 @@ bool mmarker_compare_dirichlet(em_pointer const e1, em_pointer const e2) {
 	return false;
 
 };
+
+

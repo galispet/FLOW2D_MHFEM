@@ -45,6 +45,7 @@
 
 
 #include "mesh.h"
+//#include "mesh2.h"
 #include "triangulation.h"
 #include "PSLG.h"
 #include "solver.h"
@@ -80,28 +81,36 @@ const double b_x = 40.0;
 const double a_y = 0.0;
 const double b_y = 40.0;
 
-unsigned const refinement = 2*2;
+unsigned const refinement = 4;
 
 const int N_x = 4 * refinement;
 const int N_y = N_x;
 
-//unsigned const nt0 = 25 * (refinement * refinement);
-//unsigned const NT = 150 * (refinement * refinement);
-//double const dt = 300.0 / (refinement * refinement);
+unsigned const nt0 = 25 * (refinement * refinement);
+unsigned const NT = 150 * (refinement * refinement);
+double const dt = 300.0 / (refinement * refinement);
 
-unsigned const nt0 = 25 * (refinement);
-unsigned const NT = 150 * (refinement);
-double const dt = 300.0 / (refinement);
-
-
+//unsigned const nt0 = 25 * (refinement);
+//unsigned const NT = 150 * (refinement);
+//double const dt = 300.0 / (refinement);
 
 
+
+/*
 std::string fileName_mesh			= "C:\\Users\\pgali\\Desktop\\eoc\\mesh.txt";
 std::string fileName_velocity		= "C:\\Users\\pgali\\Desktop\\eoc\\velocity_";
 
 std::string fileName_pressure		= "C:\\Users\\pgali\\Desktop\\eoc\\pressure_";
 std::string fileName_concentration	= "C:\\Users\\pgali\\Desktop\\eoc\\concentration_";
 std::string fileName_error			= "C:\\Users\\pgali\\Desktop\\eoc\\error_";
+*/
+
+std::string fileName_mesh			= "D:\\simulations\\multicomponentflow\\mesh.txt";
+std::string fileName_velocity		= "D:\\simulations\\multicomponentflow\\velocity_";
+
+std::string fileName_pressure		= "D:\\simulations\\multicomponentflow\\pressure_";
+std::string fileName_concentration	= "D:\\simulations\\multicomponentflow\\concentration_";
+std::string fileName_error			= "D:\\simulations\\multicomponentflow\\error_";
 
 
 
@@ -109,6 +118,7 @@ std::vector<Vertex>		vertices;
 
 int main() {
 	
+	//Eigen::initParallel();
 
 	PlanarStraightLineGraph pslg;
 	std::vector<Vertex>		seeds;
@@ -266,7 +276,7 @@ int main() {
 		/*    - Create text file of the solution on the (n+1)-th time level			 */
 		/*                                                                           */
 		/*****************************************************************************/
-		//solution.exportPressures(fileName_pressure + std::to_string(nt) + ".txt");
+		solution.exportPressures(fileName_pressure + std::to_string(nt) + ".txt");
 		//solution.exportConcentrations(fileName_concentration + std::to_string(nt) + ".txt");
 
 

@@ -19,6 +19,7 @@
 #include "coefficient_matrix.h"
 #include "matrix.h"
 #include "mesh.h"
+//#include "mesh2.h"
 
 //#include <Eigen/UmfPackSupport>
 #include <Eigen/Sparse>
@@ -28,8 +29,8 @@
 
 enum scheme { CRANK_NICOLSON, EULER_BACKWARD };
 
-	typedef Eigen::SparseMatrix<Real>				SparseMatrix;
-	typedef Eigen::Matrix<Real, Eigen::Dynamic, 1>	DenseVector;
+typedef Eigen::SparseMatrix<Real>				SparseMatrix;
+typedef Eigen::Matrix<Real, Eigen::Dynamic, 1>	DenseVector;
 
 
 /*****************************************************************************/
@@ -1221,6 +1222,9 @@ void solver<QuadraturePrecision, TimeScheme>::initializeValues() {
 
 	Real const time = nt * dt;
 
+	//std::string		line;
+	//std::ifstream	infile;
+	//infile.open("D:\\simulations\\multicomponentflow\\pressure_400.txt");
 
 	for (unsigned k = 0; k < nk; k++) {
 
@@ -1245,6 +1249,26 @@ void solver<QuadraturePrecision, TimeScheme>::initializeValues() {
 		Real const y2 = vc->y;
 
 
+		/*Real BArray[3] = { 0.0,0.0,0.0 };
+
+		for (unsigned cc = 0; cc < 3; cc++) {
+
+			getline(infile, line);
+
+			std::istringstream ss(line);
+			double d;
+
+			while (ss >> d)
+				;
+
+			BArray[cc] = d;
+
+		}
+		getline(infile, line);*/
+
+		
+
+
 		/*****************************************************************************/
 		/*                                                                           */
 		/*    - Interpolant of the Barenblatt solution for the initial condition     */
@@ -1253,6 +1277,14 @@ void solver<QuadraturePrecision, TimeScheme>::initializeValues() {
 		Real const B0 = barenblatt(x0, y0, time);
 		Real const B1 = barenblatt(x1, y1, time);
 		Real const B2 = barenblatt(x2, y2, time);
+
+		//std::cout << B0 - BArray[0] << std::endl;
+		//std::cout << B1 - BArray[1] << std::endl;
+		//std::cout << B2 - BArray[2] << std::endl;
+
+		//Real const B0 = BArray[0];
+		//Real const B1 = BArray[1];
+		//Real const B2 = BArray[2];
 
 		Eigen::Vector3d const B(B0, B1, B2);
 
@@ -1307,6 +1339,8 @@ void solver<QuadraturePrecision, TimeScheme>::initializeValues() {
 		rkFp_n.setCoeff(k_index, 2) = 0.0;
 
 	}
+
+	//infile.close();
 
 };
 template<unsigned QuadraturePrecision, scheme TimeScheme>
@@ -2190,8 +2224,11 @@ template<unsigned QuadraturePrecision, scheme TimeScheme>
 void solver<QuadraturePrecision, TimeScheme>::assembleR() {
 
 
+	//std::vector<Eigen::Triplet<Real>> triplet1;
+	//std::vector<Eigen::Triplet<Real>> triplet2;
 
-	for (unsigned e = 0; e < ne; e++) {
+//#pragma omp parallel for
+	for (int e = 0; e < ne; e++) {
 
 
 		//em_pointer const E			= Mesh->get_edge(e);
@@ -2236,8 +2273,19 @@ void solver<QuadraturePrecision, TimeScheme>::assembleR() {
 				Value1 *= ChiCoeff0 / Viscosities[k_index];
 				Value2 *= ChiCoeff1 / Viscosities[k_index];
 
-				R1.coeffRef(e_index, 3 * k_index + l) = abs(Value1) < INTEGRAL_PRECISION ? 0.0 : Value1;
-				R2.coeffRef(e_index, 3 * k_index + l) = abs(Value2) < INTEGRAL_PRECISION ? 0.0 : Value2;
+				//R1.coeffRef(e_index, 3 * k_index + l) = abs(Value1) < INTEGRAL_PRECISION ? 0.0 : Value1;
+				//R2.coeffRef(e_index, 3 * k_index + l) = abs(Value2) < INTEGRAL_PRECISION ? 0.0 : Value2;
+
+				R1.insert(e_index, 3 * k_index + l) = abs(Value1) < INTEGRAL_PRECISION ? 0.0 : Value1;
+				R2.insert(e_index, 3 * k_index + l) = abs(Value2) < INTEGRAL_PRECISION ? 0.0 : Value2;
+
+				
+				/*Eigen::Triplet<Real> const T1(e_index, 3 * k_index + l, Value1);
+				Eigen::Triplet<Real> const T2(e_index, 3 * k_index + l, Value2);
+
+				triplet1.push_back(T1);
+				triplet2.push_back(T2);*/
+				
 
 			}
 		}
@@ -2309,6 +2357,9 @@ void solver<QuadraturePrecision, TimeScheme>::assembleR() {
 			*/
 
 	}
+
+	/*R1.setFromTriplets(triplet1.begin(), triplet1.end());
+	R2.setFromTriplets(triplet2.begin(), triplet2.end());*/
 
 };
 template<unsigned QuadraturePrecision, scheme TimeScheme>
@@ -3633,8 +3684,8 @@ void solver<QuadraturePrecision, TimeScheme>::assemble_Tau() {
 			for (unsigned j = 0; j < 8; j++) {
 
 
-				Eigen::Matrix<Real, 2, 1> const	Wj = BasisRaviartThomas.col(j);
-				Real const						dotProduct = Wj.dot(dPhim);
+				Eigen::Matrix<Real, 2, 1> const	Wj	= BasisRaviartThomas.col(j);
+				Real const dotProduct				= Wj.dot(dPhim);
 
 				for (unsigned l = 0; l < 3; l++) {
 
