@@ -81,7 +81,7 @@ const double b_x = 40.0;
 const double a_y = 0.0;
 const double b_y = 40.0;
 
-unsigned const refinement = 4;
+unsigned const refinement = 2*2*2;
 
 const int N_x = 4 * refinement;
 const int N_y = N_x;
@@ -117,6 +117,13 @@ std::string fileName_error			= "D:\\simulations\\multicomponentflow\\error_";
 std::vector<Vertex>		vertices;
 
 int main() {
+	
+	//std::cout << sizeof(double) << std::endl;
+	//std::cout << sizeof(MESHVertex) << std::endl;
+	//std::cout << sizeof(MESHEdge) << std::endl;
+	//std::cout << sizeof(MESHTriangle) << std::endl;
+	//return 0;
+
 	
 	//Eigen::initParallel();
 
@@ -276,7 +283,7 @@ int main() {
 		/*    - Create text file of the solution on the (n+1)-th time level			 */
 		/*                                                                           */
 		/*****************************************************************************/
-		solution.exportPressures(fileName_pressure + std::to_string(nt) + ".txt");
+		//solution.exportPressures(fileName_pressure + std::to_string(nt) + ".txt");
 		//solution.exportConcentrations(fileName_concentration + std::to_string(nt) + ".txt");
 
 
@@ -295,7 +302,7 @@ int main() {
 
 
 
-	//solution.computeError(fileName_error + std::to_string(N_x) + ".txt");
+	solution.computeError(fileName_error + std::to_string(N_x) + ".txt");
 
 
 

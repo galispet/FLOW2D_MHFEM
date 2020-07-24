@@ -92,6 +92,22 @@ MESH::MESH(Triangulation<GK> & triangulation) {
 	NumberOf_Dirichlet = triangulation.get_num_dirichlet_edges();
 	NumberOf_Neumann = triangulation.get_num_neumann_edges();
 
+	/*for (size_t k = 0; k < NumberOf_Triangles; k++) {
+
+		t_pointer const t = triangulation.triangles_tri[k];
+
+		std::cout << t->vertices[0]->index << std::endl;
+		std::cout << t->vertices[1]->index << std::endl;
+		std::cout << t->vertices[2]->index << std::endl;
+
+	}*/
+
+
+	//for (size_t i = 0; i < NumberOf_Triangles; i++) {
+	//	std::cout << triangulation.triangles_tri[i]->edges[0]->index << std::endl;
+	//	std::cout << triangulation.triangles_tri[i]->edges[1]->index << std::endl;
+	//	std::cout << triangulation.triangles_tri[i]->edges[2]->index << std::endl << std::endl;
+	//}
 
 	/*****************************************************************************/
 	/*                                                                           */
@@ -159,6 +175,23 @@ MESH::MESH(Triangulation<GK> & triangulation) {
 
 	for (size_t i = 0; i < triangles.size(); i++)
 		triangles[i]->index = (unsigned) i;
+
+
+	for (size_t i = 0; i < NumberOf_Triangles; i++) {
+
+
+		tm_pointer const t = triangles[i];
+
+		tm_pointer const n0 = t->neighbors[0];
+		tm_pointer const n1 = t->neighbors[1];
+		tm_pointer const n2 = t->neighbors[2];
+
+		//if (n0) std::cout << n0->index << std::endl;
+		//if (n1) std::cout << n1->index << std::endl;
+		//if (n2) std::cout << n2->index << std::endl;
+
+		//std::cout << std::endl;
+	}
 
 
 	/*****************************************************************************/
@@ -365,6 +398,11 @@ void MESH::set_adjacencies(Triangulation<GK> & triangulation) {
 
 		if (n2)	k->neighbors[2] = triangles[n2->index];
 		else	k->neighbors[2] = NULL;
+
+		//std::cout << t->vertices[0]->x << std::endl;
+		//std::cout << t->vertices[1]->x << std::endl;
+		//std::cout << t->vertices[2]->x << std::endl << std::endl;
+
 
 	}
 

@@ -725,7 +725,7 @@ solver<QuadraturePrecision, TimeScheme>::solver(MESH & mesh, int const nt0, Real
 
 
 			em_pointer const E		 = K->edges[El];
-			unsigned const	 e_index = E->index;
+			//unsigned const	 e_index = E->index;
 
 			vm_pointer const v = K->get_vertex_cw(E->a);
 			vm_pointer const p = K->get_vertex(El);
@@ -1769,7 +1769,6 @@ void solver<QuadraturePrecision, TimeScheme>::computePressureEquation() {
 	pressureSystemRhs.head(ne) = R1iD * G - V1;
 	pressureSystemRhs.tail(ne) = R2iD * G - V2;
 
-
 	/*****************************************************************************/
 	/*                                                                           */
 	/*    - Sparsity pattern is already known. Method factorize() is enough		 */
@@ -1777,7 +1776,7 @@ void solver<QuadraturePrecision, TimeScheme>::computePressureEquation() {
 	/*****************************************************************************/
 	//sparseLUsolver_PressureSystem.factorize(PressureSystem);
 	BiConjugateGradientSolver.factorize(PressureSystem);
-
+	
 	Tp		= BiConjugateGradientSolver.solveWithGuess(pressureSystemRhs, Tp);
 	PiTemp	= iD * G - (iDH1 * Tp.head(ne) + iDH2 * Tp.tail(ne));
 
@@ -2580,6 +2579,11 @@ void solver<QuadraturePrecision, TimeScheme>::assembleM() {
 
 	SparseMatrix tracePressureSystem_LU(2 * ne, 2 * ne);
 
+	//std::cout << M_j1_s1.toDense() << std::endl << std::endl;
+	//std::cout << M_j1_s2.toDense() << std::endl << std::endl;
+	//std::cout << M_j2_s1.toDense() << std::endl << std::endl;
+	//std::cout << M_j2_s2.toDense() << std::endl << std::endl;
+
 	/*****************************************************************************/
 	/*                                                                           */
 	/*    - Assembly of the matrix [ M11,M12 ; M21,M22 ] using Eigen Triplets    */
@@ -2687,6 +2691,8 @@ void solver<QuadraturePrecision, TimeScheme>::assembleV() {
 
 		}
 	}
+
+	//std::cout << V2 << std::endl << std::endl << std::endl;
 
 };
 
@@ -3229,6 +3235,9 @@ void solver<QuadraturePrecision, TimeScheme>::assemblePressureSystem() {
 
 	PressureSystem.setFromTriplets(TripletVector.cbegin(), TripletVector.cend());
 
+	//std::cout << PressureSystem << std::endl;
+
+
 };
 template<unsigned QuadraturePrecision, scheme TimeScheme>
 void solver<QuadraturePrecision, TimeScheme>::getSparsityPatternOfThePressureSystem() {
@@ -3463,6 +3472,12 @@ void solver<QuadraturePrecision, TimeScheme>::assemble_Alpha() {
 		for (unsigned i = 0; i < 8; i++)
 			for (unsigned j = 0; j < 8; j++)
 				Alpha.setCoeff(k_index, i, j) = abs(Integral(i, j)) < INTEGRAL_PRECISION ? 0.0 : Integral(i, j);
+
+		/*for (unsigned i = 0; i < 8; i++)
+			for (unsigned j = 0; j < 8; j++)
+				std::cout << Alpha(k, i, j) << std::endl;
+
+		std::cout << std::endl;*/
 
 	}
 
@@ -3752,6 +3767,8 @@ void solver<QuadraturePrecision, TimeScheme>::assemble_Delta() {
 				for (unsigned j = 0; j < 8; j++)
 					Delta.setCoeff(k_index, m, El, j) = Integral(m, j);
 
+			//std::cout << Integral << std::endl << std::endl;
+
 		}
 	}
 
@@ -3798,8 +3815,10 @@ void solver<QuadraturePrecision, TimeScheme>::assemble_Gamma() {
 
 				Gamma.setCoeff(k_index, m, j) = Value1 - Value2;
 
+				//std::cout << Value1 - Value2 << std::endl;
 			}
 		}
+		//std::cout << std::endl;
 	}
 
 };
@@ -4083,7 +4102,7 @@ void solver<QuadraturePrecision, TimeScheme>::getSolution() {
 	}
 
 
-	//std::cout << counter << std::endl;
+	//std::cout << nt << " - Iterations : " << counter << std::endl;
 
 	//if (nt % 1000 == 0)
 	//std::cout << nt << " - Iterations : " << counter << std::endl;
@@ -4224,7 +4243,7 @@ void solver<QuadraturePrecision, TimeScheme>::exportVelocityField(std::string co
 
 
 
-	quadrature_triangle<Real> const QuadratureOnTriangle(4);
+	quadrature_triangle<Real> const QuadratureOnTriangle(QuadraturePrecision);
 	unsigned const					NumberOfQuadraturePoints = QuadratureOnTriangle.NumberOfPoints;
 
 	Eigen::MatrixXd BasisRaviartThomas(2, 8);
