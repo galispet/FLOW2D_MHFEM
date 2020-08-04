@@ -40,6 +40,11 @@ inline double sqr(double x) {
 	return x * x;
 
 };
+inline double square(double const x) {
+
+	return x * x;
+
+};
 inline double δij(unsigned const i, unsigned const j) {
 
 	return i == j ? 1.0 : 0.0;
@@ -456,7 +461,7 @@ inline real NEUMANN_GAMMA_Q_velocity(e_pointer const E, real const time) {
 };
 inline real DIRICHLET_GAMMA_Q_concentration(e_pointer const E, real const time) {
 
-	return 0.0 * integrate_edge(E, time, barenblatt) / E->length();
+	return 0.0;
 
 };
 inline real DIRICHLET_GAMMA_P_concentration(e_pointer const E, real const time) {
